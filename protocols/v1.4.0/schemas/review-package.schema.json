@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rezahh107/PR-Inspector/protocols/v1.4.0/schemas/review-package.schema.json",
+  "title": "PR Inspector Review Package v1.4.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "protocol_version", "review_identity", "decision",
+    "capabilities", "scope", "change_summary", "evidence_records", "checks",
+    "findings", "unverified_areas", "required_actions", "out_of_scope_observations",
+    "owner_card", "red_gate_flags"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "protocol_version": {"const": "v1.4.0"},
+    "review_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inspector_repository", "inspector_commit_sha", "target_repository", "pr_number",
+        "base_branch", "base_sha", "head_branch", "reviewed_head_sha", "merge_base_sha",
+        "review_started", "review_completed", "review_validity", "execution_mode", "review_mode"
+      ],
+      "properties": {
+        "inspector_repository": {"type": "string", "minLength": 3},
+        "inspector_commit_sha": {"$ref": "#/$defs/sha"},
+        "target_repository": {"type": "string", "minLength": 3},
+        "pr_number": {"type": "integer", "minimum": 1},
+        "base_branch": {"type": "string", "minLength": 1},
+        "base_sha": {"$ref": "#/$defs/sha"},
+        "head_branch": {"type": "string", "minLength": 1},
+        "reviewed_head_sha": {"$ref": "#/$defs/sha"},
+        "merge_base_sha": {"anyOf": [{"$ref": "#/$defs/sha"}, {"type": "null"}]},
+        "review_started": {"type": "string", "format": "date-time"},
+        "review_completed": {"type": "string", "format": "date-time"},
+        "review_validity": {"enum": ["CURRENT", "STALE", "UNKNOWN"]},
+        "execution_mode": {"enum": ["NONE", "SAFE_LOCAL", "CI_EVIDENCE_ONLY"]},
+        "review_mode": {"enum": ["FULL", "RISK_PRIORITIZED", "PARTIAL"]}
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "technical_status", "risk_classification", "sensitive_domains",
+        "approval_requirement", "blocking_findings_count", "next_required_action"
+      ],
+      "properties": {
+        "technical_status": {"enum": ["GREEN_TECHNICALLY_READY", "YELLOW_CHANGES_OR_VERIFICATION_REQUIRED", "RED_DO_NOT_MERGE"]},
+        "risk_classification": {"enum": ["LOW", "MODERATE", "HIGH", "SENSITIVE"]},
+        "sensitive_domains": {"$ref": "#/$defs/stringList"},
+        "approval_requirement": {"enum": ["NO_ADDITIONAL_TECHNICAL_APPROVAL", "PROJECT_OWNER_CONFIRMATION", "HUMAN_TECHNICAL_REVIEW_REQUIRED", "SECURITY_OR_DOMAIN_SPECIALIST_REQUIRED"]},
+        "blocking_findings_count": {"type": "integer", "minimum": 0},
+        "next_required_action": {"type": "string", "minLength": 1}
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "minProperties": 10,
+      "additionalProperties": {"enum": ["AVAILABLE", "UNAVAILABLE", "UNKNOWN", "AVAILABLE_BUT_NOT_USED"]}
+    },
+    "scope": {
+      "type": "object",
+      "required": [
+        "total_changed_files", "total_changed_lines", "files_fully_reviewed",
+        "files_partially_reviewed", "files_not_reviewed", "files_reviewed_outside_diff",
+        "high_risk_areas_reviewed", "high_risk_areas_not_reviewed",
+        "excluded_generated_or_vendor_files", "coverage_complete", "scope_limit_reason"
+      ],
+      "properties": {
+        "total_changed_files": {"type": "integer", "minimum": 0},
+        "total_changed_lines": {"type": "integer", "minimum": 0},
+        "files_fully_reviewed": {"$ref": "#/$defs/stringList"},
+        "files_partially_reviewed": {"$ref": "#/$defs/stringList"},
+        "files_not_reviewed": {"$ref": "#/$defs/stringList"},
+        "files_reviewed_outside_diff": {"$ref": "#/$defs/stringList"},
+        "high_risk_areas_reviewed": {"$ref": "#/$defs/stringList"},
+        "high_risk_areas_not_reviewed": {"$ref": "#/$defs/stringList"},
+        "excluded_generated_or_vendor_files": {"$ref": "#/$defs/stringList"},
+        "coverage_complete": {"type": "boolean"},
+        "scope_limit_reason": {"type": ["string", "null"]}
+      }
+    },
+    "change_summary": {"type": "object", "minProperties": 4},
+    "evidence_records": {"type": "array", "items": {"$ref": "#/$defs/evidence"}},
+    "checks": {"type": "array", "items": {"$ref": "#/$defs/check"}},
+    "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
+    "unverified_areas": {"$ref": "#/$defs/stringList"},
+    "required_actions": {"$ref": "#/$defs/stringList"},
+    "out_of_scope_observations": {"$ref": "#/$defs/stringList"},
+    "owner_card": {"type": "object", "minProperties": 6},
+    "red_gate_flags": {"$ref": "#/$defs/stringList"}
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^(UNKNOWN|[0-9a-f]{40})$"},
+    "stringList": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "evidence": {
+      "type": "object",
+      "required": ["evidence_id", "evidence_type", "source", "reviewed_head_sha", "result", "excerpt", "reference", "sha256", "redactions", "limitations"]
+    },
+    "check": {
+      "type": "object",
+      "required": ["check_id", "name", "required", "state", "result", "evidence_id"]
+    },
+    "finding": {
+      "type": "object",
+      "required": ["finding_id", "severity", "evidence_label", "blocking", "file_location", "symbol", "relevant_code", "issue", "failure_scenario", "recommended_fix", "recommended_test", "evidence_refs", "rule_ids"]
+    }
+  }
+}
