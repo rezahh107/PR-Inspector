@@ -1,28 +1,36 @@
 # PR Inspector
 
-Evidence-based pull-request review for non-technical project owners and downstream AI reviewers.
+PR Inspector is a versioned, evidence-based pull-request review protocol for non-technical project owners, technical reviewers, and downstream AI agents.
 
 ## Start here
 
-Ask the model to read [`BOOTSTRAP.md`](BOOTSTRAP.md). It will load the active protocol and request the target repository plus pull-request number.
+Ask the reviewing model to read [`BOOTSTRAP.md`](BOOTSTRAP.md). The bootstrap verifies the active immutable protocol and requests a target repository plus pull-request number.
 
-## Outputs
+## Authoritative output model
 
-1. A short Persian Owner Decision Card.
-2. A complete English Technical Handoff Package.
+Every completed review produces three synchronized artifacts:
 
-## Repository map
+1. `review-package.json` — canonical machine-readable source of truth;
+2. `OWNER_DECISION_CARD.fa.md` — concise Persian owner decision interface;
+3. `TECHNICAL_HANDOFF.en.md` — complete English technical handoff.
 
-- [`AGENTS.md`](AGENTS.md): compact agent instructions
-- [`protocol-manifest.yaml`](protocol-manifest.yaml): canonical load order
-- [`contracts/v1.3.0/PR_REVIEW_CONTRACT.md`](contracts/v1.3.0/PR_REVIEW_CONTRACT.md): active contract
-- [`pipeline/REVIEW_PIPELINE.md`](pipeline/REVIEW_PIPELINE.md): operational sequence
-- [`templates/`](templates/): fixed report formats
+The Markdown artifacts must be deterministically rendered from the JSON package. A mismatch invalidates the review.
 
 ## Validation
 
 ```bash
-python scripts/validate_repository.py
+python -m pip install ".[dev]"
+python scripts/validate_repository_v2.py
+python -m pytest
+python scripts/validate_review_v2.py fixtures/golden-green --package-only
 ```
 
-Active protocol: `v1.3.0`
+## Active protocol
+
+`v1.4.0`
+
+The complete protocol snapshot is under [`protocols/v1.4.0/`](protocols/v1.4.0/) and protected by [`release-locks/v1.4.0.sha256`](release-locks/v1.4.0.sha256).
+
+## License
+
+Apache License 2.0. See [`LICENSE`](LICENSE).
