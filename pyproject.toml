@@ -1,0 +1,18 @@
+[project]
+name = "pr-inspector-protocol"
+version = "1.4.0"
+description = "Deterministic evidence-based pull-request review protocol and validators"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+dependencies = [
+  "jsonschema==4.26.0",
+  "PyYAML==6.0.3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==9.1.1"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+pythonpath = ["."]
