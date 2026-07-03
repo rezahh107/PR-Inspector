@@ -1,0 +1,34 @@
+schema_version: 1
+protocol_name: PR Inspector
+active_version: v1.3.0
+status: active
+entrypoint: BOOTSTRAP.md
+default_owner_language: fa
+default_technical_language: en
+operation_mode: read_only_review
+canonical_contract: contracts/v1.3.0/PR_REVIEW_CONTRACT.md
+
+load_order:
+  - contracts/v1.3.0/PR_REVIEW_CONTRACT.md
+  - policies/SECURITY_AND_TRUST.md
+  - policies/DECISION_GATES.md
+  - policies/OWNER_OUTPUT_UX.md
+  - pipeline/REVIEW_PIPELINE.md
+  - templates/OWNER_DECISION_CARD.fa.md
+  - templates/TECHNICAL_HANDOFF.en.md
+  - prompts/INTAKE_RESPONSE.fa.md
+
+required_outputs:
+  - owner_decision_card
+  - technical_handoff_package
+
+forbidden_default_actions:
+  - modify_target_repository
+  - create_comment
+  - approve_pull_request
+  - merge_pull_request
+  - deploy
+  - access_protected_credentials
+  - access_production
+
+validation_command: python scripts/validate_repository.py
