@@ -1,36 +1,44 @@
 # Maintenance Guide
 
-## Safe change sequence
+## Behavioral release
 
-1. Create a branch.
-2. Decide whether the change is editorial or behavioral.
-3. For behavioral changes, create a new contract version.
-4. Update the manifest and `CURRENT_VERSION`.
-5. Update affected policy and template files.
-6. Update `CHANGELOG.md`.
-7. Run `python scripts/validate_repository.py`.
-8. Open a PR; do not silently rewrite a released version.
+1. Copy the previous snapshot into `protocols/vNEXT/`.
+2. Document every behavioral change and preserve unchanged rules.
+3. Update contract, policies, pipeline, templates, schema, and semantic rules together.
+4. Add positive and negative fixtures for every changed rule.
+5. Update `CURRENT_VERSION`, `protocol-manifest.yaml`, `CHANGELOG.md`, and package metadata.
+6. Generate `release-locks/vNEXT.sha256` only after the snapshot is final.
+7. Run repository validation and the complete test suite.
+8. Open a pull request and require successful CI before merge.
 
-## Keep the repository model-readable
+## Implementation-only change
 
-- One explicit entry point.
-- Short root instructions.
-- Deterministic load order.
-- Stable headings and filenames.
-- One concept per document.
-- No duplicated normative rule with conflicting wording.
-- Examples clearly labeled as examples.
-- Exact allowed values instead of vague prose.
-- Honest uncertainty and enforcement status.
+An implementation fix may retain the protocol version only when it does not alter accepted or rejected review behavior. Add a regression test and do not modify locked protocol files.
 
-## Release checklist
+## Release gates
 
-- [ ] `CURRENT_VERSION` matches the manifest.
-- [ ] Canonical contract exists.
-- [ ] Every `load_order` file exists.
-- [ ] Owner and handoff templates exist.
-- [ ] Intake requests the target repository and PR.
-- [ ] Target content remains untrusted.
-- [ ] Sensitive-review gate remains mandatory.
-- [ ] Changelog is updated.
-- [ ] Structural validator passes.
+- all active canonical files are version-scoped;
+- the release lock covers every active canonical file;
+- the schema is valid under JSON Schema Draft 2020-12;
+- the golden package is accepted;
+- negative mutations are rejected with stable diagnostic IDs;
+- deterministic rendering and artifact comparison pass;
+- CI passes on all supported Python versions;
+- documentation and changelog match actual implementation.
+
+## Commands
+
+```bash
+python -m pip install ".[dev]"
+python scripts/validate_repository_v2.py
+python -m pytest
+python scripts/validate_review_v2.py fixtures/golden-green --package-only
+```
+
+## Prohibited maintenance actions
+
+- silently rewriting a released protocol snapshot;
+- changing a release lock to hide an unauthorized snapshot edit;
+- weakening a gate without a new protocol version and tests;
+- representing synthetic fixtures as real reviews;
+- claiming CI, fixture, or runtime validation that was not executed.
