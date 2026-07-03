@@ -42,7 +42,7 @@ def manifest_load_order(text: str) -> List[str]:
 
 
 def main() -> int:
-    errors: list[str] = []
+    errors: List[str] = []
 
     for rel in REQUIRED:
         if not (ROOT / rel).is_file():
