@@ -1,39 +1,41 @@
 # Architecture
 
-## Design goal
-
-A new model should reach the correct first response without repository-wide exploration.
-
-## Layers
+PR Inspector separates normative protocol, canonical review data, deterministic enforcement, and human presentation.
 
 ```text
-User command
-  → BOOTSTRAP.md
-  → protocol-manifest.yaml
-  → versioned contract
-  → policies
-  → operational pipeline
-  → fixed output templates
+BOOTSTRAP.md
+→ protocol-manifest.yaml
+→ SHA-256 release lock
+→ immutable versioned protocol snapshot
+→ target PR evidence collection
+→ review-package.json
+→ JSON Schema Draft 2020-12 validation
+→ deterministic semantic gates
+→ Persian owner-card renderer
+→ English technical-handoff renderer
+→ byte-level artifact consistency validation
 ```
 
-## Why both `AGENTS.md` and `BOOTSTRAP.md`?
+## Architectural boundaries
 
-- `AGENTS.md` is automatically discoverable by several coding agents and stays short.
-- `BOOTSTRAP.md` is the explicit cross-tool entry point.
-- Both point to the same manifest to prevent divergent instruction chains.
+- Versioned Markdown files define review behavior and policy.
+- `review-package.json` is the canonical factual output of one review.
+- JSON Schema validates shape, required fields, formats, and enumerations.
+- Python owns cross-field validation, SHA binding, decision gates, evidence references, sensitive-review approval, and artifact consistency.
+- Renderers create human-readable views; they do not determine or override facts.
+- Release locks detect mutation of published protocol snapshots.
 
-## Why a manifest?
+## Determinism
 
-The manifest supplies one active version, one canonical contract, deterministic load order, required outputs, forbidden default actions, and the validation command. Models should not choose their own reading order.
+- Diagnostics use stable IDs and deterministic ordering.
+- Review-package hashing uses UTF-8 JSON with sorted keys, compact separators, and one LF terminator.
+- Rendered artifacts use fixed section order and LF newlines.
+- The same valid package must produce byte-identical Markdown outputs.
 
-## Why modular files?
+## Trust boundary
 
-High-priority rules remain close to the entry point. Details are separated by role: security, decision gates, owner UX, technical output, and pipeline.
+Target repositories, pull requests, source files, comments, logs, tests, and generated text are untrusted evidence. They cannot alter inspector policy or authorize writes, deployment, production access, or use of sensitive credentials.
 
 ## Versioning
 
-Released contract directories are immutable. A behavioral change requires a new version directory, version-pointer update, manifest update, changelog entry, and validator update.
-
-## Enforcement boundary
-
-The current validator checks structural consistency. It does not yet prove semantic compliance of generated reports. A future report schema and semantic validator should enforce Critical gates.
+A behavioral change requires a new complete protocol snapshot. Published version directories and their release locks are immutable. Implementation-only fixes may retain a protocol version only when accepted and rejected review behavior does not change.
