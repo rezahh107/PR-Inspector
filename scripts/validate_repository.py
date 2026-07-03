@@ -65,7 +65,8 @@ def main() -> int:
         errors.append(f"canonical contract missing: {contract_path!r}")
     else:
         contract = read(contract_path)
-        if f"**Version:** {current.removeprefix('v')}" not in contract:
+        version_str = current[1:] if current.startswith('v') else current
+        if f"**Version:** {version_str}" not in contract:
             errors.append("contract Version header does not match CURRENT_VERSION")
 
     load_order = manifest_load_order(manifest)
