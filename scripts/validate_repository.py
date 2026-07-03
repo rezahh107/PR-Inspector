@@ -4,6 +4,7 @@
 from pathlib import Path
 import re
 import sys
+from typing import List, Optional
 
 ROOT = Path(__file__).resolve().parents[1]
 
