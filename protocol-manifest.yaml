@@ -37,6 +37,6 @@ forbidden_default_actions:
   - access_production
 
 validation_commands:
-  repository: python scripts/validate_repository.py
-  review: python scripts/validate_review.py REVIEW_DIRECTORY
-  render: python scripts/render_review.py REVIEW_DIRECTORY/review-package.json --output-dir REVIEW_DIRECTORY
+  repository: python scripts/validate_repository_v2.py
+  review: python scripts/validate_review_v2.py REVIEW_DIRECTORY
+  render: python scripts/render_review_v2.py REVIEW_DIRECTORY/review-package.json --output-dir REVIEW_DIRECTORY
