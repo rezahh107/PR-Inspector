@@ -6,5 +6,5 @@ bd74ed496b93c1138da39bd26299c93983a68db866f1b4ead69206a88284a9ba  protocols/v1.4
 437de731f638ce3145863f83edc24f8201da9753a5da0c3839a4eb889032d7e5  protocols/v1.4.0/pipeline/REVIEW_PIPELINE.md
 293d195f0ca275b82cce246c46b13f038c8b8e9de83d31e13f412d61a8a33c49  protocols/v1.4.0/templates/OWNER_DECISION_CARD.fa.md
 0f621cdb40ee6f9aa1ee8887966c4b95f68fbe69ebf114493ee05fbbab554429  protocols/v1.4.0/templates/TECHNICAL_HANDOFF.en.md
-8cb88fa12eb1cdf2d78e3c18c5aa305463123b342c26e2f5b8e4ce52cbdda7dc  protocols/v1.4.0/schemas/review-package.schema.json
+d9974f3dc301645958d2956133f9940ccc8e440dccf975a11b6725ce878053d3  protocols/v1.4.0/schemas/review-package.schema.json
 5c4f1eefb7523673bfe2699814179b71ea00bf3ebd5eaa49fdc02637af2386a0  protocols/v1.4.0/prompts/INTAKE_RESPONSE.fa.md
