@@ -1,16 +1,16 @@
 # Contributing
 
-Before proposing a change:
-
-1. Read `BOOTSTRAP.md`, `AGENTS.md`, and `docs/MAINTENANCE.md`.
-2. Preserve the single-entry-point architecture.
-3. For behavioral changes, create a new protocol version instead of rewriting a released version.
-4. Run:
+1. Read `BOOTSTRAP.md`, `AGENTS.md`, and the active maintenance rules.
+2. Classify the change as editorial, implementation-only, or protocol-behavioral.
+3. Never edit a released `protocols/vX.Y.Z/` directory or its release lock.
+4. Behavioral changes require a new versioned protocol snapshot plus manifest and version-pointer updates.
+5. Add or update schemas, diagnostics, fixtures, and tests for every changed rule.
+6. Run:
 
 ```bash
-python scripts/validate_repository.py
+python -m pip install ".[dev]"
+python scripts/validate_repository_v2.py
+python -m pytest
 ```
 
-5. Explain whether the change is editorial or changes review behavior.
-
-A project license has not yet been selected. Clarify contribution terms before accepting substantial external contributions.
+Contributions are accepted under Apache-2.0 unless explicitly marked otherwise.

@@ -1,0 +1,10 @@
+# PR Inspector protocol v1.4.0 canonical SHA-256 lock
+78b543184b5277713281b8970d35af856e7355be531a78290241cd288c8ec4b9  protocols/v1.4.0/PR_REVIEW_CONTRACT.md
+3a3318a0d2adf5dc72cd1c96446efd7fb23e465c504fcfe7e6133a8f51f98607  protocols/v1.4.0/policies/SECURITY_AND_TRUST.md
+22ef075b1c223ee5f1489c8408f7d57b76ea195fc96aa4038d9acc31fadea473  protocols/v1.4.0/policies/DECISION_GATES.md
+bd74ed496b93c1138da39bd26299c93983a68db866f1b4ead69206a88284a9ba  protocols/v1.4.0/policies/OWNER_OUTPUT_UX.md
+437de731f638ce3145863f83edc24f8201da9753a5da0c3839a4eb889032d7e5  protocols/v1.4.0/pipeline/REVIEW_PIPELINE.md
+293d195f0ca275b82cce246c46b13f038c8b8e9de83d31e13f412d61a8a33c49  protocols/v1.4.0/templates/OWNER_DECISION_CARD.fa.md
+0f621cdb40ee6f9aa1ee8887966c4b95f68fbe69ebf114493ee05fbbab554429  protocols/v1.4.0/templates/TECHNICAL_HANDOFF.en.md
+d9974f3dc301645958d2956133f9940ccc8e440dccf975a11b6725ce878053d3  protocols/v1.4.0/schemas/review-package.schema.json
+5c4f1eefb7523673bfe2699814179b71ea00bf3ebd5eaa49fdc02637af2386a0  protocols/v1.4.0/prompts/INTAKE_RESPONSE.fa.md
