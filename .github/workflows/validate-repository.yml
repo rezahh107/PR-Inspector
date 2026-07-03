@@ -9,10 +9,18 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: validate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
@@ -20,5 +28,17 @@ jobs:
           persist-credentials: false
           fetch-depth: 1
 
-      - name: Validate protocol structure
-        run: python scripts/validate_repository.py
+      - name: Set up Python
+        uses: actions/setup-python@bfe8cc55a7890e3d6672eda6460ef37bfcc70755
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install pinned project and test dependencies
+        run: python -m pip install --disable-pip-version-check ".[dev]"
+
+      - name: Validate versioned repository
+        run: python scripts/validate_repository_v2.py
+
+      - name: Run semantic and rendering tests
+        run: python -m pytest
