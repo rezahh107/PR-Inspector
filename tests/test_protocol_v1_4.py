@@ -98,3 +98,12 @@ def test_rendering_and_artifact_consistency(tmp_path):
 
 def test_checked_in_end_to_end_example_is_consistent():
     assert validate_directory(ROOT / "examples/end-to-end-v1.4") == []
+
+
+def test_malformed_nested_data_is_schema_rejected_without_semantic_crash():
+    value = package()
+    value["checks"][0]["required"] = "yes"
+    value["capabilities"].pop("network")
+    diagnostics = validate_package(value)
+    assert len(diagnostics) >= 2
+    assert {item.code for item in diagnostics} == {"PRI-SCHEMA-001"}
