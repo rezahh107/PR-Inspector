@@ -29,7 +29,7 @@ def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
-def manifest_value(text: str, key: str) -> str | None:
+def manifest_value(text: str, key: str) -> Optional[str]:
     match = re.search(rf"(?m)^{re.escape(key)}:\s*([^\n#]+)", text)
     return match.group(1).strip() if match else None
 
