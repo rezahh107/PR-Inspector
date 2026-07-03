@@ -34,7 +34,7 @@ def manifest_value(text: str, key: str) -> Optional[str]:
     return match.group(1).strip() if match else None
 
 
-def manifest_load_order(text: str) -> list[str]:
+def manifest_load_order(text: str) -> List[str]:
     block = re.search(r"(?m)^load_order:\s*\n(?P<body>(?:  - .*(?:\n|$))+)", text)
     if not block:
         return []
