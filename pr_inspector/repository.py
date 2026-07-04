@@ -8,6 +8,19 @@ from jsonschema import Draft202012Validator
 from .diagnostics import Diagnostic
 
 ROOT = Path(__file__).resolve().parents[1]
+QUALITY_FOUNDATION = "docs/QUALITY_ATTRIBUTE_MODEL.md"
+QUALITY_REQUIRED_PHRASES = {
+    "non-canonical planning reference": "must be marked as a non-canonical planning reference",
+    "If this document conflicts with the active protocol, the active protocol wins.": "must state active-protocol precedence",
+    "COR-INTENT-001": "must include the intent-fit seed rule",
+    "COR-REG-001": "must include the regression-risk seed rule",
+    "COR-STATE-001": "must include the consistency seed rule",
+    "COR-TEST-001": "must include the validation-adequacy seed rule",
+    "COR-RESEARCH-001": "must include the research-backed-claims seed rule",
+    "Planning-only": "must distinguish planning-only material from enforcement",
+    "Partially enforceable": "must distinguish partial enforcement from full enforcement",
+    "No active protocol behavior is changed": "must not claim active protocol enforcement",
+}
 
 
 def sha256(path: Path) -> str:
@@ -24,12 +37,30 @@ def parse_lock(path: Path) -> dict[str, str]:
     return out
 
 
+def validate_quality_foundation(root: Path, load_order: list[str]) -> list[Diagnostic]:
+    diagnostics: list[Diagnostic] = []
+    path = root / QUALITY_FOUNDATION
+    if not path.is_file():
+        return [Diagnostic("PRI-QUAL-001", f"/{QUALITY_FOUNDATION}", "quality foundation document is missing")]
+    if QUALITY_FOUNDATION in load_order:
+        diagnostics.append(Diagnostic("PRI-QUAL-002", f"/{QUALITY_FOUNDATION}", "planning reference must not be listed as active canonical protocol"))
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return [Diagnostic("PRI-QUAL-003", f"/{QUALITY_FOUNDATION}", str(exc))]
+    for phrase, message in QUALITY_REQUIRED_PHRASES.items():
+        if phrase not in text:
+            diagnostics.append(Diagnostic("PRI-QUAL-004", f"/{QUALITY_FOUNDATION}", message))
+    return diagnostics
+
+
 def validate_repository(root: Path = ROOT) -> list[Diagnostic]:
     diagnostics = []
     required = [
         "README.md", "BOOTSTRAP.md", "AGENTS.md", "CURRENT_VERSION",
         "protocol-manifest.yaml", "CHANGELOG.md", "LICENSE",
         "requirements.txt", "requirements-dev.txt", "pyproject.toml",
+        QUALITY_FOUNDATION,
     ]
     for rel in required:
         if not (root / rel).is_file():
@@ -46,6 +77,7 @@ def validate_repository(root: Path = ROOT) -> list[Diagnostic]:
     load_order = manifest.get("load_order") or []
     if len(load_order) != len(set(load_order)):
         diagnostics.append(Diagnostic("PRI-REPO-004", "/protocol-manifest.yaml/load_order", "duplicate canonical path"))
+    diagnostics.extend(validate_quality_foundation(root, load_order))
     prefix = f"protocols/{current}/"
     for idx, rel in enumerate(load_order):
         if not str(rel).startswith(prefix):
