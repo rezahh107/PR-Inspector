@@ -20,7 +20,8 @@ Describe the change and its purpose.
 - [ ] Bootstrap entry point remains valid
 - [ ] Owner and technical outputs remain aligned
 - [ ] Released versions were not silently rewritten
-- [ ] `python scripts/validate_repository.py` passes
+- [ ] `python scripts/validate_repository_v2.py` passes
+- [ ] `python -m pytest` passes
 
 ## Validation output
 
