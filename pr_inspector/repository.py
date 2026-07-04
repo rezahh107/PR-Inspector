@@ -10,15 +10,18 @@ from .diagnostics import Diagnostic
 ROOT = Path(__file__).resolve().parents[1]
 QUALITY_FOUNDATION = "docs/QUALITY_ATTRIBUTE_MODEL.md"
 QUALITY_REQUIRED_PHRASES = {
-    "non-canonical planning reference": "must be marked as a non-canonical planning reference",
+    "Status: repository-required planning infrastructure.": "must be marked as repository-required planning infrastructure",
+    "It is not part of the active protocol `load_order`.": "must state it is outside the active protocol load_order",
+    "It defines no active review rule.": "must state it defines no active review rule",
+    "Its seed rules are planning-only until promoted through a new protocol snapshot, schema/validator/fixture, and release lock.": "must state seed rules are planning-only until properly promoted",
+    "Repository validation keeps this document guarded and outside the active protocol `load_order`.": "must state repository validation guards the protocol boundary",
     "If this document conflicts with the active protocol, the active protocol wins.": "must state active-protocol precedence",
     "COR-INTENT-001": "must include the intent-fit seed rule",
     "COR-REG-001": "must include the regression-risk seed rule",
     "COR-STATE-001": "must include the consistency seed rule",
     "COR-TEST-001": "must include the validation-adequacy seed rule",
     "COR-RESEARCH-001": "must include the research-backed-claims seed rule",
-    "Planning-only": "must distinguish planning-only material from enforcement",
-    "Partially enforceable": "must distinguish partial enforcement from full enforcement",
+    "Validation does not make this document part of the active protocol and does not make the seed rules active review rules.": "must distinguish repository validation from active review-rule enforcement",
     "No active protocol behavior is changed": "must not claim active protocol enforcement",
 }
 
@@ -41,9 +44,9 @@ def validate_quality_foundation(root: Path, load_order: list[str]) -> list[Diagn
     diagnostics: list[Diagnostic] = []
     path = root / QUALITY_FOUNDATION
     if not path.is_file():
-        return [Diagnostic("PRI-QUAL-001", f"/{QUALITY_FOUNDATION}", "quality foundation document is missing")]
+        return [Diagnostic("PRI-QUAL-001", f"/{QUALITY_FOUNDATION}", "repository-required quality foundation planning infrastructure is missing")]
     if QUALITY_FOUNDATION in load_order:
-        diagnostics.append(Diagnostic("PRI-QUAL-002", f"/{QUALITY_FOUNDATION}", "planning reference must not be listed as active canonical protocol"))
+        diagnostics.append(Diagnostic("PRI-QUAL-002", f"/{QUALITY_FOUNDATION}", "repository-required planning infrastructure must not be listed in active protocol load_order"))
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as exc:
