@@ -11,9 +11,58 @@ from .constants import (
 )
 from .diagnostics import Diagnostic
 
+SUPPORTED_INTENT_LABELS = {"REPRODUCED", "CODE_SUPPORTED"}
+INTENT_CLAIM_PHRASES = (
+    "satisfies its intent",
+    "satisfies the stated intent",
+    "intent is satisfied",
+    "matches intended behavior",
+    "implementation matches intended behavior",
+    "هدف pr را برآورده",
+    "هدف را برآورده",
+    "مطابق هدف",
+    "رفتار موردنظر را پیاده",
+)
+
 
 def _diag(code: str, path: str, message: str) -> Diagnostic:
     return Diagnostic(code, path, message)
+
+
+def _text_claims_intent_satisfied(pkg: dict[str, Any]) -> bool:
+    parts: list[str] = []
+    for section in ("change_summary", "owner_card"):
+        value = pkg.get(section, {})
+        if isinstance(value, dict):
+            parts.extend(str(item) for item in value.values() if item is not None)
+    decision = pkg.get("decision", {})
+    if isinstance(decision, dict):
+        parts.append(str(decision.get("next_required_action", "")))
+    text = "\n".join(parts).lower()
+    return any(phrase in text for phrase in INTENT_CLAIM_PHRASES)
+
+
+def _claims_intent_satisfied(pkg: dict[str, Any]) -> bool:
+    decision = pkg.get("decision", {})
+    return decision.get("technical_status") == STATUS_GREEN or _text_claims_intent_satisfied(pkg)
+
+
+def _intent_item_supported(item: dict[str, Any], evidence: dict[str, dict[str, Any]], reviewed_head_sha: str) -> bool:
+    label = item.get("evidence_label")
+    if label not in SUPPORTED_INTENT_LABELS:
+        return False
+    refs = [evidence[ref] for ref in item.get("evidence_refs", []) if ref in evidence]
+    if label == "CODE_SUPPORTED":
+        return any(ref["evidence_type"] == "CODE" and ref["reviewed_head_sha"] == reviewed_head_sha for ref in refs)
+    if label == "REPRODUCED":
+        return any(ref["evidence_type"] in {"EXECUTION", "CI"} and ref["reviewed_head_sha"] == reviewed_head_sha and ref["result"] == "PASS" for ref in refs)
+    return False
+
+
+def _intent_fit_supported(pkg: dict[str, Any], evidence: dict[str, dict[str, Any]]) -> bool:
+    identity = pkg["review_identity"]
+    intent_fit = pkg.get("intent_fit") or {}
+    return any(_intent_item_supported(item, evidence, identity["reviewed_head_sha"]) for item in intent_fit.get("implementation_evidence", []))
 
 
 def expected_status(pkg: dict[str, Any]) -> tuple[str, list[str]]:
@@ -23,6 +72,7 @@ def expected_status(pkg: dict[str, Any]) -> tuple[str, list[str]]:
     scope = pkg["scope"]
     findings = pkg["findings"]
     checks = pkg["checks"]
+    intent_fit = pkg.get("intent_fit")
 
     if pkg.get("red_gate_flags"):
         red.append("explicit red-gate flag")
@@ -53,9 +103,48 @@ def expected_status(pkg: dict[str, Any]) -> tuple[str, list[str]]:
         yellow.append("high-risk area unreviewed")
     if not scope["coverage_complete"]:
         yellow.append("coverage incomplete")
+    if intent_fit is None:
+        yellow.append("intent fit missing")
+    elif intent_fit["intent_fit_result"] != "satisfied":
+        yellow.append("intent fit is not satisfied")
+    elif intent_fit["unsupported_claims"]:
+        yellow.append("unsupported intent claim remains")
     if yellow:
         return STATUS_YELLOW, yellow
     return STATUS_GREEN, []
+
+
+def validate_intent_fit(pkg: dict[str, Any], evidence: dict[str, dict[str, Any]]) -> list[Diagnostic]:
+    diagnostics: list[Diagnostic] = []
+    intent_fit = pkg.get("intent_fit")
+    if intent_fit is None:
+        if _claims_intent_satisfied(pkg):
+            diagnostics.append(_diag("PRI-INTENT-001", "/intent_fit", "claiming full intent satisfaction requires a structured intent_fit object"))
+        return diagnostics
+
+    implementation_evidence = intent_fit["implementation_evidence"]
+    if intent_fit["intent_source"] == "missing_or_insufficient" and intent_fit["intent_fit_result"] == "satisfied":
+        diagnostics.append(_diag("PRI-INTENT-003", "/intent_fit/intent_fit_result", "missing or insufficient intent cannot be marked satisfied"))
+
+    missing_refs: list[str] = []
+    for index, item in enumerate(implementation_evidence):
+        for ref in item["evidence_refs"]:
+            if ref not in evidence:
+                missing_refs.append(ref)
+                diagnostics.append(_diag("PRI-INTENT-004", f"/intent_fit/implementation_evidence/{index}/evidence_refs", f"unknown evidence reference {ref}"))
+
+    if intent_fit["intent_fit_result"] == "satisfied":
+        if not implementation_evidence:
+            diagnostics.append(_diag("PRI-INTENT-002", "/intent_fit/implementation_evidence", "satisfied intent fit requires concrete implementation evidence"))
+        elif not missing_refs and not _intent_fit_supported(pkg, evidence):
+            diagnostics.append(_diag("PRI-INTENT-002", "/intent_fit/implementation_evidence", "HYPOTHESIS or NOT_ASSESSABLE evidence cannot support satisfied intent fit"))
+        if intent_fit["unsupported_claims"]:
+            diagnostics.append(_diag("PRI-INTENT-005", "/intent_fit/unsupported_claims", "satisfied intent fit cannot retain unsupported satisfaction claims"))
+
+    if intent_fit["intent_source"] == "missing_or_insufficient" and _claims_intent_satisfied(pkg):
+        diagnostics.append(_diag("PRI-INTENT-006", "/intent_fit/intent_source", "missing or insufficient intent must not be paired with a full satisfaction claim"))
+
+    return diagnostics
 
 
 def validate_semantics(pkg: dict[str, Any]) -> list[Diagnostic]:
@@ -112,6 +201,8 @@ def validate_semantics(pkg: dict[str, Any]) -> list[Diagnostic]:
             if not any(item["evidence_type"] in {"EXECUTION", "CI"} and item["reviewed_head_sha"] == identity["reviewed_head_sha"] and item["result"] == "FAIL" for item in refs):
                 diagnostics.append(_diag("PRI-EXEC-001", f"/findings/{index}/evidence_label", "REPRODUCED requires failing execution or CI evidence tied to the reviewed head SHA"))
 
+    diagnostics.extend(validate_intent_fit(pkg, evidence))
+
     expected, reasons = expected_status(pkg)
     if decision["technical_status"] != expected:
         diagnostics.append(_diag("PRI-STATUS-001", "/decision/technical_status", f"expected {expected}; reasons: {', '.join(reasons) or 'all Green gates satisfied'}"))
@@ -124,8 +215,7 @@ def validate_semantics(pkg: dict[str, Any]) -> list[Diagnostic]:
     except ValueError:
         pass
 
-    protected_key = "protected_" + "credentials"
-    if pkg["capabilities"]["production"] == "AVAILABLE" or pkg["capabilities"][protected_key] == "AVAILABLE":
-        diagnostics.append(_diag("PRI-SECRET-001", "/capabilities", "ordinary review cannot declare production or protected credentials as available"))
+    if pkg["capabilities"]["production"] == "AVAILABLE" or pkg["capabilities"]["credential_access"] == "AVAILABLE":
+        diagnostics.append(_diag("PRI-SECRET-001", "/capabilities", "ordinary review cannot declare production or credential access as available"))
 
     return sorted(set(diagnostics))

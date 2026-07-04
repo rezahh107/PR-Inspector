@@ -17,12 +17,13 @@ QUALITY_REQUIRED_PHRASES = {
     "Repository validation keeps this document guarded and outside the active protocol `load_order`.": "must state repository validation guards the protocol boundary",
     "If this document conflicts with the active protocol, the active protocol wins.": "must state active-protocol precedence",
     "COR-INTENT-001": "must include the intent-fit seed rule",
+    "PRR-INTENT-001": "must record that intent-fit has a promoted active protocol rule",
     "COR-REG-001": "must include the regression-risk seed rule",
     "COR-STATE-001": "must include the consistency seed rule",
     "COR-TEST-001": "must include the validation-adequacy seed rule",
     "COR-RESEARCH-001": "must include the research-backed-claims seed rule",
     "Validation does not make this document part of the active protocol and does not make the seed rules active review rules.": "must distinguish repository validation from active review-rule enforcement",
-    "No active protocol behavior is changed": "must not claim active protocol enforcement",
+    "No active protocol behavior is changed": "must not claim the planning document itself changes active protocol enforcement",
 }
 
 

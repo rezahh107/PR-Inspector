@@ -91,8 +91,29 @@ def render_handoff(pkg: dict[str, Any]) -> str:
         f"- **Previous behavior:** {summary['previous_behavior']}",
         f"- **Intended behavior:** {summary['intended_behavior']}",
         f"- **Actual implementation:** {summary['actual_implementation']}",
-        f"- **Mismatch:** {summary['mismatch'] or 'none'}", "", "## 6. Evidence Records", "",
+        f"- **Mismatch:** {summary['mismatch'] or 'none'}", "",
     ]
+    intent = pkg.get("intent_fit")
+    out += ["## 6. Intent Fit Evidence", ""]
+    if intent is None:
+        out.append("None.")
+    else:
+        out += [
+            "```yaml",
+            f"intent_source: {intent['intent_source']}",
+            f"intent_fit_result: {intent['intent_fit_result']}",
+            "```", "",
+            f"- **Stated intent:** {intent['stated_intent'] or 'none'}",
+            f"- **Unsupported claims:** {', '.join(intent['unsupported_claims']) or 'none'}", "",
+        ]
+        if not intent["implementation_evidence"]:
+            out.append("No implementation evidence recorded.")
+        for item in intent["implementation_evidence"]:
+            out += [
+                f"- `{item['evidence_label']}` {item['file']} ({item['lines_or_symbol']}): {item['evidence_summary']}",
+                f"  - Evidence refs: {', '.join(item['evidence_refs'])}",
+            ]
+    out += ["", "## 7. Evidence Records", ""]
     if not pkg["evidence_records"]:
         out.append("None.")
     for item in pkg["evidence_records"]:
@@ -121,30 +142,30 @@ def render_handoff(pkg: dict[str, Any]) -> str:
                 f"- Evidence: {', '.join(item['evidence_refs'])}", f"- Rules: {', '.join(item['rule_ids'])}", "",
             ])
 
-    findings_section("## 7. Merge-Blocking Findings", blocking)
-    findings_section("## 8. Non-Blocking Findings", non_blocking)
-    out += ["## 9. Files Reviewed Outside the Diff", "", *(f"- {item}" for item in scope["files_reviewed_outside_diff"])]
+    findings_section("## 8. Merge-Blocking Findings", blocking)
+    findings_section("## 9. Non-Blocking Findings", non_blocking)
+    out += ["## 10. Files Reviewed Outside the Diff", "", *(f"- {item}" for item in scope["files_reviewed_outside_diff"])]
     if not scope["files_reviewed_outside_diff"]:
         out.append("None.")
-    out += ["", "## 10. Unverified Areas", "", *(f"- {item}" for item in pkg["unverified_areas"])]
+    out += ["", "## 11. Unverified Areas", "", *(f"- {item}" for item in pkg["unverified_areas"])]
     if not pkg["unverified_areas"]:
         out.append("None.")
-    out += ["", "## 11. Required Actions Before Merge", "", *(f"{index}. {item}" for index, item in enumerate(pkg["required_actions"], 1))]
+    out += ["", "## 12. Required Actions Before Merge", "", *(f"{index}. {item}" for index, item in enumerate(pkg["required_actions"], 1))]
     if not pkg["required_actions"]:
         out.append("None.")
-    out += ["", "## 12. Out-of-Scope Observations", "", *(f"- {item}" for item in pkg["out_of_scope_observations"])]
+    out += ["", "## 13. Out-of-Scope Observations", "", *(f"- {item}" for item in pkg["out_of_scope_observations"])]
     if not pkg["out_of_scope_observations"]:
         out.append("None.")
     out += [
-        "", "## 13. Owner-Card Consistency Map", "",
+        "", "## 14. Owner-Card Consistency Map", "",
         "| Technical field | Owner-facing value |", "|---|---|",
         f"| Status / validity | {owner_status(pkg)} |",
         f"| Next owner action | {owner_action(pkg)} |",
         f"| Specialist required | {'yes' if decision['approval_requirement'] in SPECIALIST_APPROVALS else 'no'} |",
-        "", "## 14. Validation Metadata", "",
+        "", "## 15. Validation Metadata", "",
         f"- Canonical package SHA-256: `{package_sha256(pkg)}`",
         "- Canonicalization: sorted-key compact UTF-8 JSON with LF terminator, version 1",
-        "- Schema: JSON Schema Draft 2020-12", "", "## 15. Final Technical Decision", "",
+        "- Schema: JSON Schema Draft 2020-12", "", "## 16. Final Technical Decision", "",
         f"- Status: `{decision['technical_status']}`", f"- Risk: `{decision['risk_classification']}`",
         f"- Approval: `{decision['approval_requirement']}`", f"- Validity: `{identity['review_validity']}`",
         f"- Exact next action: {decision['next_required_action']}", "",

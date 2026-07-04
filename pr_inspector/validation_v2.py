@@ -9,7 +9,7 @@ from .semantic_v2 import validate_semantics
 from .render import render_owner, render_handoff
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA = ROOT / "protocols/v1.4.0/schemas/review-package.schema.json"
+SCHEMA = ROOT / "protocols/v1.5.0/schemas/review-package.schema.json"
 
 
 def load_json(path: Path) -> dict[str, Any]:

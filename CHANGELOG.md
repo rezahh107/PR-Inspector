@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.0
+
+- Added the v1.5.0 protocol snapshot as a vertical-slice upgrade from v1.4.0.
+- Activated exactly one correctness / intent-fit rule: `PRR-INTENT-001`.
+- Added the `intent_fit` semantic carrier to the review package schema.
+- Added semantic validation that prevents full intent-satisfaction claims without concrete implementation evidence.
+- Added focused valid and invalid fixtures for satisfied, missing, hypothesis-only, and not-assessable intent-fit states.
+
 ## 1.4.0
 
 - Added immutable full-protocol snapshots and SHA-256 release locks.
