@@ -11,13 +11,21 @@ SEED_RULES = [
     "COR-TEST-001",
     "COR-RESEARCH-001",
 ]
+BOUNDARY_PHRASES = [
+    "Status: repository-required planning infrastructure.",
+    "It is not part of the active protocol `load_order`.",
+    "It defines no active review rule.",
+    "Its seed rules are planning-only until promoted through a new protocol snapshot, schema/validator/fixture, and release lock.",
+    "Repository validation protects this document from deletion/drift and prevents accidental promotion into the active protocol `load_order`.",
+    "Validation does not make this document part of the active protocol and does not make the seed rules active review rules.",
+    "No active protocol behavior is changed",
+]
 
 
-def test_quality_foundation_is_guarded_non_canonical_reference():
+def test_quality_foundation_has_explicit_repository_planning_boundary():
     text = QUALITY_DOC.read_text(encoding="utf-8")
-    assert "non-canonical planning reference" in text
-    assert "If this document conflicts with the active protocol, the active protocol wins." in text
-    assert "No active protocol behavior is changed" in text
+    for phrase in BOUNDARY_PHRASES:
+        assert phrase in text
     for rule_id in SEED_RULES:
         assert rule_id in text
 
