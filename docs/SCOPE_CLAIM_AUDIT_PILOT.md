@@ -210,8 +210,10 @@ tests_fixtures:
 render_output:
   - "golden rendered artifacts or deterministic render snapshots, if present"
 workflow:
-  - ".github/workflows/**"
+scripts:
+  - "scripts/**"
 docs:
+  - "docs/**"
   - "docs/**"
 ```
 
