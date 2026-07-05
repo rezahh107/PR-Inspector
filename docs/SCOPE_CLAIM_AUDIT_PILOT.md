@@ -357,7 +357,8 @@ GitHub.create_file
 GitHub.update_file
 GitHub.create_pull_request
 GitHub.update_pull_request
-GitHub.compare_commits
+GitHub.create_commit_status
+GitHub.create_check_run
 ```
 
 This pilot should avoid `pull_request_target` for any future workflow that reads or evaluates untrusted PR code. A future advisory workflow should prefer read-only permissions, no secrets, exact head SHA binding, stale-run cancellation, `GITHUB_STEP_SUMMARY` for human-readable advisory output, and workflow artifacts for raw JSON evidence.
