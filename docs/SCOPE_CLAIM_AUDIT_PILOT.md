@@ -210,10 +210,10 @@ tests_fixtures:
 render_output:
   - "golden rendered artifacts or deterministic render snapshots, if present"
 workflow:
+  - ".github/workflows/**"
 scripts:
   - "scripts/**"
 docs:
-  - "docs/**"
   - "docs/**"
 ```
 
@@ -349,7 +349,7 @@ GitHub.fetch_workflow_run_artifacts
 GitHub.download_workflow_artifact
 ```
 
-Future write or PR-management tools, if explicitly authorized and supported by the active repository workflow:
+Confirmed or expected GitHub Connector write tools, if explicitly authorized and supported by the active repository workflow:
 
 ```text
 GitHub.create_branch
@@ -357,9 +357,10 @@ GitHub.create_file
 GitHub.update_file
 GitHub.create_pull_request
 GitHub.update_pull_request
-GitHub.create_commit_status
-GitHub.create_check_run
+GitHub.compare_commits
 ```
+
+GitHub API primitives such as commit statuses or check runs may be useful for future implementation only if the connector or workflow environment explicitly supports them. They are not required for this planning pilot and must not be treated as available connector tools without verification.
 
 This pilot should avoid `pull_request_target` for any future workflow that reads or evaluates untrusted PR code. A future advisory workflow should prefer read-only permissions, no secrets, exact head SHA binding, stale-run cancellation, `GITHUB_STEP_SUMMARY` for human-readable advisory output, and workflow artifacts for raw JSON evidence.
 
