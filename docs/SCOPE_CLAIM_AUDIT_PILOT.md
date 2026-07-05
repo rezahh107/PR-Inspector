@@ -357,7 +357,6 @@ GitHub.create_file
 GitHub.update_file
 GitHub.create_pull_request
 GitHub.update_pull_request
-GitHub.compare_commits
 ```
 
 GitHub API primitives such as commit statuses or check runs may be useful for future implementation only if the connector or workflow environment explicitly supports them. They are not required for this planning pilot and must not be treated as available connector tools without verification.
