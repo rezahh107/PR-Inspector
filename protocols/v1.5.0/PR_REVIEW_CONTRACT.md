@@ -66,7 +66,7 @@ Evidence labels are exactly `REPRODUCED`, `CODE_SUPPORTED`, `HYPOTHESIS`, or `NO
 
 A review MUST NOT claim full intent satisfaction unless `intent_fit.intent_fit_result` is `satisfied` and at least one concrete implementation-evidence item is supported by code, CI, or reproduced evidence tied to the reviewed head SHA.
 
-When the PR intent is missing or insufficient, the review MUST represent that honestly with `intent_source: missing_or_insufficient`, `intent_fit_result: not_assessable`, and no claim of full intent satisfaction.
+The `intent_fit` object is required for Green reviews and for any review that claims full intent satisfaction. Non-Green reviews that make no full intent-satisfaction claim MAY omit `intent_fit`; when intent is missing or insufficient and the reviewer records intent-fit state, it MUST use `intent_source: missing_or_insufficient`, `intent_fit_result: not_assessable`, and no claim of full intent satisfaction.
 
 This rule does not require proof of perfect correctness and does not introduce a broad checklist framework.
 
