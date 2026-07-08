@@ -109,6 +109,8 @@ def expected_status(pkg: dict[str, Any]) -> tuple[str, list[str]]:
         yellow.append("intent fit is not satisfied")
     elif intent_fit["unsupported_claims"]:
         yellow.append("unsupported intent claim remains")
+    if pkg.get("repair_handoff"):
+        yellow.append("same-PR repair handoff present")
     if yellow:
         return STATUS_YELLOW, yellow
     return STATUS_GREEN, []

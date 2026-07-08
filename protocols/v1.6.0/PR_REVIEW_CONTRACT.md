@@ -76,7 +76,7 @@ When findings require a downstream developer or implementer model to repair the 
 
 `repair_handoff` is a canonical JSON carrier for concise repair guidance. It MUST identify affected findings and rule IDs, the repair objective, smallest safe repair actions, forbidden unrelated changes, required validation, and overclaim guards. The Technical Handoff renderer MUST derive the Repair Handoff for Implementer Model section from this JSON carrier only.
 
-Repair handoff references MUST point to existing `findings[].finding_id` values, and each affected rule ID MUST be attached to the referenced finding. The handoff does not authorize broader repository changes, automatic merge, CI-success claims, or release-lock edits without evidence.
+Repair handoff references MUST point to existing `findings[].finding_id` values, and each affected rule ID MUST be attached to the referenced finding. A package with `repair_handoff` present MUST NOT be technically Green, because same-PR repair guidance means merge-blocking or verification work remains. The handoff does not authorize broader repository changes, automatic merge, CI-success claims, or release-lock edits without evidence.
 
 ## 10. Coverage
 

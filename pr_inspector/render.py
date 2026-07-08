@@ -86,7 +86,7 @@ def _render_repair_handoff(out: list[str], pkg: dict[str, Any]) -> None:
             "Affected rules:",
         ])
         _extend_bullet_list(out, item["affected_rule_ids"])
-        out.extend(["", "Repair objective:", item["repair_objective"], "", "Smallest safe repair:"])
+        out.extend(["", f"Repair objective: {item['repair_objective']}", "", "Smallest safe repair:"])
         _extend_numbered_list(out, item["smallest_safe_repair"])
         out.extend(["", "Do not change:"])
         _extend_bullet_list(out, item["do_not_change"])

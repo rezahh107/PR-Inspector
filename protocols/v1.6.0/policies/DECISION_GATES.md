@@ -31,10 +31,11 @@ When no Red gate applies, return `YELLOW_CHANGES_OR_VERIFICATION_REQUIRED` when 
 - validity is not `CURRENT`;
 - a high-risk functional area is unreviewed;
 - coverage is incomplete;
-- intent fit is missing, not assessable, not satisfied, only partially satisfied, or contains unsupported satisfaction claims.
+- intent fit is missing, not assessable, not satisfied, only partially satisfied, or contains unsupported satisfaction claims;
+- same-PR `repair_handoff` is present.
 
 ## Green
 
-Return `GREEN_TECHNICALLY_READY` only when no Red or Yellow reason exists, validity is current, required checks passed with evidence, coverage is complete, no high-risk area is unreviewed, and implementation matches intended behavior with concrete intent-fit evidence.
+Return `GREEN_TECHNICALLY_READY` only when no Red or Yellow reason exists, validity is current, required checks passed with evidence, coverage is complete, no high-risk area is unreviewed, implementation matches intended behavior with concrete intent-fit evidence, and no same-PR repair handoff remains.
 
 Green is not a guarantee and does not replace required human approval.
