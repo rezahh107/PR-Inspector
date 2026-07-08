@@ -1,8 +1,9 @@
 from pathlib import Path
 import re
 
-import pr_inspector
 import yaml
+
+import pr_inspector
 
 
 ROOT = Path(__file__).resolve().parents[1]
