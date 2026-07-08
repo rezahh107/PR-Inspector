@@ -194,6 +194,7 @@ def validate_external_review_intake(
         return diagnostics
 
     source_ids = [source["source_id"] for source in intake["sources_inspected"]]
+    sources_by_id = {source["source_id"]: source for source in intake["sources_inspected"]}
     source_id_set = set(source_ids)
     if len(source_ids) != len(source_id_set):
         diagnostics.append(_diag("PRI-EXT-008", "/external_review_intake/sources_inspected", "external review source IDs must be unique"))
@@ -218,7 +219,8 @@ def validate_external_review_intake(
     for index, item in enumerate(intake["suggestions"]):
         path = f"/external_review_intake/suggestions/{index}"
         source_id = item["source_id"]
-        if source_id not in source_id_set:
+        source = sources_by_id.get(source_id)
+        if source is None:
             diagnostics.append(_diag("PRI-EXT-007", f"{path}/source_id", f"unknown external review source {source_id}"))
 
         for ref in item["evidence_refs"]:
@@ -233,6 +235,8 @@ def validate_external_review_intake(
 
         repair = item.get("repair_handoff")
         if item["triage_decision"] == "accepted":
+            if source is not None and not source["inspected"]:
+                diagnostics.append(_diag("PRI-EXT-011", f"{path}/source_id", "accepted external suggestion requires an inspected source"))
             evidence_refs = [ref for ref in item["evidence_refs"] if ref.startswith("EVD-")]
             if not evidence_refs:
                 diagnostics.append(_diag("PRI-EXT-001", f"{path}/evidence_refs", "accepted external suggestion requires at least one evidence record reference"))
