@@ -1,3 +1,4 @@
+import copy
 import json
 from pathlib import Path
 
@@ -71,6 +72,30 @@ def test_inaccessible_source_requires_insufficient_evidence_suggestion():
     value["external_review_intake"]["suggestions"][0]["triage_decision"] = "deferred"
     value["external_review_intake"]["suggestions"][0]["repair_handoff"] = None
     assert "PRI-EXT-010" in codes(value)
+
+
+def test_accepted_external_suggestion_requires_inspected_source():
+    value = package("external-review-valid")
+    value["external_review_intake"]["sources_inspected"][0]["inspected"] = False
+    placeholder = copy.deepcopy(value["external_review_intake"]["suggestions"][0])
+    placeholder.update({
+        "external_suggestion_id": "EXT-004",
+        "triage_decision": "insufficient_evidence",
+        "triage_reason": "External source was inaccessible during inspection.",
+        "evidence_refs": [],
+        "linked_finding_ids": [],
+        "repair_handoff": None,
+    })
+    value["external_review_intake"]["suggestions"].append(placeholder)
+    assert "PRI-EXT-011" in codes(value)
+
+
+def test_accepted_external_suggestion_without_repair_handoff_is_not_rendered_as_repair_instruction():
+    value = package("external-review-valid")
+    value["external_review_intake"]["suggestions"][0]["repair_handoff"] = None
+    rendered = render_handoff(value)
+    repair_section = rendered.split("## 11. Repair Handoff for Implementer Model", 1)[1]
+    assert "#### EXT-001 → PRF-001" not in repair_section
 
 
 def test_non_accepted_external_suggestion_cannot_carry_repair_handoff():
