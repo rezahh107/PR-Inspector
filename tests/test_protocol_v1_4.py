@@ -24,6 +24,29 @@ def test_intent_fit_valid_satisfied_fixture_is_valid():
     assert validate_package(package("intent-fit-valid-satisfied")) == []
 
 
+def test_repair_handoff_valid_fixture_is_valid_and_rendered():
+    value = package("repair-handoff-valid")
+    assert validate_package(value) == []
+    rendered = render_handoff(value)
+    assert "## 10. Repair Handoff for Implementer Model" in rendered
+    assert "Intended recipient: implementer_model" in rendered
+    assert "### PRF-001" in rendered
+    assert "- PRR-EVID-001" in rendered
+    assert "## 11. Files Reviewed Outside the Diff" in rendered
+
+
+def test_repair_handoff_rejects_unknown_finding_reference():
+    value = package("repair-handoff-valid")
+    value["repair_handoff"]["affected_findings"][0]["finding_id"] = "PRF-999"
+    assert "PRI-HANDOFF-001" in codes(value)
+
+
+def test_repair_handoff_rejects_rule_not_attached_to_referenced_finding():
+    value = package("repair-handoff-valid")
+    value["repair_handoff"]["affected_findings"][0]["affected_rule_ids"] = ["PRR-SCOPE-001"]
+    assert "PRI-HANDOFF-002" in codes(value)
+
+
 def test_intent_fit_missing_blocks_green_claim():
     diagnostics = codes(package("intent-fit-invalid-missing"))
     assert "PRI-INTENT-001" in diagnostics

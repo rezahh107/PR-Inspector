@@ -109,6 +109,8 @@ def expected_status(pkg: dict[str, Any]) -> tuple[str, list[str]]:
         yellow.append("intent fit is not satisfied")
     elif intent_fit["unsupported_claims"]:
         yellow.append("unsupported intent claim remains")
+    if pkg.get("repair_handoff"):
+        yellow.append("same-PR repair handoff present")
     if yellow:
         return STATUS_YELLOW, yellow
     return STATUS_GREEN, []
@@ -143,6 +145,33 @@ def validate_intent_fit(pkg: dict[str, Any], evidence: dict[str, dict[str, Any]]
 
     if intent_fit["intent_source"] == "missing_or_insufficient" and _claims_intent_satisfied(pkg):
         diagnostics.append(_diag("PRI-INTENT-006", "/intent_fit/intent_source", "missing or insufficient intent must not be paired with a full satisfaction claim"))
+
+    return diagnostics
+
+
+def validate_repair_handoff(pkg: dict[str, Any]) -> list[Diagnostic]:
+    diagnostics: list[Diagnostic] = []
+    handoff = pkg.get("repair_handoff")
+    if handoff is None:
+        return diagnostics
+
+    findings_by_id = {item["finding_id"]: item for item in pkg["findings"]}
+    seen_finding_ids: set[str] = set()
+    for index, item in enumerate(handoff["affected_findings"]):
+        finding_id = item["finding_id"]
+        if finding_id in seen_finding_ids:
+            diagnostics.append(_diag("PRI-HANDOFF-003", f"/repair_handoff/affected_findings/{index}/finding_id", f"duplicate repair handoff finding reference {finding_id}"))
+        seen_finding_ids.add(finding_id)
+
+        finding = findings_by_id.get(finding_id)
+        if finding is None:
+            diagnostics.append(_diag("PRI-HANDOFF-001", f"/repair_handoff/affected_findings/{index}/finding_id", f"unknown finding reference {finding_id}"))
+            continue
+
+        finding_rule_ids = set(finding["rule_ids"])
+        unknown_rule_ids = [rule_id for rule_id in item["affected_rule_ids"] if rule_id not in finding_rule_ids]
+        if unknown_rule_ids:
+            diagnostics.append(_diag("PRI-HANDOFF-002", f"/repair_handoff/affected_findings/{index}/affected_rule_ids", f"rule IDs not attached to referenced finding {finding_id}: {', '.join(unknown_rule_ids)}"))
 
     return diagnostics
 
@@ -202,6 +231,7 @@ def validate_semantics(pkg: dict[str, Any]) -> list[Diagnostic]:
                 diagnostics.append(_diag("PRI-EXEC-001", f"/findings/{index}/evidence_label", "REPRODUCED requires failing execution or CI evidence tied to the reviewed head SHA"))
 
     diagnostics.extend(validate_intent_fit(pkg, evidence))
+    diagnostics.extend(validate_repair_handoff(pkg))
 
     expected, reasons = expected_status(pkg)
     if decision["technical_status"] != expected:

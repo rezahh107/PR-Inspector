@@ -55,6 +55,48 @@ def _yaml_scalar(value: Any) -> str:
     return str(value)
 
 
+def _extend_bullet_list(out: list[str], items: list[str]) -> None:
+    if not items:
+        out.append("- none")
+        return
+    out.extend(f"- {item}" for item in items)
+
+
+def _extend_numbered_list(out: list[str], items: list[str]) -> None:
+    if not items:
+        out.append("1. none")
+        return
+    out.extend(f"{index}. {item}" for index, item in enumerate(items, 1))
+
+
+def _render_repair_handoff(out: list[str], pkg: dict[str, Any]) -> None:
+    handoff = pkg.get("repair_handoff")
+    out.extend(["## 10. Repair Handoff for Implementer Model", ""])
+    if not handoff or not handoff.get("affected_findings"):
+        out.extend(["None.", ""])
+        return
+    out.extend([
+        f"Intended recipient: {handoff['intended_recipient']}  ",
+        f"Repair scope: {handoff['repair_scope']}",
+        "",
+    ])
+    for item in handoff["affected_findings"]:
+        out.extend([
+            f"### {item['finding_id']}", "",
+            "Affected rules:",
+        ])
+        _extend_bullet_list(out, item["affected_rule_ids"])
+        out.extend(["", f"Repair objective: {item['repair_objective']}", "", "Smallest safe repair:"])
+        _extend_numbered_list(out, item["smallest_safe_repair"])
+        out.extend(["", "Do not change:"])
+        _extend_bullet_list(out, item["do_not_change"])
+        out.extend(["", "Required validation:"])
+        _extend_bullet_list(out, item["required_validation"])
+        out.extend(["", "Overclaim guards:"])
+        _extend_bullet_list(out, item["overclaim_guards"])
+        out.append("")
+
+
 def render_handoff(pkg: dict[str, Any]) -> str:
     identity = pkg["review_identity"]
     decision = pkg["decision"]
@@ -144,28 +186,29 @@ def render_handoff(pkg: dict[str, Any]) -> str:
 
     findings_section("## 8. Merge-Blocking Findings", blocking)
     findings_section("## 9. Non-Blocking Findings", non_blocking)
-    out += ["## 10. Files Reviewed Outside the Diff", "", *(f"- {item}" for item in scope["files_reviewed_outside_diff"])]
+    _render_repair_handoff(out, pkg)
+    out += ["## 11. Files Reviewed Outside the Diff", "", *(f"- {item}" for item in scope["files_reviewed_outside_diff"])]
     if not scope["files_reviewed_outside_diff"]:
         out.append("None.")
-    out += ["", "## 11. Unverified Areas", "", *(f"- {item}" for item in pkg["unverified_areas"])]
+    out += ["", "## 12. Unverified Areas", "", *(f"- {item}" for item in pkg["unverified_areas"])]
     if not pkg["unverified_areas"]:
         out.append("None.")
-    out += ["", "## 12. Required Actions Before Merge", "", *(f"{index}. {item}" for index, item in enumerate(pkg["required_actions"], 1))]
+    out += ["", "## 13. Required Actions Before Merge", "", *(f"{index}. {item}" for index, item in enumerate(pkg["required_actions"], 1))]
     if not pkg["required_actions"]:
         out.append("None.")
-    out += ["", "## 13. Out-of-Scope Observations", "", *(f"- {item}" for item in pkg["out_of_scope_observations"])]
+    out += ["", "## 14. Out-of-Scope Observations", "", *(f"- {item}" for item in pkg["out_of_scope_observations"])]
     if not pkg["out_of_scope_observations"]:
         out.append("None.")
     out += [
-        "", "## 14. Owner-Card Consistency Map", "",
+        "", "## 15. Owner-Card Consistency Map", "",
         "| Technical field | Owner-facing value |", "|---|---|",
         f"| Status / validity | {owner_status(pkg)} |",
         f"| Next owner action | {owner_action(pkg)} |",
         f"| Specialist required | {'yes' if decision['approval_requirement'] in SPECIALIST_APPROVALS else 'no'} |",
-        "", "## 15. Validation Metadata", "",
+        "", "## 16. Validation Metadata", "",
         f"- Canonical package SHA-256: `{package_sha256(pkg)}`",
         "- Canonicalization: sorted-key compact UTF-8 JSON with LF terminator, version 1",
-        "- Schema: JSON Schema Draft 2020-12", "", "## 16. Final Technical Decision", "",
+        "- Schema: JSON Schema Draft 2020-12", "", "## 17. Final Technical Decision", "",
         f"- Status: `{decision['technical_status']}`", f"- Risk: `{decision['risk_classification']}`",
         f"- Approval: `{decision['approval_requirement']}`", f"- Validity: `{identity['review_validity']}`",
         f"- Exact next action: {decision['next_required_action']}", "",
