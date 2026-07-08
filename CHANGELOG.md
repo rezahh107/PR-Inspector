@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.6.0
+
+- Added an optional canonical `repair_handoff` carrier for downstream implementer-model repair guidance.
+- Rendered the Repair Handoff for Implementer Model section in `TECHNICAL_HANDOFF.en.md` from `review-package.json` only.
+- Added semantic validation that rejects repair handoff references to unknown findings or rule IDs not attached to the referenced finding.
+- Added a focused valid fixture and regression tests for repair handoff rendering and reference validation.
+
 ## 1.5.0
 
 - Added the v1.5.0 protocol snapshot as a vertical-slice upgrade from v1.4.0.
@@ -21,6 +28,5 @@
 ## 1.3.0
 
 - Added the repository bootstrap and active-version manifest.
-- Added the review contract and operational pipeline.
 - Added Persian owner and English technical report templates.
 - Added structural repository validation and maintenance files.
