@@ -27,9 +27,9 @@ python scripts/validate_review_v2.py fixtures/golden-green --package-only
 
 ## Active protocol
 
-`v1.4.0`
+`v1.5.0`
 
-The complete protocol snapshot is under [`protocols/v1.4.0/`](protocols/v1.4.0/) and protected by [`release-locks/v1.4.0.sha256`](release-locks/v1.4.0.sha256).
+The complete protocol snapshot is under [`protocols/v1.5.0/`](protocols/v1.5.0/) and protected by [`release-locks/v1.5.0.sha256`](release-locks/v1.5.0.sha256).
 
 ## License
 
