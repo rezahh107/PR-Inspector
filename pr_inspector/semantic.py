@@ -65,6 +65,11 @@ def _intent_fit_supported(pkg: dict[str, Any], evidence: dict[str, dict[str, Any
     return any(_intent_item_supported(item, evidence, identity["reviewed_head_sha"]) for item in intent_fit.get("implementation_evidence", []))
 
 
+def _has_accepted_external_suggestion(pkg: dict[str, Any]) -> bool:
+    intake = pkg.get("external_review_intake") or {}
+    return any(item.get("triage_decision") == "accepted" for item in intake.get("suggestions", []))
+
+
 def expected_status(pkg: dict[str, Any]) -> tuple[str, list[str]]:
     red: list[str] = []
     yellow: list[str] = []
@@ -111,6 +116,8 @@ def expected_status(pkg: dict[str, Any]) -> tuple[str, list[str]]:
         yellow.append("unsupported intent claim remains")
     if pkg.get("repair_handoff"):
         yellow.append("same-PR repair handoff present")
+    if _has_accepted_external_suggestion(pkg):
+        yellow.append("accepted external review suggestion present")
     if yellow:
         return STATUS_YELLOW, yellow
     return STATUS_GREEN, []
@@ -176,6 +183,71 @@ def validate_repair_handoff(pkg: dict[str, Any]) -> list[Diagnostic]:
     return diagnostics
 
 
+def validate_external_review_intake(
+    pkg: dict[str, Any],
+    evidence: dict[str, dict[str, Any]],
+    checks: list[dict[str, Any]],
+) -> list[Diagnostic]:
+    diagnostics: list[Diagnostic] = []
+    intake = pkg.get("external_review_intake")
+    if intake is None:
+        return diagnostics
+
+    source_ids = [source["source_id"] for source in intake["sources_inspected"]]
+    source_id_set = set(source_ids)
+    if len(source_ids) != len(source_id_set):
+        diagnostics.append(_diag("PRI-EXT-008", "/external_review_intake/sources_inspected", "external review source IDs must be unique"))
+
+    suggestion_ids = [item["external_suggestion_id"] for item in intake["suggestions"]]
+    if len(suggestion_ids) != len(set(suggestion_ids)):
+        diagnostics.append(_diag("PRI-EXT-009", "/external_review_intake/suggestions", "external suggestion IDs must be unique"))
+
+    evidence_ids = set(evidence)
+    check_ids = {item["check_id"] for item in checks}
+    finding_ids = {item["finding_id"] for item in pkg["findings"]}
+
+    inaccessible_sources = {source["source_id"] for source in intake["sources_inspected"] if not source["inspected"]}
+    insufficient_sources = {
+        item["source_id"]
+        for item in intake["suggestions"]
+        if item["triage_decision"] == "insufficient_evidence"
+    }
+    for source_id in sorted(inaccessible_sources - insufficient_sources):
+        diagnostics.append(_diag("PRI-EXT-010", "/external_review_intake/sources_inspected", f"inaccessible external review source {source_id} must be represented by an insufficient_evidence suggestion"))
+
+    for index, item in enumerate(intake["suggestions"]):
+        path = f"/external_review_intake/suggestions/{index}"
+        source_id = item["source_id"]
+        if source_id not in source_id_set:
+            diagnostics.append(_diag("PRI-EXT-007", f"{path}/source_id", f"unknown external review source {source_id}"))
+
+        for ref in item["evidence_refs"]:
+            if ref.startswith("EVD-") and ref not in evidence_ids:
+                diagnostics.append(_diag("PRI-EXT-004", f"{path}/evidence_refs", f"unknown evidence reference {ref}"))
+            elif ref.startswith("CHK-") and ref not in check_ids:
+                diagnostics.append(_diag("PRI-EXT-004", f"{path}/evidence_refs", f"unknown check reference {ref}"))
+
+        for finding_id in item["linked_finding_ids"]:
+            if finding_id not in finding_ids:
+                diagnostics.append(_diag("PRI-EXT-005", f"{path}/linked_finding_ids", f"unknown finding reference {finding_id}"))
+
+        repair = item.get("repair_handoff")
+        if item["triage_decision"] == "accepted":
+            evidence_refs = [ref for ref in item["evidence_refs"] if ref.startswith("EVD-")]
+            if not evidence_refs:
+                diagnostics.append(_diag("PRI-EXT-001", f"{path}/evidence_refs", "accepted external suggestion requires at least one evidence record reference"))
+            if not item["linked_finding_ids"]:
+                diagnostics.append(_diag("PRI-EXT-002", f"{path}/linked_finding_ids", "accepted external suggestion requires at least one linked finding"))
+            if repair is None:
+                diagnostics.append(_diag("PRI-EXT-003", f"{path}/repair_handoff", "accepted external suggestion requires repair handoff instructions"))
+            elif not repair["smallest_safe_repair"]:
+                diagnostics.append(_diag("PRI-EXT-003", f"{path}/repair_handoff/smallest_safe_repair", "accepted external suggestion requires non-empty smallest safe repair"))
+        elif repair is not None:
+            diagnostics.append(_diag("PRI-EXT-006", f"{path}/repair_handoff", "non-accepted external suggestions must not carry repair instructions"))
+
+    return diagnostics
+
+
 def validate_semantics(pkg: dict[str, Any]) -> list[Diagnostic]:
     diagnostics: list[Diagnostic] = []
     identity = pkg["review_identity"]
@@ -232,6 +304,7 @@ def validate_semantics(pkg: dict[str, Any]) -> list[Diagnostic]:
 
     diagnostics.extend(validate_intent_fit(pkg, evidence))
     diagnostics.extend(validate_repair_handoff(pkg))
+    diagnostics.extend(validate_external_review_intake(pkg, evidence, checks))
 
     expected, reasons = expected_status(pkg)
     if decision["technical_status"] != expected:

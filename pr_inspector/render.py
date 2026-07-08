@@ -69,32 +69,83 @@ def _extend_numbered_list(out: list[str], items: list[str]) -> None:
     out.extend(f"{index}. {item}" for index, item in enumerate(items, 1))
 
 
-def _render_repair_handoff(out: list[str], pkg: dict[str, Any]) -> None:
-    handoff = pkg.get("repair_handoff")
-    out.extend(["## 10. Repair Handoff for Implementer Model", ""])
-    if not handoff or not handoff.get("affected_findings"):
+def _accepted_external_suggestions(pkg: dict[str, Any]) -> list[dict[str, Any]]:
+    intake = pkg.get("external_review_intake") or {}
+    return [item for item in intake.get("suggestions", []) if item.get("triage_decision") == "accepted"]
+
+
+def _render_external_review_intake(out: list[str], pkg: dict[str, Any]) -> None:
+    out.extend(["## 10. External Review Suggestions Considered", ""])
+    intake = pkg.get("external_review_intake")
+    if not intake or not intake.get("suggestions"):
         out.extend(["None.", ""])
         return
     out.extend([
-        f"Intended recipient: {handoff['intended_recipient']}  ",
-        f"Repair scope: {handoff['repair_scope']}",
-        "",
+        "| id | source | decision | linked finding | reason |",
+        "|---|---|---|---|---|",
     ])
-    for item in handoff["affected_findings"]:
+    for item in intake["suggestions"]:
+        linked = ", ".join(item["linked_finding_ids"]) or "None"
+        reason = item["triage_reason"].replace("|", "\\|")
+        source = item["author"].replace("|", "\\|")
+        out.append(f"| {item['external_suggestion_id']} | {source} | {item['triage_decision']} | {linked} | {reason} |")
+    out.append("")
+
+
+def _render_repair_handoff(out: list[str], pkg: dict[str, Any]) -> None:
+    handoff = pkg.get("repair_handoff")
+    accepted_external = _accepted_external_suggestions(pkg)
+    out.extend(["## 11. Repair Handoff for Implementer Model", ""])
+    if (not handoff or not handoff.get("affected_findings")) and not accepted_external:
+        out.extend(["None.", ""])
+        return
+
+    if handoff and handoff.get("affected_findings"):
         out.extend([
-            f"### {item['finding_id']}", "",
-            "Affected rules:",
+            f"Intended recipient: {handoff['intended_recipient']}  ",
+            f"Repair scope: {handoff['repair_scope']}",
+            "",
         ])
-        _extend_bullet_list(out, item["affected_rule_ids"])
-        out.extend(["", f"Repair objective: {item['repair_objective']}", "", "Smallest safe repair:"])
-        _extend_numbered_list(out, item["smallest_safe_repair"])
-        out.extend(["", "Do not change:"])
-        _extend_bullet_list(out, item["do_not_change"])
-        out.extend(["", "Required validation:"])
-        _extend_bullet_list(out, item["required_validation"])
-        out.extend(["", "Overclaim guards:"])
-        _extend_bullet_list(out, item["overclaim_guards"])
-        out.append("")
+        for item in handoff["affected_findings"]:
+            out.extend([
+                f"### {item['finding_id']}", "",
+                "Affected rules:",
+            ])
+            _extend_bullet_list(out, item["affected_rule_ids"])
+            out.extend(["", f"Repair objective: {item['repair_objective']}", "", "Smallest safe repair:"])
+            _extend_numbered_list(out, item["smallest_safe_repair"])
+            out.extend(["", "Do not change:"])
+            _extend_bullet_list(out, item["do_not_change"])
+            out.extend(["", "Required validation:"])
+            _extend_bullet_list(out, item["required_validation"])
+            out.extend(["", "Overclaim guards:"])
+            _extend_bullet_list(out, item["overclaim_guards"])
+            out.append("")
+
+    if accepted_external:
+        out.extend(["### Accepted External Suggestions", ""])
+        for item in accepted_external:
+            repair = item["repair_handoff"]
+            linked = ", ".join(item["linked_finding_ids"]) or "None"
+            out.extend([
+                f"#### {item['external_suggestion_id']} → {linked}",
+                "",
+                "Source:",
+                item["author"],
+                "",
+                "Verified issue:",
+                item["claim_summary"],
+                "",
+                "Smallest safe repair:",
+            ])
+            _extend_numbered_list(out, repair["smallest_safe_repair"])
+            out.extend(["", "Do not change:"])
+            _extend_bullet_list(out, repair["do_not_change"])
+            out.extend(["", "Required validation:"])
+            _extend_bullet_list(out, repair["required_validation"])
+            out.extend(["", "Overclaim guards:"])
+            _extend_bullet_list(out, repair["overclaim_guards"])
+            out.append("")
 
 
 def render_handoff(pkg: dict[str, Any]) -> str:
@@ -186,29 +237,30 @@ def render_handoff(pkg: dict[str, Any]) -> str:
 
     findings_section("## 8. Merge-Blocking Findings", blocking)
     findings_section("## 9. Non-Blocking Findings", non_blocking)
+    _render_external_review_intake(out, pkg)
     _render_repair_handoff(out, pkg)
-    out += ["## 11. Files Reviewed Outside the Diff", "", *(f"- {item}" for item in scope["files_reviewed_outside_diff"])]
+    out += ["## 12. Files Reviewed Outside the Diff", "", *(f"- {item}" for item in scope["files_reviewed_outside_diff"])]
     if not scope["files_reviewed_outside_diff"]:
         out.append("None.")
-    out += ["", "## 12. Unverified Areas", "", *(f"- {item}" for item in pkg["unverified_areas"])]
+    out += ["", "## 13. Unverified Areas", "", *(f"- {item}" for item in pkg["unverified_areas"])]
     if not pkg["unverified_areas"]:
         out.append("None.")
-    out += ["", "## 13. Required Actions Before Merge", "", *(f"{index}. {item}" for index, item in enumerate(pkg["required_actions"], 1))]
+    out += ["", "## 14. Required Actions Before Merge", "", *(f"{index}. {item}" for index, item in enumerate(pkg["required_actions"], 1))]
     if not pkg["required_actions"]:
         out.append("None.")
-    out += ["", "## 14. Out-of-Scope Observations", "", *(f"- {item}" for item in pkg["out_of_scope_observations"])]
+    out += ["", "## 15. Out-of-Scope Observations", "", *(f"- {item}" for item in pkg["out_of_scope_observations"])]
     if not pkg["out_of_scope_observations"]:
         out.append("None.")
     out += [
-        "", "## 15. Owner-Card Consistency Map", "",
+        "", "## 16. Owner-Card Consistency Map", "",
         "| Technical field | Owner-facing value |", "|---|---|",
         f"| Status / validity | {owner_status(pkg)} |",
         f"| Next owner action | {owner_action(pkg)} |",
         f"| Specialist required | {'yes' if decision['approval_requirement'] in SPECIALIST_APPROVALS else 'no'} |",
-        "", "## 16. Validation Metadata", "",
+        "", "## 17. Validation Metadata", "",
         f"- Canonical package SHA-256: `{package_sha256(pkg)}`",
         "- Canonicalization: sorted-key compact UTF-8 JSON with LF terminator, version 1",
-        "- Schema: JSON Schema Draft 2020-12", "", "## 17. Final Technical Decision", "",
+        "- Schema: JSON Schema Draft 2020-12", "", "## 18. Final Technical Decision", "",
         f"- Status: `{decision['technical_status']}`", f"- Risk: `{decision['risk_classification']}`",
         f"- Approval: `{decision['approval_requirement']}`", f"- Validity: `{identity['review_validity']}`",
         f"- Exact next action: {decision['next_required_action']}", "",

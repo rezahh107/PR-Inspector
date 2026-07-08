@@ -28,11 +28,11 @@ def test_repair_handoff_valid_fixture_is_valid_and_rendered():
     value = package("repair-handoff-valid")
     assert validate_package(value) == []
     rendered = render_handoff(value)
-    assert "## 10. Repair Handoff for Implementer Model" in rendered
+    assert "## 11. Repair Handoff for Implementer Model" in rendered
     assert "Intended recipient: implementer_model" in rendered
     assert "### PRF-001" in rendered
     assert "- PRR-EVID-001" in rendered
-    assert "## 11. Files Reviewed Outside the Diff" in rendered
+    assert "## 12. Files Reviewed Outside the Diff" in rendered
 
 
 def test_repair_handoff_rejects_unknown_finding_reference():
