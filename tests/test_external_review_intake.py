@@ -40,6 +40,22 @@ def test_accepted_external_suggestions_render_in_repair_handoff():
     assert "Handle the missing optional config key with an explicit default or validation error." in rendered
 
 
+def test_external_review_table_cells_normalize_newlines_and_escape_pipes():
+    value = package("external-review-valid")
+    suggestion = value["external_review_intake"]["suggestions"][0]
+    suggestion["author"] = "gemini\ncode|assist[bot]"
+    suggestion["triage_reason"] = "Verified against diff.\r\nNeeds safe table|cell handling."
+
+    rendered = render_handoff(value)
+    table_section = rendered.split("## 10. External Review Suggestions Considered", 1)[1].split("## 11. Repair Handoff for Implementer Model", 1)[0]
+
+    assert "gemini code\\|assist[bot]" in table_section
+    assert "Verified against diff. Needs safe table\\|cell handling." in table_section
+    assert "gemini\ncode" not in table_section
+    assert "Verified against diff.\r" not in table_section
+    assert table_section.count("| EXT-001 |") == 1
+
+
 def test_rejected_and_deferred_external_suggestions_do_not_become_repair_instructions():
     rendered = render_handoff(package("external-review-valid"))
     repair_section = rendered.split("## 11. Repair Handoff for Implementer Model", 1)[1]
