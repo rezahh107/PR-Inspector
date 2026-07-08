@@ -75,7 +75,11 @@ def _markdown_table_cell(value: Any) -> str:
 
 def _accepted_external_suggestions(pkg: dict[str, Any]) -> list[dict[str, Any]]:
     intake = pkg.get("external_review_intake") or {}
-    return [item for item in intake.get("suggestions", []) if item.get("triage_decision") == "accepted"]
+    return [
+        item
+        for item in intake.get("suggestions", [])
+        if item.get("triage_decision") == "accepted" and item.get("repair_handoff")
+    ]
 
 
 def _render_external_review_intake(out: list[str], pkg: dict[str, Any]) -> None:
