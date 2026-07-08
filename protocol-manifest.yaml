@@ -1,26 +1,26 @@
 schema_version: 2
 protocol_name: PR Inspector
-active_version: v1.6.0
+active_version: v1.7.0
 status: active
 entrypoint: BOOTSTRAP.md
 minimum_python: "3.10"
 default_owner_language: fa
 default_technical_language: en
 operation_mode: read_only_review
-canonical_contract: protocols/v1.6.0/PR_REVIEW_CONTRACT.md
-canonical_schema: protocols/v1.6.0/schemas/review-package.schema.json
-release_lock: release-locks/v1.6.0.sha256
+canonical_contract: protocols/v1.7.0/PR_REVIEW_CONTRACT.md
+canonical_schema: protocols/v1.7.0/schemas/review-package.schema.json
+release_lock: release-locks/v1.7.0.sha256
 
 load_order:
-  - protocols/v1.6.0/PR_REVIEW_CONTRACT.md
-  - protocols/v1.6.0/policies/SECURITY_AND_TRUST.md
-  - protocols/v1.6.0/policies/DECISION_GATES.md
-  - protocols/v1.6.0/policies/OWNER_OUTPUT_UX.md
-  - protocols/v1.6.0/pipeline/REVIEW_PIPELINE.md
-  - protocols/v1.6.0/templates/OWNER_DECISION_CARD.fa.md
-  - protocols/v1.6.0/templates/TECHNICAL_HANDOFF.en.md
-  - protocols/v1.6.0/schemas/review-package.schema.json
-  - protocols/v1.6.0/prompts/INTAKE_RESPONSE.fa.md
+  - protocols/v1.7.0/PR_REVIEW_CONTRACT.md
+  - protocols/v1.7.0/policies/SECURITY_AND_TRUST.md
+  - protocols/v1.7.0/policies/DECISION_GATES.md
+  - protocols/v1.7.0/policies/OWNER_OUTPUT_UX.md
+  - protocols/v1.7.0/pipeline/REVIEW_PIPELINE.md
+  - protocols/v1.7.0/templates/OWNER_DECISION_CARD.fa.md
+  - protocols/v1.7.0/templates/TECHNICAL_HANDOFF.en.md
+  - protocols/v1.7.0/schemas/review-package.schema.json
+  - protocols/v1.7.0/prompts/INTAKE_RESPONSE.fa.md
 
 required_artifacts:
   - review-package.json

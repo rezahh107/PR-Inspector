@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.7.0
+
+- Added optional canonical `external_review_intake` for untrusted external PR review suggestions.
+- Added semantic validation for accepted external suggestions: evidence, finding links, repair instructions, known references, and inaccessible-source reporting.
+- Rendered External Review Suggestions Considered in the Technical Handoff from JSON only.
+- Rendered only accepted external suggestions in the implementer-facing Repair Handoff.
+- Added focused fixtures and tests for accepted, rejected, missing-evidence, and unknown-finding external suggestions.
+
 ## 1.6.0
 
 - Added an optional canonical `repair_handoff` carrier for downstream implementer-model repair guidance.

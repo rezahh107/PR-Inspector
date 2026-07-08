@@ -22,3 +22,13 @@ def test_repair_handoff_blocks_green_even_for_non_blocking_low_finding():
     value["decision"]["technical_status"] = "GREEN_TECHNICALLY_READY"
     value["decision"]["next_required_action"] = "Merge after normal owner confirmation."
     assert codes(value) == ["PRI-STATUS-001"]
+
+
+def test_accepted_external_suggestion_blocks_green_even_when_linked_finding_is_low_non_blocking():
+    value = package("external-review-valid")
+    value["findings"][0]["severity"] = "LOW"
+    value["findings"][0]["blocking"] = False
+    value["decision"]["blocking_findings_count"] = 0
+    value["decision"]["technical_status"] = "GREEN_TECHNICALLY_READY"
+    value["decision"]["next_required_action"] = "Merge after normal owner confirmation."
+    assert codes(value) == ["PRI-STATUS-001"]
