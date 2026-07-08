@@ -69,6 +69,10 @@ def _extend_numbered_list(out: list[str], items: list[str]) -> None:
     out.extend(f"{index}. {item}" for index, item in enumerate(items, 1))
 
 
+def _markdown_table_cell(value: Any) -> str:
+    return " ".join(str(value).replace("\r", " ").replace("\n", " ").split()).replace("|", "\\|")
+
+
 def _accepted_external_suggestions(pkg: dict[str, Any]) -> list[dict[str, Any]]:
     intake = pkg.get("external_review_intake") or {}
     return [item for item in intake.get("suggestions", []) if item.get("triage_decision") == "accepted"]
@@ -86,9 +90,12 @@ def _render_external_review_intake(out: list[str], pkg: dict[str, Any]) -> None:
     ])
     for item in intake["suggestions"]:
         linked = ", ".join(item["linked_finding_ids"]) or "None"
-        reason = item["triage_reason"].replace("|", "\\|")
-        source = item["author"].replace("|", "\\|")
-        out.append(f"| {item['external_suggestion_id']} | {source} | {item['triage_decision']} | {linked} | {reason} |")
+        reason = _markdown_table_cell(item["triage_reason"])
+        source = _markdown_table_cell(item["author"])
+        decision = _markdown_table_cell(item["triage_decision"])
+        suggestion_id = _markdown_table_cell(item["external_suggestion_id"])
+        linked_cell = _markdown_table_cell(linked)
+        out.append(f"| {suggestion_id} | {source} | {decision} | {linked_cell} | {reason} |")
     out.append("")
 
 
