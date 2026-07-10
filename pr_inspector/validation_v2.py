@@ -4,9 +4,9 @@ from pathlib import Path
 from typing import Any
 from jsonschema import Draft202012Validator, FormatChecker
 
+from .derived_outputs import PROMPT_NAME, build_review_artifacts
 from .diagnostics import Diagnostic
 from .semantic_v2 import validate_semantics
-from .render import render_owner, render_handoff
 
 ROOT = Path(__file__).resolve().parents[1]
 CURRENT_VERSION = (ROOT / "CURRENT_VERSION").read_text(encoding="utf-8").strip()
@@ -40,14 +40,13 @@ def validate_directory(path: Path, compare_rendered: bool = True) -> list[Diagno
     diagnostics = validate_package(package)
     if diagnostics or not compare_rendered:
         return diagnostics
-    expected = {
-        "OWNER_DECISION_CARD.fa.md": render_owner(package),
-        "TECHNICAL_HANDOFF.en.md": render_handoff(package),
-    }
+    expected = build_review_artifacts(package)
     for name, text in expected.items():
         artifact = path / name
         if not artifact.is_file():
             diagnostics.append(Diagnostic("PRI-CONSIST-001", f"/{name}", "rendered artifact is missing"))
         elif artifact.read_text(encoding="utf-8") != text:
             diagnostics.append(Diagnostic("PRI-CONSIST-001", f"/{name}", "artifact does not match deterministic rendering from review-package.json"))
+    if PROMPT_NAME not in expected and (path / PROMPT_NAME).exists():
+        diagnostics.append(Diagnostic("PRI-CONSIST-002", f"/{PROMPT_NAME}", "Green review must not contain an action prompt"))
     return sorted(set(diagnostics))
