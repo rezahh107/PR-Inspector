@@ -12,6 +12,7 @@ from pr_inspector.derived_outputs import (
     derive_action_mode,
     render_next_action_prompt,
     render_owner_result,
+    structured_action_reasons,
 )
 from pr_inspector.render import package_sha256
 from pr_inspector.validation_v2 import validate_directory, validate_package
@@ -44,6 +45,49 @@ def red_package():
     return value
 
 
+def finding(*, severity: str, evidence_label: str, blocking: bool):
+    return {
+        "finding_id": "PRF-001",
+        "severity": severity,
+        "evidence_label": evidence_label,
+        "blocking": blocking,
+        "file_location": "src/a.py:10",
+        "symbol": "parse",
+        "relevant_code": "return parse(value)",
+        "issue": "The changed path violates the validated invariant.",
+        "failure_scenario": "The affected input can produce incorrect behavior.",
+        "recommended_fix": "Restore the invariant with the narrowest safe repair.",
+        "recommended_test": "Add a regression for the affected input.",
+        "evidence_refs": ["EVD-002"],
+        "rule_ids": ["PRR-EVID-001"],
+    }
+
+
+def package_with_finding(*, severity: str, evidence_label: str, blocking: bool, status: str):
+    value = package()
+    value["findings"] = [finding(severity=severity, evidence_label=evidence_label, blocking=blocking)]
+    value["decision"]["blocking_findings_count"] = 1 if blocking else 0
+    value["decision"]["technical_status"] = status
+    value["decision"]["next_required_action"] = "Address the structured finding before merge."
+    return value
+
+
+def write_review_directory(path: Path, value):
+    (path / "review-package.json").write_text(
+        json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    artifacts = build_review_artifacts(value)
+    for name, text in artifacts.items():
+        (path / name).write_bytes(text.encode("utf-8"))
+    return artifacts
+
+
+def diagnostic_codes(path: Path):
+    return {item.code for item in validate_directory(path)}
+
+
 @pytest.mark.parametrize(("status", "expected"), list(OWNER_RESULT_BY_STATUS.items()))
 def test_owner_result_is_one_of_three_exact_two_line_outputs(status, expected):
     value = package()
@@ -52,6 +96,38 @@ def test_owner_result_is_one_of_three_exact_two_line_outputs(status, expected):
     assert rendered == expected
     assert rendered.endswith("\n")
     assert len(rendered.splitlines()) == 2
+    assert len(set(OWNER_RESULT_BY_STATUS.values())) == 3
+
+
+@pytest.mark.parametrize(
+    "approval,risk,domains",
+    [
+        ("NO_ADDITIONAL_TECHNICAL_APPROVAL", "LOW", []),
+        ("PROJECT_OWNER_CONFIRMATION", "LOW", []),
+        ("HUMAN_TECHNICAL_REVIEW_REQUIRED", "LOW", []),
+        ("SECURITY_OR_DOMAIN_SPECIALIST_REQUIRED", "SENSITIVE", ["AUTHENTICATION"]),
+    ],
+)
+def test_green_owner_result_never_bypasses_required_approval(approval, risk, domains):
+    value = package()
+    value["decision"]["approval_requirement"] = approval
+    value["decision"]["risk_classification"] = risk
+    value["decision"]["sensitive_domains"] = domains
+    assert validate_package(value) == []
+    result = render_owner_result(value)
+    assert result == OWNER_RESULT_BY_STATUS["GREEN_TECHNICALLY_READY"]
+    assert "مرج کن" not in result
+    assert "پس از تأییدهای لازم" in result
+
+
+@pytest.mark.parametrize("validity", ["STALE", "UNKNOWN"])
+@pytest.mark.parametrize("builder", [yellow_verify_package, red_package])
+def test_non_current_owner_result_uses_approved_yellow_action_wording(validity, builder):
+    value = builder()
+    value["review_identity"]["review_validity"] = validity
+    assert validate_package(value) == []
+    assert render_owner_result(value) == OWNER_RESULT_BY_STATUS["YELLOW_CHANGES_OR_VERIFICATION_REQUIRED"]
+    assert derive_action_mode(value) == "rerun_review"
 
 
 def test_green_generates_no_action_prompt_and_manifest_marks_not_applicable():
@@ -75,6 +151,54 @@ def test_yellow_and_red_generate_exactly_one_action_prompt(builder):
     assert artifacts[PROMPT_NAME].startswith("[ROLE AND AUTHORITY]\n")
 
 
+@pytest.mark.parametrize(
+    "value,expected_mode",
+    [
+        (yellow_verify_package(), "verify"),
+        (yellow_repair_package(), "repair"),
+        (
+            package_with_finding(
+                severity="HIGH",
+                evidence_label="CODE_SUPPORTED",
+                blocking=False,
+                status="YELLOW_CHANGES_OR_VERIFICATION_REQUIRED",
+            ),
+            "repair",
+        ),
+        (
+            package_with_finding(
+                severity="HIGH",
+                evidence_label="HYPOTHESIS",
+                blocking=False,
+                status="YELLOW_CHANGES_OR_VERIFICATION_REQUIRED",
+            ),
+            "verify",
+        ),
+        (
+            package_with_finding(
+                severity="MEDIUM",
+                evidence_label="CODE_SUPPORTED",
+                blocking=True,
+                status="YELLOW_CHANGES_OR_VERIFICATION_REQUIRED",
+            ),
+            "repair",
+        ),
+        (
+            package_with_finding(
+                severity="CRITICAL",
+                evidence_label="CODE_SUPPORTED",
+                blocking=False,
+                status="RED_DO_NOT_MERGE",
+            ),
+            "repair",
+        ),
+    ],
+)
+def test_action_mode_matches_canonical_structured_gate_shapes(value, expected_mode):
+    assert validate_package(value) == []
+    assert derive_action_mode(value) == expected_mode
+
+
 def test_action_mode_is_structural_not_free_text():
     repair = yellow_repair_package()
     repair["decision"]["next_required_action"] = "Only verify this package."
@@ -90,6 +214,32 @@ def test_action_mode_is_structural_not_free_text():
     assert derive_action_mode(combined) == "repair_and_verify"
 
 
+def test_verify_prompt_is_non_modifying_and_renders_structured_causes():
+    value = yellow_verify_package()
+    reasons = structured_action_reasons(value)
+    prompt = render_next_action_prompt(value)
+    assert reasons["action_mode"] == "verify"
+    assert "CHK-001" in prompt
+    assert "required check unresolved" in prompt
+    assert "Do not modify repository files in verification-only mode." in prompt
+    assert "Verification-only mode does not authorize code or file modification." in prompt
+    assert "You may modify any file" not in prompt
+    assert "Choose and implement the best bounded repair." not in prompt
+    assert "principal technical owner and repair lead" not in prompt
+
+
+def test_repair_and_verify_prompt_enforces_both_obligations():
+    value = yellow_repair_package()
+    value["checks"][0].update({"state": "UNAVAILABLE", "result": "UNKNOWN", "evidence_id": None})
+    assert validate_package(value) == []
+    prompt = render_next_action_prompt(value)
+    assert "action_mode: `repair_and_verify`" in prompt
+    assert "Repair every confirmed defect" in prompt
+    assert "Separately resolve every verification reason" in prompt
+    assert "validated repair handoff: PRF-001" in prompt
+    assert "required check unresolved: CHK-001" in prompt
+
+
 def test_stale_package_uses_rerun_review_and_does_not_authorize_repair():
     value = yellow_repair_package()
     value["review_identity"]["review_validity"] = "STALE"
@@ -99,6 +249,7 @@ def test_stale_package_uses_rerun_review_and_does_not_authorize_repair():
     assert "Do not modify code based on this stale or unknown package." in prompt
     assert "repair authority is suspended" in prompt
     assert "NON-AUTHORIZING HISTORICAL CONTEXT ONLY" in prompt
+    assert "You may modify any file" not in prompt
 
 
 def test_prompt_has_required_sections_in_order_and_self_audit_is_not_independent():
@@ -155,15 +306,62 @@ def test_deterministic_artifacts_and_manifest_hashes():
 
 def test_directory_validation_requires_all_derived_artifacts(tmp_path):
     value = package()
-    (tmp_path / "review-package.json").write_text(
-        json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
-    for name, text in build_review_artifacts(value).items():
-        (tmp_path / name).write_text(text, encoding="utf-8")
+    write_review_directory(tmp_path, value)
     assert validate_directory(tmp_path) == []
 
-    (tmp_path / PROMPT_NAME).write_text("must not exist\n", encoding="utf-8")
-    assert [item.code for item in validate_directory(tmp_path)] == ["PRI-CONSIST-002"]
+    (tmp_path / PROMPT_NAME).write_bytes(b"must not exist\n")
+    assert diagnostic_codes(tmp_path) == {"PRI-CONSIST-002"}
+
+
+@pytest.mark.parametrize("filename", ["OWNER_RESULT.fa.txt", "OWNER_DECISION_CARD.fa.md"])
+def test_directory_validation_rejects_crlf_transformation_and_hash_mismatch(tmp_path, filename):
+    value = yellow_repair_package()
+    write_review_directory(tmp_path, value)
+    artifact = tmp_path / filename
+    artifact.write_bytes(artifact.read_bytes().replace(b"\n", b"\r\n"))
+    codes = diagnostic_codes(tmp_path)
+    assert "PRI-CONSIST-001" in codes
+    assert "PRI-MANIFEST-003" in codes
+
+
+def test_directory_validation_rejects_missing_final_lf(tmp_path):
+    value = yellow_repair_package()
+    write_review_directory(tmp_path, value)
+    artifact = tmp_path / "OWNER_RESULT.fa.txt"
+    artifact.write_bytes(artifact.read_bytes().removesuffix(b"\n"))
+    codes = diagnostic_codes(tmp_path)
+    assert "PRI-CONSIST-001" in codes
+    assert "PRI-MANIFEST-003" in codes
+
+
+def test_directory_validation_rejects_stale_manifest_hash(tmp_path):
+    value = yellow_repair_package()
+    write_review_directory(tmp_path, value)
+    manifest_path = tmp_path / "artifact-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["owner_decision_card"]["sha256"] = "0" * 64
+    manifest_path.write_bytes(
+        (json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+    )
+    codes = diagnostic_codes(tmp_path)
+    assert "PRI-CONSIST-001" in codes
+    assert "PRI-MANIFEST-001" in codes
+    assert "PRI-MANIFEST-003" in codes
+
+
+def test_directory_validation_rejects_wrong_manifest_path(tmp_path):
+    value = yellow_repair_package()
+    write_review_directory(tmp_path, value)
+    manifest_path = tmp_path / "artifact-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["simple_owner_result"]["path"] = "wrong-owner-result.txt"
+    manifest_path.write_bytes(
+        (json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+    )
+    codes = diagnostic_codes(tmp_path)
+    assert "PRI-CONSIST-001" in codes
+    assert "PRI-MANIFEST-001" in codes
+    assert "PRI-MANIFEST-002" in codes
 
 
 def test_existing_canonical_artifacts_are_still_generated():
