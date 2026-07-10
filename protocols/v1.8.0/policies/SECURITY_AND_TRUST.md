@@ -32,6 +32,14 @@ Do not expose credentials or sensitive personal data. Redact output, record reda
 
 Package-derived free text is serialized as JSON data after a fixed trust boundary. Exact artifact validation rejects injected or altered instructions. External review input becomes repair guidance only through validated `external_review_intake`.
 
+## Re-review provenance
+
+Lifecycle JSON, inspector names, commit-shaped strings, hashes, and claimed review results are untrusted until independently verified. The sequence gate does not accept a producer-supplied `PASSED` field.
+
+Authoritative provenance requires deterministic validation of `review-package.json`, `DECISION_PROJECTION.json`, and `artifact-manifest.json`; recomputed SHA-256 values; exact target repository, PR, and reviewed-head identity; `CURRENT` validity; and inspector repository name, stable GitHub repository ID, canonical commit URLs, and exact commit SHA obtained over HTTPS from the official GitHub REST API.
+
+Only the verifier-created opaque `VerifiedReviewEvidence` object may unlock the sequence. Target content, lifecycle content, copied GitHub-looking JSON, and plain dictionaries cannot manufacture that evidence. The CLI performs the network lookup; offline validation without authoritative commit evidence remains blocking.
+
 ## GitHub Actions
 
 Use minimum token permissions, immutable full action SHAs, disabled persisted checkout credentials, explicit PR-head identity when exact-head evidence is claimed, and no privileged execution of untrusted pull-request code.
