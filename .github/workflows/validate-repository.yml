@@ -84,17 +84,3 @@ jobs:
 
       - name: Run semantic and rendering tests
         run: python -m pytest
-
-      - name: Package temporary diagnostic snapshot
-        if: always() && matrix.python-version == '3.12'
-        shell: bash
-        run: zip -qr pr-inspector-diagnostic.zip . -x '.git/*' 'pr-inspector-diagnostic.zip'
-
-      - name: Upload temporary diagnostic snapshot
-        if: always() && matrix.python-version == '3.12'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: pr-inspector-diagnostic
-          path: pr-inspector-diagnostic.zip
-          retention-days: 1
-          if-no-files-found: error
