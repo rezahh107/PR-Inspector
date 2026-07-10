@@ -1,0 +1,220 @@
+
+Successfully installed attrs-26.1.0 iniconfig-2.3.0 jsonschema-4.26.0 jsonschema-specifications-2025.9.1 packaging-26.2 pluggy-1.6.0 pr-inspector-protocol-1.9.0 pygments-2.20.0 pytest-9.1.1 referencing-0.37.0 rpds-py-2026.6.3 typing-extensions-4.16.0
+OK: versioned repository validation passed.
+...............F.................                                        [100%]
+=================================== FAILURES ===================================
+_____ test_acceptance_without_verified_review_evidence_fails_sequence_gate _____
+
+tmp_path = PosixPath('/tmp/pytest-of-runner/pytest-0/test_acceptance_without_verifi0')
+
+    def test_acceptance_without_verified_review_evidence_fails_sequence_gate(tmp_path):
+        sequence, _, governance, _ = verified_sequence(tmp_path)
+>       assert sequence_codes(sequence) == {"PRI-GOV-001", "PRI-SEQUENCE-001", "PRI-SEQUENCE-008"}
+E       AssertionError: assert {'PRI-SEQUENC...SEQUENCE-008'} == {'PRI-GOV-001...SEQUENCE-008'}
+E         
+E         Extra items in the right set:
+E         'PRI-GOV-001'
+E         
+E         Full diff:
+E           {
+E         -     'PRI-GOV-001',
+E               'PRI-SEQUENCE-001',
+E               'PRI-SEQUENCE-008',
+E           }
+
+tests/test_behavioral_rule_coverage.py:300: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_behavioral_rule_coverage.py::test_acceptance_without_verified_review_evidence_fails_sequence_gate - AssertionError: assert {'PRI-SEQUENC...SEQUENCE-008'} == {'PRI-GOV-001...SEQUENCE-008'}
+  
+  Extra items in the right set:
+  'PRI-GOV-001'
+  
+  Full diff:
+    {
+  -     'PRI-GOV-001',
+        'PRI-SEQUENCE-001',
+        'PRI-SEQUENCE-008',
+    }
+.................                                                        [100%]
+..................F............................F........................ [ 49%]
+............F........................................................FF. [ 99%]
+.                                                                        [100%]
+=================================== FAILURES ===================================
+_____ test_acceptance_without_verified_review_evidence_fails_sequence_gate _____
+
+tmp_path = PosixPath('/tmp/pytest-of-runner/pytest-1/test_acceptance_without_verifi0')
+
+    def test_acceptance_without_verified_review_evidence_fails_sequence_gate(tmp_path):
+        sequence, _, governance, _ = verified_sequence(tmp_path)
+>       assert sequence_codes(sequence) == {"PRI-GOV-001", "PRI-SEQUENCE-001", "PRI-SEQUENCE-008"}
+E       AssertionError: assert {'PRI-SEQUENC...SEQUENCE-008'} == {'PRI-GOV-001...SEQUENCE-008'}
+E         
+E         Extra items in the right set:
+E         'PRI-GOV-001'
+E         
+E         Full diff:
+E           {
+E         -     'PRI-GOV-001',
+E               'PRI-SEQUENCE-001',
+E               'PRI-SEQUENCE-008',
+E           }
+
+tests/test_behavioral_rule_coverage.py:300: AssertionError
+_______ test_merge_now_requires_current_green_and_no_additional_approval _______
+
+    def test_merge_now_requires_current_green_and_no_additional_approval():
+        value = package()
+        projection = project_decision(value)
+        assert projection["technical_status"] == "GREEN_TECHNICALLY_READY"
+        assert projection["owner_readiness"]["color"] == "GREEN"
+        assert projection["next_action"] == {
+            "kind": "merge_now",
+            "recipient": "none",
+            "may_modify_code": False,
+            "prompt_required": False,
+            "prompt_kind": None,
+            "reason_codes": [],
+        }
+>       assert render_owner_result(projection).endswith("مرج کن.\n")
+E       AssertionError: assert False
+E        +  where False = <built-in method endswith of str object at 0x563b3db87ca0>('مرج کن.\n')
+E        +    where <built-in method endswith of str object at 0x563b3db87ca0> = '🟢 وضعیت: از نظر فنی آماده\nآمادگی فنی تأیید شده؛ حفاظت ادغام در GitHub جداگانه بررسی شود.\n'.endswith
+E        +      where '🟢 وضعیت: از نظر فنی آماده\nآمادگی فنی تأیید شده؛ حفاظت ادغام در GitHub جداگانه بررسی شود.\n' = render_owner_result({'schema_version': 1, 'protocol_version': 'v1.9.0', 'technical_status': 'GREEN_TECHNICALLY_READY', 'technical_status_reason_codes': [], ...})
+
+tests/test_dual_audience_outputs.py:171: AssertionError
+____________ test_owner_renderer_consumes_projection_not_free_text _____________
+
+    def test_owner_renderer_consumes_projection_not_free_text():
+        value = package()
+        projection = project_decision(value)
+        value["decision"]["next_required_action"] = "Never merge this."
+>       assert owner_result_text(projection).endswith("مرج کن.\n")
+E       AssertionError: assert False
+E        +  where False = <built-in method endswith of str object at 0x563b3db87ca0>('مرج کن.\n')
+E        +    where <built-in method endswith of str object at 0x563b3db87ca0> = '🟢 وضعیت: از نظر فنی آماده\nآمادگی فنی تأیید شده؛ حفاظت ادغام در GitHub جداگانه بررسی شود.\n'.endswith
+E        +      where '🟢 وضعیت: از نظر فنی آماده\nآمادگی فنی تأیید شده؛ حفاظت ادغام در GitHub جداگانه بررسی شود.\n' = owner_result_text({'schema_version': 1, 'protocol_version': 'v1.9.0', 'technical_status': 'GREEN_TECHNICALLY_READY', 'technical_status_reason_codes': [], ...})
+
+tests/test_dual_audience_outputs.py:484: AssertionError
+__________ test_orphan_acceptance_event_is_rejected[merge_authorized] __________
+
+event_type = 'merge_authorized'
+
+    @pytest.mark.parametrize(
+        "event_type",
+        ("technically_accepted", "merge_authorized", "merged"),
+    )
+    def test_orphan_acceptance_event_is_rejected(event_type: str):
+        sequence = {
+            "schema_version": 3,
+            "events": [
+                {
+                    "event_id": f"evt-orphan-{event_type}",
+                    "event_type": event_type,
+                    "target_repository": "example/project",
+                    "pr_number": 42,
+                    "resulting_head_sha": "1" * 40,
+                }
+            ],
+        }
+    
+>       assert _codes(sequence) == {"PRI-SEQUENCE-001"}
+E       AssertionError: assert {'PRI-SEQUENCE-SCHEMA-001'} == {'PRI-SEQUENCE-001'}
+E         
+E         Extra items in the left set:
+E         'PRI-SEQUENCE-SCHEMA-001'
+E         Extra items in the right set:
+E         'PRI-SEQUENCE-001'
+E         
+E         Full diff:
+E           {
+E         -     'PRI-SEQUENCE-001',
+E         +     'PRI-SEQUENCE-SCHEMA-001',
+E         ?                   +++++++
+E           }
+
+tests/test_rereview_orphan_acceptance.py:36: AssertionError
+_______________ test_orphan_acceptance_event_is_rejected[merged] _______________
+
+event_type = 'merged'
+
+    @pytest.mark.parametrize(
+        "event_type",
+        ("technically_accepted", "merge_authorized", "merged"),
+    )
+    def test_orphan_acceptance_event_is_rejected(event_type: str):
+        sequence = {
+            "schema_version": 3,
+            "events": [
+                {
+                    "event_id": f"evt-orphan-{event_type}",
+                    "event_type": event_type,
+                    "target_repository": "example/project",
+                    "pr_number": 42,
+                    "resulting_head_sha": "1" * 40,
+                }
+            ],
+        }
+    
+>       assert _codes(sequence) == {"PRI-SEQUENCE-001"}
+E       AssertionError: assert {'PRI-SEQUENCE-SCHEMA-001'} == {'PRI-SEQUENCE-001'}
+E         
+E         Extra items in the left set:
+E         'PRI-SEQUENCE-SCHEMA-001'
+E         Extra items in the right set:
+E         'PRI-SEQUENCE-001'
+E         
+E         Full diff:
+E           {
+E         -     'PRI-SEQUENCE-001',
+E         +     'PRI-SEQUENCE-SCHEMA-001',
+E         ?                   +++++++
+E           }
+
+tests/test_rereview_orphan_acceptance.py:36: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_behavioral_rule_coverage.py::test_acceptance_without_verified_review_evidence_fails_sequence_gate - AssertionError: assert {'PRI-SEQUENC...SEQUENCE-008'} == {'PRI-GOV-001...SEQUENCE-008'}
+  
+  Extra items in the right set:
+  'PRI-GOV-001'
+  
+  Full diff:
+    {
+  -     'PRI-GOV-001',
+        'PRI-SEQUENCE-001',
+        'PRI-SEQUENCE-008',
+    }
+FAILED tests/test_dual_audience_outputs.py::test_merge_now_requires_current_green_and_no_additional_approval - AssertionError: assert False
+ +  where False = <built-in method endswith of str object at 0x563b3db87ca0>('مرج کن.\n')
+ +    where <built-in method endswith of str object at 0x563b3db87ca0> = '🟢 وضعیت: از نظر فنی آماده\nآمادگی فنی تأیید شده؛ حفاظت ادغام در GitHub جداگانه بررسی شود.\n'.endswith
+ +      where '🟢 وضعیت: از نظر فنی آماده\nآمادگی فنی تأیید شده؛ حفاظت ادغام در GitHub جداگانه بررسی شود.\n' = render_owner_result({'schema_version': 1, 'protocol_version': 'v1.9.0', 'technical_status': 'GREEN_TECHNICALLY_READY', 'technical_status_reason_codes': [], ...})
+FAILED tests/test_dual_audience_outputs.py::test_owner_renderer_consumes_projection_not_free_text - AssertionError: assert False
+ +  where False = <built-in method endswith of str object at 0x563b3db87ca0>('مرج کن.\n')
+ +    where <built-in method endswith of str object at 0x563b3db87ca0> = '🟢 وضعیت: از نظر فنی آماده\nآمادگی فنی تأیید شده؛ حفاظت ادغام در GitHub جداگانه بررسی شود.\n'.endswith
+ +      where '🟢 وضعیت: از نظر فنی آماده\nآمادگی فنی تأیید شده؛ حفاظت ادغام در GitHub جداگانه بررسی شود.\n' = owner_result_text({'schema_version': 1, 'protocol_version': 'v1.9.0', 'technical_status': 'GREEN_TECHNICALLY_READY', 'technical_status_reason_codes': [], ...})
+FAILED tests/test_rereview_orphan_acceptance.py::test_orphan_acceptance_event_is_rejected[merge_authorized] - AssertionError: assert {'PRI-SEQUENCE-SCHEMA-001'} == {'PRI-SEQUENCE-001'}
+  
+  Extra items in the left set:
+  'PRI-SEQUENCE-SCHEMA-001'
+  Extra items in the right set:
+  'PRI-SEQUENCE-001'
+  
+  Full diff:
+    {
+  -     'PRI-SEQUENCE-001',
+  +     'PRI-SEQUENCE-SCHEMA-001',
+  ?                   +++++++
+    }
+FAILED tests/test_rereview_orphan_acceptance.py::test_orphan_acceptance_event_is_rejected[merged] - AssertionError: assert {'PRI-SEQUENCE-SCHEMA-001'} == {'PRI-SEQUENCE-001'}
+  
+  Extra items in the left set:
+  'PRI-SEQUENCE-SCHEMA-001'
+  Extra items in the right set:
+  'PRI-SEQUENCE-001'
+  
+  Full diff:
+    {
+  -     'PRI-SEQUENCE-001',
+  +     'PRI-SEQUENCE-SCHEMA-001',
+  ?                   +++++++
+    }
+5 failed, 140 passed in 0.72s
