@@ -4,11 +4,16 @@
 
 - Added a deterministic derived output layer after canonical review validation and rendering.
 - Added the exact two-line Persian `OWNER_RESULT.fa.txt` with Green, Yellow, and Red outputs only.
+- Hardened the Green wording so technical readiness never bypasses owner, human-technical, or specialist approval.
+- Made non-current validity use the approved Yellow owner wording and a non-authorizing `rerun_review` prompt.
 - Added conditional deterministic `NEXT_ACTION_PROMPT.en.md` generation for Yellow and Red; Green forbids the prompt.
-- Added structural `action_mode` derivation for `repair`, `verify`, `repair_and_verify`, and stale-safe `rerun_review`.
+- Added structurally derived `repair`, `verify`, `repair_and_verify`, and `rerun_review` modes with operationally distinct prompt authority.
+- Aligned action reasons with every canonical status-driving check, finding, coverage, intent, handoff, and external-review carrier.
 - Added an artifact manifest with canonical-package and rendered-artifact SHA-256 values.
+- Added exact UTF-8 LF byte comparison and independent on-disk manifest-hash verification, including CRLF and stale-manifest regressions.
 - Added prompt authority, research, trust-boundary, invariant, adjacent-impact, self-audit, evidence, and mandatory PR Inspector re-review controls.
-- Added deterministic, prompt-injection, stale-package, manifest-hash, and canonical-artifact regression tests.
+- Updated pull-request CI to check out and assert the exact PR head SHA instead of relying on the synthetic merge ref.
+- Added deterministic, prompt-injection, approval, action-mode, stale-package, byte/hash, exact-head workflow, and canonical-artifact regression tests.
 - Preserved the released v1.7.0 snapshot and existing canonical review artifacts.
 
 ## 1.7.0
