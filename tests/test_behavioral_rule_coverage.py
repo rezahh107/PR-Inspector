@@ -6,6 +6,7 @@ from pr_inspector.behavioral_coverage import FOCUSED_COMMAND, REQUIRED_RULE_IDS,
 from pr_inspector.ci_identity import build_ci_identity, validate_ci_identity
 from pr_inspector.decision_projection import owner_result_text, project_decision
 from pr_inspector.derived_outputs import PROJECTION_NAME, PROMPT_NAME, write_review_artifacts
+from pr_inspector.render import canonical_action_text, render_handoff
 from pr_inspector.sequence_policy import validate_rereview_sequence
 from pr_inspector.validation_v2 import validate_directory
 
@@ -83,6 +84,23 @@ def test_projection_action_drift_mutation_is_rejected(tmp_path):
     projection["next_action"].update({"kind": "repair", "recipient": "implementer_model", "may_modify_code": True, "prompt_required": True, "prompt_kind": "implementer_repair_prompt"})
     rewrite_json(path, projection)
     assert "PRI-PROJECTION-003" in codes(tmp_path)
+
+
+def test_technical_handoff_uses_projection_action_not_legacy_prose(tmp_path):
+    value = package()
+    value["decision"]["next_required_action"] = "Never merge this."
+    projection = project_decision(value)
+    rendered = render_handoff(value, projection)
+
+    assert projection["next_action"]["kind"] == "merge_now"
+    assert "Never merge this." not in rendered
+    assert "Exact next action" not in rendered
+    assert "canonical_next_action_kind: merge_now" in rendered
+    assert canonical_action_text(projection) in rendered
+    assert "non-authoritative" in rendered
+
+    write_directory(tmp_path, value)
+    assert validate_directory(tmp_path) == []
 
 
 def test_unregistered_reason_mutation_is_rejected(tmp_path):
@@ -166,11 +184,83 @@ def test_exact_head_and_synthetic_merge_fixtures_preserve_identity_truth():
     assert "PRI-CI-IDENTITY-003" in {item.code for item in validate_ci_identity(invalid)}
 
 
-def test_acceptance_before_independent_rereview_fails_sequence_gate():
-    invalid = ["implemented_pending_rereview", "technically_accepted"]
-    assert [item.code for item in validate_rereview_sequence(invalid)] == ["PRI-SEQUENCE-001"]
-    valid = ["implemented_pending_rereview", "pr_inspector_rereview_passed", "technically_accepted", "merge_authorized"]
-    assert validate_rereview_sequence(valid) == []
+def rereview_sequence() -> dict:
+    return json.loads(
+        (ROOT / "fixtures/rereview-sequence/valid.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+
+def sequence_codes(sequence: dict) -> list[str]:
+    return sorted(item.code for item in validate_rereview_sequence(sequence))
+
+
+def test_identity_bound_rereview_accepts_matching_current_pass():
+    assert sequence_codes(rereview_sequence()) == []
+
+
+def test_rereview_from_wrong_pr_cannot_unlock_acceptance():
+    sequence = rereview_sequence()
+    sequence["events"][1]["pr_number"] = 13
+    assert sequence_codes(sequence) == ["PRI-SEQUENCE-001", "PRI-SEQUENCE-002"]
+
+
+def test_rereview_of_wrong_head_cannot_unlock_acceptance():
+    sequence = rereview_sequence()
+    wrong_head = "b" * 40
+    sequence["events"][1]["resulting_head_sha"] = wrong_head
+    sequence["events"][1]["reviewed_head_sha"] = wrong_head
+    assert sequence_codes(sequence) == ["PRI-SEQUENCE-001", "PRI-SEQUENCE-003"]
+
+
+def test_stale_rereview_cannot_unlock_acceptance():
+    sequence = rereview_sequence()
+    sequence["events"][1]["review_validity"] = "STALE"
+    assert sequence_codes(sequence) == ["PRI-SEQUENCE-001", "PRI-SEQUENCE-004"]
+
+
+def test_failed_rereview_cannot_unlock_acceptance():
+    sequence = rereview_sequence()
+    sequence["events"][1]["review_result"] = "FAILED"
+    assert sequence_codes(sequence) == ["PRI-SEQUENCE-001", "PRI-SEQUENCE-005"]
+
+
+def test_replayed_rereview_event_cannot_unlock_new_repaired_head():
+    sequence = rereview_sequence()
+    pending = sequence["events"][0]
+    review = sequence["events"][1]
+    new_head = "b" * 40
+    second_pending = {
+        **pending,
+        "event_id": "evt-pending-b",
+        "resulting_head_sha": new_head,
+    }
+    replayed_review = {
+        **review,
+        "resulting_head_sha": new_head,
+        "reviewed_head_sha": new_head,
+    }
+    acceptance = {
+        **sequence["events"][2],
+        "event_id": "evt-accepted-b",
+        "resulting_head_sha": new_head,
+    }
+    sequence["events"] = [
+        pending,
+        review,
+        second_pending,
+        replayed_review,
+        acceptance,
+    ]
+    assert sequence_codes(sequence) == ["PRI-SEQUENCE-001", "PRI-SEQUENCE-007"]
+
+
+def test_legacy_string_sequence_is_schema_rejected():
+    diagnostics = validate_rereview_sequence(
+        ["implemented_pending_rereview", "pr_inspector_rereview_passed"]
+    )
+    assert {item.code for item in diagnostics} == {"PRI-SEQUENCE-SCHEMA-001"}
 
 
 def test_prompt_injection_mutation_remains_serialized_after_trust_boundary():
