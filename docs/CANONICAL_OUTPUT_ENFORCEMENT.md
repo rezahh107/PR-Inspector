@@ -1,71 +1,76 @@
-# Canonical Artifact and Output Enforcement
+# Canonical Artifact and Official-Output Boundary
 
-Status: implementation boundary for the active `v1.9.0` protocol.
+Status: candidate implementation boundary for `v1.9.0` on the stacked repair branch. The released default-branch authority remains whatever live `main`, `CURRENT_VERSION`, the manifest, and release lock select.
 
-## Confirmed execution paths
+## Boundary classification
 
-| path | classification | current role | enforcement decision |
-|---|---|---|---|
-| `scripts/render_review_v2.py` | confirmed bypass before this repair | Supported package-to-artifact CLI validated the package and wrote artifacts, but did not prove final bundle validation or atomic completion. | Route exclusively through `complete_review`; emit only bounded incomplete output on failure. |
-| `pr_inspector.derived_outputs.write_review_artifacts` | public low-level API by design | Deterministic file writer used by tests and composition. It does not validate the package or represent completed official output. | Retain as a primitive; never return or imply official completion. |
-| `pr_inspector.derived_outputs.build_review_artifacts` | public low-level API by design | In-memory deterministic artifact construction used by validators and tests. | Retain as a primitive; dictionaries are not completion proofs. |
-| `pr_inspector.derived_outputs.render_next_action_prompt` | potential misuse | Renders one projection-bound prompt for composition and tests. | Official prompt access requires `VerifiedReviewCompletion`; direct rendering cannot support a prompt-ready claim. |
-| `pr_inspector.render.render_owner` | potential misuse | Low-level deterministic Owner Decision Card renderer. | Official owner output requires verified completion. |
-| `pr_inspector.render.render_handoff` | potential misuse | Low-level deterministic Technical Handoff renderer. | Official technical output requires verified completion. |
-| `pr_inspector.decision_projection.project_decision` | public low-level API by design | Sole canonical deterministic decision derivation. | Remains the only projection implementation, but a projection object alone is not a completed review. |
-| `scripts/validate_review_v2.py` | validation-only supported path | Independently validates a review directory. | Remains read-only validation; it does not expose an official result. |
-| fixtures and tests | test-only path | Exercise deterministic rendering and validation. | Must not be represented as live completed reviews. |
-| protocol templates and examples | documentation-only path | Describe output form and legacy examples. | Never treated as generated artifacts or completion evidence. |
+```yaml
+repository_execution_bug: true
+repository_protocol_gap: true
+supported_cli_bypass: true
+external_interface_noncompliance: true
+project_integration_gap: true
+mixed_boundary_defect: true
+```
 
-## Decision and artifact field sources
+The repository defect was real but bounded: the supported render CLI validated only the package, wrote directly into the destination, and printed success without independently validating the completed directory or re-reading the live GitHub PR head. Separately, arbitrary ChatGPT or connector orchestration can ignore repository code and type authoritative-looking prose directly; Python code in this repository cannot prevent that external behavior.
 
-- Schema validation: `pr_inspector.validation_v2.validate_package`.
-- Semantic validation: `pr_inspector.semantic_v2.validate_semantics`, invoked by `validate_package`.
-- Canonical projection: `pr_inspector.decision_projection.project_decision`.
-- Projection invariant and schema/equality checks: `validate_projection_invariants` and `validation_v2._projection_diagnostics`.
-- Conditional prompt creation: `derived_outputs.build_review_artifacts` calls `render_next_action_prompt` only when `projection.next_action.prompt_required` is true.
-- Artifact completeness and deterministic byte checks: `validation_v2.validate_directory`.
-- Manifest structure, canonical package hash, final-file hashes, and prompt routing: `validation_v2._manifest_diagnostics`.
-- Owner and technical views: low-level renderers consume the canonical projection; official exposure is performed only by accessors on `VerifiedReviewCompletion`.
+## Supported-path map
 
-## Root cause
+| path | classification | boundary |
+|---|---|---|
+| `scripts/render_review_v2.py` | official supported entry point | Must construct a live GitHub PR-head source and call `complete_review`; no direct writer import. |
+| `pr_inspector.official_review.complete_review` | official high-level package API | Performs live identity reads, validation, staging, atomic publication, rollback, and final head recheck. |
+| `pr_inspector.official_review.verify_completed_review` | official existing-bundle verifier | Requires a verifier-created live head source and reads GitHub before and after bundle validation. |
+| `official_owner_result`, `official_technical_handoff`, `official_next_action_prompt` | official output accessors | Accept only `VerifiedReviewCompletion`; revalidate bytes and live head before returning content. |
+| `decision_projection.project_decision` | internal composition API | Canonical decision derivation only; not completion evidence. |
+| `derived_outputs.build_review_artifacts` | internal composition API | In-memory deterministic construction; not completion evidence. |
+| `derived_outputs.write_review_artifacts` | internal composition API | Low-level writer; never an official completion signal. |
+| `derived_outputs.render_next_action_prompt` | internal composition API | Deterministic renderer; direct text is not an official prompt-ready claim. |
+| `scripts/validate_review_v2.py` | official validation-only entry point | Read-only directory validation; does not announce a completed live review. |
+| fixtures/tests | test-only helper | Never live review evidence. |
+| templates/policies | documentation-only path | Never generated completion evidence. |
+| arbitrary chat/model prose | external interface outside repository control | Must be governed by project integration; repository code cannot technically block it. |
 
-The repository already had strong deterministic package, projection, artifact, and manifest validators, but no single supported completion boundary connected them. The render CLI validated only the input package, wrote directly to the destination, and printed success without independently validating the final directory. Therefore a caller could confuse a low-level rendering result or partial output directory with an official completed review.
+## Official completion sequence
 
-## Selected architecture
+```text
+canonical package bytes
+→ fresh canonical GitHub PR API payload
+→ package schema + semantic validation
+→ live repository/PR/head identity match
+→ canonical projection
+→ deterministic artifacts in sibling staging
+→ manifest from final staged bytes
+→ complete directory validation
+→ fresh prepublication head recheck
+→ atomic directory publication
+→ post-publication bundle validation
+→ fresh final head recheck
+→ verifier-created completion receipt
+→ live-rechecking official accessors
+```
 
-`pr_inspector.official_review.complete_review` is the sole supported official package-to-output boundary.
+A changed head before publication prevents publication. A changed head or failed endpoint after publication restores the prior directory. Partial payloads, non-canonical identity, network failure, invalid artifacts, or any other failed gate return `IncompleteReview` with diagnostics only.
 
-It requires:
+## Completion and output claims
 
-1. canonical package bytes;
-2. caller-observed target repository, PR number, and reviewed head SHA;
-3. schema and semantic validation;
-4. deterministic projection and artifact rendering into a fresh sibling staging directory;
-5. complete artifact, conditional prompt, manifest, byte, and hash validation;
-6. verifier-created `VerifiedReviewCompletion`;
-7. atomic directory replacement;
-8. post-publication revalidation and fail-closed rollback.
+`VerifiedReviewCompletion` binds the repository, PR, reviewed head, canonical package hash, package file hash, projection hash, manifest hash, all official artifact hashes, and a canonical GitHub PR-payload receipt hash. Official accessors re-read both the bundle and live PR head.
 
-Official owner output, technical output, and next-action prompt are exposed only through a valid completion capability. Each accessor revalidates the directory and rejects mutation after completion.
+The opaque markers prevent accidental use of booleans, dictionaries, or low-level renderer results as completion. They are not cryptographic signatures or hostile same-process security boundaries.
 
-## Rollback invariant
+## External integration obligation
 
-A post-publication failure never treats recursive deletion as proof of recovery. Recovery executes in this order:
+An external ChatGPT/project/connector integration that wants to present an **official PR Inspector result** must:
 
-1. atomically rename the failed published directory to a unique sibling quarantine path;
-2. restore the previous backup to the official path;
-3. clean quarantine only after restoration succeeds, or after a no-backup rollback has made the official path non-authoritative;
-4. retain backup and quarantine paths plus explicit diagnostics when restoration or cleanup fails.
+1. invoke the supported official CLI or package boundary;
+2. require a successful process result and verifier-created completion;
+3. display owner/technical/prompt content only through official accessors or from the validated published bundle;
+4. never synthesize status, next action, or prompt-ready wording directly;
+5. preserve failure output as incomplete/blocked rather than converting it into Green/Yellow/Red prose.
 
-If quarantine rename fails, the implementation removes or invalidates `artifact-manifest.json` before attempting explicit deletion. A failed deletion may leave files behind, but the official path must not remain a schema- and manifest-valid authoritative bundle. Restoration, deletion, quarantine, and cleanup errors are returned as `IncompleteReview` diagnostics and are never described as successful rollback.
+The repository cannot enforce these rules against unrelated free-form chat output. That remaining obligation belongs to the external orchestration layer.
 
-## Failure boundary
+## TOCTOU limitation
 
-Any read, parse, schema, semantic, identity, projection, render, artifact, manifest, publication, rollback, cleanup, or post-publication validation failure returns `IncompleteReview`. That object carries diagnostics and bounded failure messages only. It deliberately has no technical status, approval requirement, owner readiness, action, or prompt fields.
-
-Partial staging directories are non-authoritative. Existing completed output is not replaced unless the new staged bundle validates. After post-publication failure, the official path contains either the restored prior output or no authoritative bundle.
-
-## Security claim boundary
-
-The opaque marker prevents accidental completion claims through booleans, dictionaries, or low-level renderer returns. It is not a hostile same-process security boundary, cryptographic signature, OS harness, or downstream enforcement mechanism.
+GitHub head identity is exact at each observed API receipt. No client can eliminate the final network-to-display race entirely. The implementation narrows it through initial, prepublication, post-publication, and accessor-time reads and fails closed on every observed drift.

@@ -42,11 +42,11 @@ A failed required transition enters `BLOCKED` and does not emit a completed owne
 10. Re-read those bytes and generate `artifact-manifest.json`.
 11. Independently validate projection schema/equality, prompt routing, exact bytes, and manifest hashes.
 12. Record CI tested-object identity without rewriting merge SHA as head SHA.
-13. Re-read the live PR head. A change makes the review stale and requires rebuilding all artifacts.
-14. Expose the two-line result to the owner and technical artifacts separately.
+13. The official completion boundary fetches the canonical GitHub PR payload, binds repository/PR/head identity, and re-reads the live head immediately before publication.
+14. Publish only a fully validated sibling staging directory, revalidate the published bundle, and re-read the live GitHub head again. Any observed drift or endpoint failure rolls back publication and returns an incomplete result.
+15. Expose owner, technical, or action-prompt content only through a verifier-created completion capability whose accessors revalidate bundle bytes and live head identity.
 
 No renderer, validator, or prompt generator may maintain a competing status/action registry.
-
 
 ## Post-review governance sequence
 

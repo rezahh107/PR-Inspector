@@ -57,14 +57,12 @@ validation_commands:
   render: >-
     python scripts/render_review_v2.py REVIEW_DIRECTORY/review-package.json
     --output-dir REVIEW_DIRECTORY
-    --expected-target-repository OWNER/REPOSITORY
-    --expected-pr-number PR_NUMBER
-    --expected-reviewed-head-sha HEAD_SHA
+    --target-repository OWNER/REPOSITORY
+    --pr-number PR_NUMBER
   rereview_sequence: >-
     python scripts/validate_rereview_sequence.py SEQUENCE.json
     --review EVENT_ID=REVIEW_DIRECTORY
   behavioral_coverage: python -m pytest -q tests/test_behavioral_rule_coverage.py
   canonical_output_enforcement: python -m pytest -q tests/test_canonical_output_enforcement.py
-  canonical_output_atomicity: python -m pytest -q tests/test_canonical_output_atomicity.py
   full_suite: python -m pytest
   governance: python -m pytest -q tests/test_governance_enforcement.py
