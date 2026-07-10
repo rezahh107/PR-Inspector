@@ -39,6 +39,8 @@ Human and specialist handoffs explicitly state that model output cannot satisfy 
 
 Target and package free text is JSON-serialized as untrusted data after the fixed trust-boundary section. It cannot create prompt sections or override protocol instructions.
 
+A schema-valid lifecycle event remains untrusted. Inspector identity, review success, protocol identity, and artifact hashes become actionable only after the provenance verifier consumes authoritative GitHub repository/commit responses and validates the actual review artifact directory.
+
 ## Artifact byte integrity
 
 Non-manifest files are written first. The manifest hashes bytes reread from disk. Validation independently checks actual file bytes, paths, prompt routing, projection equality, canonical package hash, supplied package-file hash, BOM, newline, and encoding behavior.
@@ -51,6 +53,10 @@ Exact-head claims require a structured identity record where `tested_ref_type` i
 
 Repair output remains `implemented_pending_rereview`. It does not close findings.
 
-The sequence gate consumes `rereview-sequence.schema.json` records, not bare event strings. A valid unlock requires a later `pr_inspector_rereview_completed` event tied to the same repository, PR number, and repaired head; the reviewed head must match exactly, validity must be `CURRENT`, result must be `PASSED`, inspector identity must be present, and the event ID must not be replayed.
+The sequence gate consumes schema-v2 structured lifecycle events plus a separate mapping of opaque `VerifiedReviewEvidence` capabilities. The event declares protocol version and hashes for `review-package.json`, `DECISION_PROJECTION.json`, and `artifact-manifest.json`, but declarations alone never unlock acceptance.
 
-Wrong-PR, wrong-head, stale, failed, missing, or replayed evidence blocks acceptance and merge authorization.
+`verify_review_directory` validates deterministic review artifacts, recomputes hashes, confirms target/PR/head/protocol/inspector identity, and binds the result to a verified GitHub repository/commit response. `validate_rereview_sequence` then compares every declared field with that verified evidence.
+
+Missing evidence, forged inspector repository or commit, missing artifacts, mismatched hashes, wrong PR/head, stale validity, replay, or a non-Green/non-mergeable canonical projection blocks the corresponding acceptance or merge event.
+
+The operational adapter requires live GitHub API evidence. Without that external evidence source, the gate fails closed. No cryptographic-signature, OS-harness, downstream, or production enforcement is claimed.
