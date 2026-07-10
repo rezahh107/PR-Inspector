@@ -1,0 +1,44 @@
+name: Apply bounded governance repair
+
+on:
+  push:
+    branches:
+      - agent/post-merge-governance-v1-9
+    paths:
+      - .repair/governance-repair-payload.py
+      - .github/workflows/apply-bounded-governance-repair.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact triggering branch head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: true
+          fetch-depth: 1
+
+      - name: Apply verified local payload and remove transient machinery
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .repair/governance-repair-payload.py
+          rm -f .repair/governance-repair-payload.py
+          rmdir .repair 2>/dev/null || true
+          rm -f .github/workflows/apply-bounded-governance-repair.yml
+
+      - name: Commit bounded repair to existing PR branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: bind governance evidence to GitHub payloads"
+          git push origin HEAD:agent/post-merge-governance-v1-9
