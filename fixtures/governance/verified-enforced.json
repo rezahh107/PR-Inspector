@@ -1,79 +1,104 @@
 {
-  "bypass_actors": {
-    "evidence": [
-      "https://api.github.com/repos/example/project/rulesets"
-    ],
-    "value": []
-  },
-  "checks": [
-    {
-      "conclusion": "success",
-      "head_sha": "1111111111111111111111111111111111111111",
-      "name": "Validate PR Inspector repository",
-      "status": "completed"
+  "schema_version": 2,
+  "responses": {
+    "branch_protection": {
+      "payload": {
+        "enforce_admins": {
+          "enabled": true
+        },
+        "required_pull_request_reviews": {
+          "bypass_pull_request_allowances": {
+            "apps": [],
+            "teams": [],
+            "users": []
+          },
+          "dismiss_stale_reviews": true,
+          "require_code_owner_reviews": true,
+          "required_approving_review_count": 1
+        },
+        "required_status_checks": {
+          "checks": [
+            {
+              "app_id": 15368,
+              "context": "Validate PR Inspector repository"
+            }
+          ],
+          "contexts": [
+            "Validate PR Inspector repository"
+          ],
+          "strict": true
+        }
+      },
+      "status_code": 200,
+      "url": "https://api.github.com/repos/example/project/branches/main/protection"
+    },
+    "checks": {
+      "payload": {
+        "check_runs": [
+          {
+            "app": {
+              "id": 15368,
+              "slug": "github-actions"
+            },
+            "completed_at": "2026-07-10T18:04:00Z",
+            "conclusion": "success",
+            "head_sha": "1111111111111111111111111111111111111111",
+            "name": "Validate PR Inspector repository",
+            "status": "completed"
+          }
+        ],
+        "total_count": 1
+      },
+      "status_code": 200,
+      "url": "https://api.github.com/repos/example/project/commits/1111111111111111111111111111111111111111/check-runs?per_page=100"
+    },
+    "pull_request": {
+      "payload": {
+        "base": {
+          "ref": "main"
+        },
+        "head": {
+          "sha": "1111111111111111111111111111111111111111"
+        },
+        "number": 42,
+        "user": {
+          "login": "pull-request-author",
+          "type": "User"
+        }
+      },
+      "status_code": 200,
+      "url": "https://api.github.com/repos/example/project/pulls/42"
+    },
+    "repository": {
+      "payload": {
+        "default_branch": "main",
+        "full_name": "example/project",
+        "html_url": "https://github.com/example/project",
+        "id": 4242,
+        "url": "https://api.github.com/repos/example/project"
+      },
+      "status_code": 200,
+      "url": "https://api.github.com/repos/example/project"
+    },
+    "reviews": {
+      "payload": [
+        {
+          "commit_id": "1111111111111111111111111111111111111111",
+          "state": "APPROVED",
+          "submitted_at": "2026-07-10T18:02:00Z",
+          "user": {
+            "login": "independent-reviewer",
+            "type": "User"
+          }
+        }
+      ],
+      "status_code": 200,
+      "url": "https://api.github.com/repos/example/project/pulls/42/reviews?per_page=100"
+    },
+    "rulesets": {
+      "payload": [],
+      "status_code": 200,
+      "url": "https://api.github.com/repos/example/project/rulesets?includes_parents=true&per_page=100"
     }
-  ],
-  "code_owner_review_required": {
-    "evidence": [
-      "https://api.github.com/repos/example/project/branches/main/protection"
-    ],
-    "value": true
-  },
-  "default_branch": "main",
-  "dismiss_stale_approvals": {
-    "evidence": [
-      "https://api.github.com/repos/example/project/branches/main/protection"
-    ],
-    "value": true
-  },
-  "exact_head_sha": "1111111111111111111111111111111111111111",
-  "limitations": [],
-  "merge_queue_required": {
-    "evidence": [
-      "https://api.github.com/repos/example/project/rulesets"
-    ],
-    "value": false
-  },
-  "observed_at": "2026-07-10T18:00:00Z",
-  "pull_request_number": 42,
-  "pull_request_required": {
-    "evidence": [
-      "https://api.github.com/repos/example/project/branches/main/protection"
-    ],
-    "value": true
-  },
-  "repository": "example/project",
-  "required_approvals": {
-    "evidence": [
-      "https://api.github.com/repos/example/project/branches/main/protection"
-    ],
-    "value": 1
-  },
-  "required_status_checks": {
-    "evidence": [
-      "https://api.github.com/repos/example/project/branches/main/protection"
-    ],
-    "value": [
-      "Validate PR Inspector repository"
-    ]
-  },
-  "reviews": [
-    {
-      "commit_id": "1111111111111111111111111111111111111111",
-      "is_author": false,
-      "is_bot": false,
-      "reviewer": "independent-reviewer",
-      "state": "APPROVED"
-    }
-  ],
-  "schema_version": 1,
-  "source": "github_rest_api_https",
-  "specialist_review": {
-    "enforcement_status": "not_required",
-    "qualification_verified": false,
-    "required": false,
-    "reviewer": null,
-    "reviewer_identity_observed": false
-  },
-  "status": "verified_enforced"
+  }
 }
