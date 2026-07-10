@@ -7,7 +7,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from pr_inspector.derived_outputs import PROMPT_NAME, build_review_artifacts
+from pr_inspector.derived_outputs import write_review_artifacts
 from pr_inspector.validation_v2 import validate_package
 
 
@@ -16,20 +16,24 @@ def main() -> int:
     parser.add_argument("package", type=Path)
     parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args()
-    package = json.loads(args.package.read_text(encoding="utf-8"))
+
+    package_bytes = args.package.read_bytes()
+    package = json.loads(package_bytes.decode("utf-8"))
     diagnostics = validate_package(package)
     if diagnostics:
         for item in diagnostics:
             print("ERROR:", item.line())
         return 1
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    artifacts = build_review_artifacts(package)
-    for name, text in artifacts.items():
-        (args.output_dir / name).write_text(text, encoding="utf-8", newline="\n")
-    stale_prompt = args.output_dir / PROMPT_NAME
-    if PROMPT_NAME not in artifacts and stale_prompt.exists():
-        stale_prompt.unlink()
-    print("OK: rendered deterministic review artifacts.")
+
+    write_review_artifacts(
+        package,
+        args.output_dir,
+        review_package_bytes=package_bytes,
+    )
+    print(
+        "OK: rendered canonical projection and deterministic "
+        "review artifacts from final file bytes."
+    )
     return 0
 
 
