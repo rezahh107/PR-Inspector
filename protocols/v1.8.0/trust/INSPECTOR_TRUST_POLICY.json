@@ -1,0 +1,19 @@
+{
+  "commit_evidence_source": "github_rest_api",
+  "github_api_version": "2026-03-10",
+  "inspector_repository": "rezahh107/PR-Inspector",
+  "inspector_repository_id": 1288323264,
+  "protocol_version": "v1.8.0",
+  "required_review_artifacts": [
+    "review-package.json",
+    "DECISION_PROJECTION.json",
+    "artifact-manifest.json"
+  ],
+  "required_review_hashes": [
+    "review_package_canonical_sha256",
+    "review_package_file_sha256",
+    "decision_projection_sha256",
+    "artifact_manifest_sha256"
+  ],
+  "schema_version": 1
+}
