@@ -25,6 +25,7 @@ load_order:
   - protocols/v1.8.0/schemas/review-package.schema.json
   - protocols/v1.8.0/schemas/decision-projection.schema.json
   - protocols/v1.8.0/schemas/ci-identity.schema.json
+  - protocols/v1.8.0/schemas/rereview-sequence.schema.json
   - protocols/v1.8.0/prompts/INTAKE_RESPONSE.fa.md
 
 required_artifacts:
