@@ -7,8 +7,8 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from pr_inspector.derived_outputs import PROMPT_NAME, build_review_artifacts
 from pr_inspector.validation_v2 import validate_package
-from pr_inspector.render import render_owner, render_handoff
 
 
 def main() -> int:
@@ -23,8 +23,12 @@ def main() -> int:
             print("ERROR:", item.line())
         return 1
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    (args.output_dir / "OWNER_DECISION_CARD.fa.md").write_text(render_owner(package), encoding="utf-8", newline="\n")
-    (args.output_dir / "TECHNICAL_HANDOFF.en.md").write_text(render_handoff(package), encoding="utf-8", newline="\n")
+    artifacts = build_review_artifacts(package)
+    for name, text in artifacts.items():
+        (args.output_dir / name).write_text(text, encoding="utf-8", newline="\n")
+    stale_prompt = args.output_dir / PROMPT_NAME
+    if PROMPT_NAME not in artifacts and stale_prompt.exists():
+        stale_prompt.unlink()
     print("OK: rendered deterministic review artifacts.")
     return 0
 
