@@ -1,0 +1,28 @@
+name: Export stacked snapshot
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Pack exact stacked source
+        shell: bash
+        run: tar --exclude=.git -czf /tmp/pr14-stacked-snapshot.tar.gz .
+      - name: Upload exact stacked source
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pr14-stacked-snapshot
+          path: /tmp/pr14-stacked-snapshot.tar.gz
+          if-no-files-found: error
+          retention-days: 1
