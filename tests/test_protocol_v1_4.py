@@ -144,7 +144,7 @@ def test_rendering_and_artifact_consistency(tmp_path):
         (tmp_path / name).write_text(text, encoding="utf-8")
     assert validate_directory(tmp_path) == []
     (tmp_path / "OWNER_DECISION_CARD.fa.md").write_text(owner + "changed", encoding="utf-8")
-    assert [item.code for item in validate_directory(tmp_path)] == ["PRI-CONSIST-001"]
+    assert [item.code for item in validate_directory(tmp_path)] == ["PRI-CONSIST-001", "PRI-MANIFEST-003"]
 
 
 def test_malformed_nested_data_is_schema_rejected_without_semantic_crash():
