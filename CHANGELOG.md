@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.8.0
+
+- Added a deterministic derived output layer after canonical review validation and rendering.
+- Added the exact two-line Persian `OWNER_RESULT.fa.txt` with Green, Yellow, and Red outputs only.
+- Added conditional deterministic `NEXT_ACTION_PROMPT.en.md` generation for Yellow and Red; Green forbids the prompt.
+- Added structural `action_mode` derivation for `repair`, `verify`, `repair_and_verify`, and stale-safe `rerun_review`.
+- Added an artifact manifest with canonical-package and rendered-artifact SHA-256 values.
+- Added prompt authority, research, trust-boundary, invariant, adjacent-impact, self-audit, evidence, and mandatory PR Inspector re-review controls.
+- Added deterministic, prompt-injection, stale-package, manifest-hash, and canonical-artifact regression tests.
+- Preserved the released v1.7.0 snapshot and existing canonical review artifacts.
+
 ## 1.7.0
 
 - Added optional canonical `external_review_intake` for untrusted external PR review suggestions.
