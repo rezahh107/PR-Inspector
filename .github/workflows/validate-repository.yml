@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: validate-${{ github.workflow }}-${{ github.ref }}
@@ -15,7 +15,11 @@ concurrency:
 
 jobs:
   apply-bounded-repair:
-    if: github.event_name == 'pull_request'
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.ref == 'agent/post-merge-governance-v1-9'
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -44,6 +48,10 @@ jobs:
 
   validate:
     needs: apply-bounded-repair
+    if: >-
+      always() &&
+      (needs.apply-bounded-repair.result == 'success' ||
+       needs.apply-bounded-repair.result == 'skipped')
     strategy:
       fail-fast: false
       matrix:
@@ -110,6 +118,12 @@ jobs:
 
       - name: Run focused governance enforcement tests
         run: python -m pytest -q tests/test_governance_enforcement.py
+
+      - name: Run focused canonical output enforcement tests
+        run: python -m pytest -q tests/test_canonical_output_enforcement.py
+
+      - name: Run focused canonical output atomicity tests
+        run: python -m pytest -q tests/test_canonical_output_atomicity.py
 
       - name: Run focused artifact byte-consistency tests
         run: python -m pytest -q tests/test_dual_audience_outputs.py -k "manifest or byte or crlf or bom or newline"
