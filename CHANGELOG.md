@@ -2,19 +2,22 @@
 
 ## 1.8.0
 
-- Added a deterministic derived output layer after canonical review validation and rendering.
-- Added the exact two-line Persian `OWNER_RESULT.fa.txt` with Green, Yellow, and Red outputs only.
-- Hardened the Green wording so technical readiness never bypasses owner, human-technical, or specialist approval.
-- Made non-current validity use the approved Yellow owner wording and a non-authorizing `rerun_review` prompt.
-- Added conditional deterministic `NEXT_ACTION_PROMPT.en.md` generation for Yellow and Red; Green forbids the prompt.
-- Added structurally derived `repair`, `verify`, `repair_and_verify`, and `rerun_review` modes with operationally distinct prompt authority.
-- Aligned action reasons with every canonical status-driving check, finding, coverage, intent, handoff, and external-review carrier.
-- Added an artifact manifest with canonical-package and rendered-artifact SHA-256 values.
-- Added exact UTF-8 LF byte comparison and independent on-disk manifest-hash verification, including CRLF and stale-manifest regressions.
-- Added prompt authority, research, trust-boundary, invariant, adjacent-impact, self-audit, evidence, and mandatory PR Inspector re-review controls.
-- Updated pull-request CI to check out and assert the exact PR head SHA instead of relying on the synthetic merge ref.
-- Added deterministic, prompt-injection, approval, action-mode, stale-package, byte/hash, exact-head workflow, and canonical-artifact regression tests.
-- Preserved the released v1.7.0 snapshot and existing canonical review artifacts.
+- Added one canonical deterministic `DECISION_PROJECTION.json` consumed by semantic validation, owner rendering, technical handoff, action routing, and artifact validation.
+- Added a versioned canonical decision-reason registry with stable technical effects, action effects, recipients, modification authority, prompt kinds, and recovery actions.
+- Separated technical status from owner readiness and approval state.
+- Limited Green merge-now wording to current technical Green reviews with no additional approval and no pending structured action.
+- Added finite two-line Persian owner messages for owner confirmation, human review, specialist review, verification, repair, repair plus verification, stale review, Red states, and internal blocked state.
+- Routed mandatory human and specialist approval to dedicated handoffs that explicitly cannot be satisfied or claimed by model output.
+- Made verification and stale-review artifacts non-modifying; repair discovery during verification requires a fresh canonical decision.
+- Added projection-backed bounded `repair` and separately enforced `repair_and_verify` behavior.
+- Removed the active and legacy competing technical-status mappings; compatibility status calls delegate to the canonical projection.
+- Added a versioned Behavioral Rule Coverage matrix with dedicated mutation fixtures, focused CI enforcement, and a sequence gate for mandatory post-repair PR Inspector re-review.
+- Added structured CI object-identity schema, fixtures, validator, recorder, exact-head assertion, synthetic-merge distinction, workflow run, job, SHA, and tree traceability.
+- Added `artifact-manifest.json` schema v2 behavior: canonical package hash, actual package-file hash, and hashes recomputed from final bytes reread from disk.
+- Added rejection coverage for byte mutation, CRLF, BOM, trailing-newline drift, stale manifests, projection drift, unregistered reason codes, prompt injection, recipient drift, exact-head overclaim, and premature acceptance.
+- Added focused Behavioral Rule Coverage tests, focused artifact byte tests, and full-suite CI across Python 3.10–3.14.
+- Added the decision projection, reason registry, coverage matrix, schemas, policies, templates, and pipeline to the active v1.8 load order and release lock.
+- Preserved the released v1.7.0 snapshot and release lock byte-for-byte.
 
 ## 1.7.0
 
