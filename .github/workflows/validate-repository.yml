@@ -1,101 +1,33 @@
-name: Validate PR Inspector repository
+name: Export validated post-merge hardening
 
 on:
   pull_request:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: validate-${{ github.workflow }}-${{ github.ref }}
+  group: export-v1-9-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  validate:
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Check out exact triggering head
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-          fetch-depth: 1
-
-      - name: Verify exact checkout identity
-        shell: bash
-        env:
-          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          set -euo pipefail
-          actual_sha="$(git rev-parse HEAD)"
-          echo "expected_sha=${EXPECTED_SHA}"
-          echo "actual_sha=${actual_sha}"
-          test "${actual_sha}" = "${EXPECTED_SHA}"
-
-      - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: pip
-
-      - name: Install pinned project and test dependencies
-        run: python -m pip install --disable-pip-version-check ".[dev]"
-
-      - name: Record and validate tested object identity
-        shell: bash
-        env:
-          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          set -euo pipefail
-          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
-            tested_ref_type="pull_request_head"
-            claim_exact_head="true"
-          else
-            tested_ref_type="push_or_dispatch"
-            claim_exact_head="false"
-          fi
-          python scripts/record_ci_identity.py \
-            --tested-ref-type "${tested_ref_type}" \
-            --tested-sha "$(git rev-parse HEAD)" \
-            --tested-tree-sha "$(git rev-parse 'HEAD^{tree}')" \
-            --reviewed-head-sha "${EXPECTED_SHA}" \
-            --synthetic-merge false \
-            --claim-exact-head "${claim_exact_head}" \
-            --workflow-run-id "${GITHUB_RUN_ID}" \
-            --job-id "${GITHUB_JOB}-${{ matrix.python-version }}" \
-            --output ci-identity.json
-
-      - name: Validate versioned repository
-        run: python scripts/validate_repository_v2.py
-
-      - name: Run focused Behavioral Rule Coverage mutations
-        run: python -m pytest -q tests/test_behavioral_rule_coverage.py
-
-      - name: Run focused artifact byte-consistency tests
-        run: python -m pytest -q tests/test_dual_audience_outputs.py -k "manifest or byte or crlf or bom or newline"
-
-      - name: Run semantic and rendering tests
-        run: python -m pytest
-
-  export-post-merge-hardening:
+  export:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Check out generator branch
+      - name: Check out exact branch head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
-          ref: agent/post-merge-governance-v1-9
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Verify checkout identity
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
@@ -103,11 +35,12 @@ jobs:
           python-version: '3.12'
           cache: pip
 
-      - name: Generate and validate v1.9.0
+      - name: Generate, validate, and package
         run: |
           set -euo pipefail
           python -m pip install --disable-pip-version-check PyYAML==6.0.3
           python scripts/run_patched_post_merge_polish.py
+          rm -rf build dist .pytest_cache
           rm -f scripts/generate_post_merge_polish.py scripts/run_patched_post_merge_polish.py docs/GENERATOR_FAILURE.log
           python -m pip install --disable-pip-version-check ".[dev]"
           python scripts/validate_repository_v2.py
@@ -116,12 +49,16 @@ jobs:
           python -m pytest
           git show origin/main:.github/workflows/validate-repository.yml > .github/workflows/validate-repository.yml
           rm -f .github/workflows/post-merge-polish-generator.yml
-          tar --exclude=.git --exclude=.pytest_cache --exclude='*.egg-info' --exclude='__pycache__' -czf /tmp/pr-inspector-v1.9.0.tar.gz .
+          rm -rf build dist .pytest_cache
+          tar --exclude=.git --exclude='*.egg-info' --exclude='__pycache__' -czf /tmp/pr-inspector-v1.9.0.tar.gz .
+          git archive --format=tar.gz --output=/tmp/pr-inspector-main.tar.gz origin/main
 
       - name: Upload validated snapshot
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: pr-inspector-v1.9.0-validated-snapshot
-          path: /tmp/pr-inspector-v1.9.0.tar.gz
+          name: pr-inspector-v1.9.0-and-main
+          path: |
+            /tmp/pr-inspector-v1.9.0.tar.gz
+            /tmp/pr-inspector-main.tar.gz
           if-no-files-found: error
           retention-days: 1
