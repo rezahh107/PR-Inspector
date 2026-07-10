@@ -1,5 +1,5 @@
 # PR Inspector protocol v1.9.0 canonical SHA-256 lock
-bf70de97cec65f87798a96cfdc43123d7eeb703a65673836e4ee28ebbb94a3de  protocols/v1.9.0/PR_REVIEW_CONTRACT.md
+4e7025607200c97b16def0b3c92c68c94e20171031f53ed66c481e2d06a6412f  protocols/v1.9.0/PR_REVIEW_CONTRACT.md
 07f51ecce1ac891e792ea976d9f37d73fdbe5a09dbf701bad70bcabdf83993e1  protocols/v1.9.0/policies/SECURITY_AND_TRUST.md
 c6623761b2f56e7e85d05098fd4364b576323fefa3f89f437bee186d8a858037  protocols/v1.9.0/trust/INSPECTOR_TRUST_POLICY.json
 cf9d069379e399c3d1adf27d997ddcf5cfe060fddf171521d1d6733692c3ec76  protocols/v1.9.0/policies/DECISION_GATES.md
