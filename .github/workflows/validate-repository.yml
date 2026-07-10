@@ -53,4 +53,22 @@ jobs:
         run: python scripts/validate_repository_v2.py
 
       - name: Run semantic and rendering tests
-        run: python -m pytest
+        id: test-suite
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m pytest 2>&1 | tee pytest.log
+
+      - name: Upload temporary pytest diagnostics
+        if: ${{ always() && matrix.python-version == '3.12' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: pr-inspector-pr12-pytest-diagnostics
+          path: pytest.log
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Enforce test outcome
+        if: ${{ steps.test-suite.outcome != 'success' }}
+        run: exit 1
