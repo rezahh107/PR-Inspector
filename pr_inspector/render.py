@@ -7,6 +7,44 @@ from typing import Any
 from .constants import SPECIALIST_APPROVALS
 
 
+CANONICAL_ACTION_TEXT: dict[str, str] = {
+    "merge_now": (
+        "No technical blocker, pending structured action, or additional technical "
+        "approval remains for the reviewed head; the project owner may merge it."
+    ),
+    "owner_confirmation": (
+        "Obtain explicit project-owner confirmation for the reviewed head before merge."
+    ),
+    "human_technical_review": (
+        "Obtain the required human technical review on the reviewed head before merge."
+    ),
+    "specialist_review": (
+        "Obtain the required security or domain-specialist review on the reviewed head "
+        "before merge."
+    ),
+    "repair": (
+        "Apply only the bounded repairs identified by the canonical reason codes, then "
+        "run exact-head validation and a fresh PR Inspector review."
+    ),
+    "verify": (
+        "Collect the missing evidence identified by the canonical reason codes without "
+        "modifying the repository, then run a fresh PR Inspector review."
+    ),
+    "repair_and_verify": (
+        "Complete the bounded repairs and the separate evidence obligations, then run "
+        "exact-head validation and a fresh PR Inspector review."
+    ),
+    "rerun_review": (
+        "Run a fresh PR Inspector review on the current head; this non-current package "
+        "grants no repair, approval, or merge authority."
+    ),
+    "blocked_internal_error": (
+        "Resolve the internal projection or artifact error and regenerate validated "
+        "review artifacts before taking any repository action."
+    ),
+}
+
+
 def canonical_json_bytes(pkg: dict[str, Any]) -> bytes:
     return (json.dumps(pkg, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n").encode("utf-8")
 
@@ -30,6 +68,19 @@ def owner_status(pkg: dict[str, Any], projection: dict[str, Any] | None = None) 
 def owner_action(pkg: dict[str, Any], projection: dict[str, Any] | None = None) -> str:
     from .decision_projection import owner_action_text
     return owner_action_text(_projection(pkg, projection))
+
+
+def canonical_action_text(projection: dict[str, Any]) -> str:
+    """Render the sole authoritative technical action from the canonical projection."""
+
+    from .decision_projection import validate_projection_invariants
+
+    validate_projection_invariants(projection)
+    action_kind = projection["next_action"]["kind"]
+    try:
+        return CANONICAL_ACTION_TEXT[action_kind]
+    except KeyError as exc:
+        raise ValueError(f"no canonical technical action text for {action_kind}") from exc
 
 
 def render_owner(pkg: dict[str, Any], projection: dict[str, Any] | None = None) -> str:
@@ -133,16 +184,36 @@ def render_handoff(pkg: dict[str, Any], projection: dict[str, Any] | None = None
     identity = pkg["review_identity"]
     decision = pkg["decision"]
     scope = pkg["scope"]
+    canonical_action = canonical_action_text(projection)
     out = ["# Technical Handoff Package", "", "## 1. Review Identity", "", "```yaml"]
     identity_fields = ["inspector_repository", "inspector_commit_sha", "protocol_version", "target_repository", "pr_number", "base_branch", "base_sha", "head_branch", "reviewed_head_sha", "merge_base_sha", "review_started", "review_completed", "review_validity", "execution_mode", "review_mode"]
     merged = {**identity, "protocol_version": pkg["protocol_version"]}
     for key in identity_fields:
         out.append(f"{key}: {_yaml_scalar(merged[key])}")
     out += ["```", "", "> This review is valid only for the reviewed head SHA above.", "", "## 2. Decision Header", "", "```yaml"]
-    for key in ["technical_status", "risk_classification", "approval_requirement", "blocking_findings_count", "next_required_action"]:
+    for key in ["technical_status", "risk_classification", "approval_requirement", "blocking_findings_count"]:
         out.append(f"{key}: {_yaml_scalar(decision[key])}")
-    out.extend([f"projected_owner_action: {projection['owner_readiness']['action_kind']}", f"projected_recipient: {projection['next_action']['recipient']}", f"projected_prompt_kind: {_yaml_scalar(projection['next_action']['prompt_kind'])}"])
-    out += ["```", "", f"Sensitive domains: {', '.join(decision['sensitive_domains']) or 'none'}", "", "## 3. Capability Manifest", ""]
+    out.extend([
+        f"canonical_next_action_kind: {projection['next_action']['kind']}",
+        f"canonical_next_action_recipient: {projection['next_action']['recipient']}",
+        f"canonical_next_action_may_modify_code: {_yaml_scalar(projection['next_action']['may_modify_code'])}",
+        f"canonical_next_action_prompt_kind: {_yaml_scalar(projection['next_action']['prompt_kind'])}",
+        f"canonical_next_action_text: {canonical_action}",
+    ])
+    out += [
+        "```",
+        "",
+        (
+            "> `decision.next_required_action` remains in `review-package.json` only "
+            "for legacy package compatibility. It is non-authoritative, is not rendered "
+            "as an instruction, and cannot override `DECISION_PROJECTION.json`."
+        ),
+        "",
+        f"Sensitive domains: {', '.join(decision['sensitive_domains']) or 'none'}",
+        "",
+        "## 3. Capability Manifest",
+        "",
+    ]
     for key, value in pkg["capabilities"].items():
         out.append(f"- `{key}`: `{value}`")
     out += ["", "## 4. Scope and Coverage", "", "```yaml"]
@@ -195,5 +266,5 @@ def render_handoff(pkg: dict[str, Any], projection: dict[str, Any] | None = None
     out += ["", "## 15. Out-of-Scope Observations", "", *(f"- {item}" for item in pkg["out_of_scope_observations"])]
     if not pkg["out_of_scope_observations"]:
         out.append("None.")
-    out += ["", "## 16. Owner-Card Consistency Map", "", "| Technical field | Owner-facing value |", "|---|---|", f"| Status / validity | {owner_status(pkg, projection)} |", f"| Next owner action | {owner_action(pkg, projection)} |", f"| Projected recipient | {projection['next_action']['recipient']} |", f"| Specialist required | {'yes' if decision['approval_requirement'] in SPECIALIST_APPROVALS else 'no'} |", "", "## 17. Validation Metadata", "", f"- Canonical package SHA-256: `{package_sha256(pkg)}`", "- Canonicalization: sorted-key compact UTF-8 JSON with LF terminator, version 1", "- Schema: JSON Schema Draft 2020-12", "", "## 18. Final Technical Decision", "", f"- Status: `{decision['technical_status']}`", f"- Risk: `{decision['risk_classification']}`", f"- Approval: `{decision['approval_requirement']}`", f"- Validity: `{identity['review_validity']}`", f"- Canonical next action kind: `{projection['next_action']['kind']}`", f"- Exact next action: {decision['next_required_action']}", ""]
+    out += ["", "## 16. Owner-Card Consistency Map", "", "| Technical field | Owner-facing value |", "|---|---|", f"| Status / validity | {owner_status(pkg, projection)} |", f"| Next owner action | {owner_action(pkg, projection)} |", f"| Projected recipient | {projection['next_action']['recipient']} |", f"| Specialist required | {'yes' if decision['approval_requirement'] in SPECIALIST_APPROVALS else 'no'} |", "", "## 17. Validation Metadata", "", f"- Canonical package SHA-256: `{package_sha256(pkg)}`", "- Canonicalization: sorted-key compact UTF-8 JSON with LF terminator, version 1", "- Schema: JSON Schema Draft 2020-12", "", "## 18. Final Technical Decision", "", f"- Status: `{decision['technical_status']}`", f"- Risk: `{decision['risk_classification']}`", f"- Approval: `{decision['approval_requirement']}`", f"- Validity: `{identity['review_validity']}`", f"- Canonical next action kind: `{projection['next_action']['kind']}`", f"- Canonical next action: {canonical_action}", "- Legacy `decision.next_required_action`: non-authoritative package context; intentionally omitted from action instructions.", ""]
     return "\n".join(out)
