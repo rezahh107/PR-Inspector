@@ -1,0 +1,12 @@
+{
+  "claim_exact_head": true,
+  "exact_head_match": false,
+  "job_ids": ["validate"],
+  "reviewed_head_sha": "1111111111111111111111111111111111111111",
+  "schema_version": 1,
+  "synthetic_merge": true,
+  "tested_ref_type": "pull_request_merge",
+  "tested_sha": "3333333333333333333333333333333333333333",
+  "tested_tree_sha": "4444444444444444444444444444444444444444",
+  "workflow_run_id": 124
+}
