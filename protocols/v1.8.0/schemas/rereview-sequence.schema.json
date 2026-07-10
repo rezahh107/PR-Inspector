@@ -23,13 +23,30 @@
                 "reviewed_head_sha",
                 "review_validity",
                 "inspector_repository",
+                "inspector_repository_id",
                 "inspector_commit_sha",
-                "review_result"
+                "inspector_commit_api_url",
+                "inspector_commit_html_url",
+                "inspector_evidence_source",
+                "protocol_version",
+                "review_evidence_id",
+                "review_package_canonical_sha256",
+                "review_package_file_sha256",
+                "decision_projection_sha256",
+                "artifact_manifest_sha256"
               ]
             }
           }
         ],
         "properties": {
+          "artifact_manifest_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "decision_projection_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
           "event_id": {
             "minLength": 1,
             "type": "string"
@@ -43,27 +60,53 @@
               "merged"
             ]
           },
+          "inspector_commit_api_url": {
+            "pattern": "^https://api\\.github\\.com/repos/rezahh107/PR-Inspector/commits/[0-9a-f]{40}$",
+            "type": "string"
+          },
+          "inspector_commit_html_url": {
+            "pattern": "^https://github\\.com/rezahh107/PR-Inspector/commit/[0-9a-f]{40}$",
+            "type": "string"
+          },
           "inspector_commit_sha": {
             "pattern": "^[0-9a-f]{40}$",
             "type": "string"
           },
-          "inspector_repository": {
-            "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+          "inspector_evidence_source": {
+            "const": "github_rest_api_https",
             "type": "string"
+          },
+          "inspector_repository": {
+            "const": "rezahh107/PR-Inspector",
+            "type": "string"
+          },
+          "inspector_repository_id": {
+            "const": 1288323264,
+            "type": "integer"
           },
           "pr_number": {
             "minimum": 1,
             "type": "integer"
           },
+          "protocol_version": {
+            "const": "v1.8.0",
+            "type": "string"
+          },
           "resulting_head_sha": {
             "pattern": "^[0-9a-f]{40}$",
             "type": "string"
           },
-          "review_result": {
-            "enum": [
-              "PASSED",
-              "FAILED"
-            ]
+          "review_evidence_id": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "review_package_canonical_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "review_package_file_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
           },
           "review_validity": {
             "enum": [
@@ -94,13 +137,13 @@
       "type": "array"
     },
     "schema_version": {
-      "const": 1
+      "const": 2
     }
   },
   "required": [
     "schema_version",
     "events"
   ],
-  "title": "PR Inspector Identity-Bound Re-review Sequence v1.8.0",
+  "title": "PR Inspector Artifact-Provenance-Bound Re-review Sequence v1.8.0",
   "type": "object"
 }
