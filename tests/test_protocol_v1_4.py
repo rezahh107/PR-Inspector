@@ -2,6 +2,7 @@ import copy
 import json
 from pathlib import Path
 
+from pr_inspector.derived_outputs import build_review_artifacts
 from pr_inspector.render import render_owner, render_handoff
 from pr_inspector.validation_v2 import validate_directory, validate_package
 
@@ -138,8 +139,9 @@ def test_rendering_and_artifact_consistency(tmp_path):
     handoff = render_handoff(value)
     assert owner == render_owner(copy.deepcopy(value))
     assert handoff == render_handoff(copy.deepcopy(value))
-    (tmp_path / "OWNER_DECISION_CARD.fa.md").write_text(owner, encoding="utf-8")
-    (tmp_path / "TECHNICAL_HANDOFF.en.md").write_text(handoff, encoding="utf-8")
+    artifacts = build_review_artifacts(value)
+    for name, text in artifacts.items():
+        (tmp_path / name).write_text(text, encoding="utf-8")
     assert validate_directory(tmp_path) == []
     (tmp_path / "OWNER_DECISION_CARD.fa.md").write_text(owner + "changed", encoding="utf-8")
     assert [item.code for item in validate_directory(tmp_path)] == ["PRI-CONSIST-001"]
