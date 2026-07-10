@@ -1,10 +1,14 @@
 from __future__ import annotations
+
 import hashlib
 import json
 from pathlib import Path
+
 import yaml
 from jsonschema import Draft202012Validator
 
+from .behavioral_coverage import validate_behavioral_coverage
+from .decision_projection import ProjectionError, reason_registry_entries
 from .diagnostics import Diagnostic
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,7 +36,7 @@ def sha256(path: Path) -> str:
 
 
 def parse_lock(path: Path) -> dict[str, str]:
-    out = {}
+    out: dict[str, str] = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         if not line or line.startswith("#"):
             continue
@@ -68,11 +72,7 @@ def validate_active_release_lock(
     expected_rel = f"release-locks/{current}.sha256"
     declared_rel = manifest.get("release_lock")
     if declared_rel != expected_rel:
-        diagnostics.append(Diagnostic(
-            "PRI-LOCK-002",
-            "/protocol-manifest.yaml/release_lock",
-            f"active release lock must be {expected_rel}",
-        ))
+        diagnostics.append(Diagnostic("PRI-LOCK-002", "/protocol-manifest.yaml/release_lock", f"active release lock must be {expected_rel}"))
         return diagnostics
 
     lock_path = root / expected_rel
@@ -90,21 +90,42 @@ def validate_active_release_lock(
     if locked_paths != canonical_paths:
         missing = sorted(canonical_paths - locked_paths)
         extra = sorted(locked_paths - canonical_paths)
-        details = []
+        details: list[str] = []
         if missing:
             details.append(f"missing canonical paths: {', '.join(missing)}")
         if extra:
             details.append(f"unexpected locked paths: {', '.join(extra)}")
-        diagnostics.append(Diagnostic(
-            "PRI-LOCK-003",
-            f"/{expected_rel}",
-            "; ".join(details),
-        ))
+        diagnostics.append(Diagnostic("PRI-LOCK-003", f"/{expected_rel}", "; ".join(details)))
     return diagnostics
 
 
+def validate_active_schemas(root: Path, load_order: list[str]) -> list[Diagnostic]:
+    diagnostics: list[Diagnostic] = []
+    schema_paths = [rel for rel in load_order if str(rel).endswith(".schema.json")]
+    if not schema_paths:
+        return [Diagnostic("PRI-REPO-SCHEMA-002", "/protocol-manifest.yaml/load_order", "active load_order contains no JSON Schema")]
+    for rel in schema_paths:
+        path = root / rel
+        if not path.is_file():
+            continue
+        try:
+            Draft202012Validator.check_schema(json.loads(path.read_text(encoding="utf-8")))
+        except Exception as exc:
+            diagnostics.append(Diagnostic("PRI-REPO-SCHEMA-001", f"/{rel}", str(exc)))
+    return diagnostics
+
+
+def validate_reason_registry() -> list[Diagnostic]:
+    try:
+        reason_registry_entries.cache_clear()
+        reason_registry_entries()
+    except ProjectionError as exc:
+        return [Diagnostic("PRI-REASON-001", "/decision-reason-registry", str(exc))]
+    return []
+
+
 def validate_repository(root: Path = ROOT) -> list[Diagnostic]:
-    diagnostics = []
+    diagnostics: list[Diagnostic] = []
     required = [
         "README.md", "BOOTSTRAP.md", "AGENTS.md", "CURRENT_VERSION",
         "protocol-manifest.yaml", "CHANGELOG.md", "LICENSE",
@@ -116,6 +137,7 @@ def validate_repository(root: Path = ROOT) -> list[Diagnostic]:
             diagnostics.append(Diagnostic("PRI-REPO-001", f"/{rel}", "required file is missing"))
     if diagnostics:
         return sorted(diagnostics)
+
     try:
         manifest = yaml.safe_load((root / "protocol-manifest.yaml").read_text(encoding="utf-8"))
     except Exception as exc:
@@ -127,21 +149,19 @@ def validate_repository(root: Path = ROOT) -> list[Diagnostic]:
     if len(load_order) != len(set(load_order)):
         diagnostics.append(Diagnostic("PRI-REPO-004", "/protocol-manifest.yaml/load_order", "duplicate canonical path"))
     diagnostics.extend(validate_quality_foundation(root, load_order))
+
     prefix = f"protocols/{current}/"
     for idx, rel in enumerate(load_order):
         if not str(rel).startswith(prefix):
             diagnostics.append(Diagnostic("PRI-REPO-005", f"/protocol-manifest.yaml/load_order/{idx}", "active canonical path is not version-scoped"))
         if not (root / rel).is_file():
             diagnostics.append(Diagnostic("PRI-REPO-006", f"/{rel}", "canonical file is missing"))
+
     diagnostics.extend(validate_active_release_lock(root, current, manifest, load_order))
-    schema_rel = manifest.get("canonical_schema")
-    if schema_rel and (root / schema_rel).is_file():
-        try:
-            Draft202012Validator.check_schema(json.loads((root / schema_rel).read_text(encoding="utf-8")))
-        except Exception as exc:
-            diagnostics.append(Diagnostic("PRI-REPO-SCHEMA-001", f"/{schema_rel}", str(exc)))
-    else:
-        diagnostics.append(Diagnostic("PRI-REPO-SCHEMA-002", f"/{schema_rel}", "canonical schema is missing"))
+    diagnostics.extend(validate_active_schemas(root, load_order))
+    diagnostics.extend(validate_reason_registry())
+    diagnostics.extend(validate_behavioral_coverage(root))
+
     lock_dir = root / "release-locks"
     if not lock_dir.is_dir():
         diagnostics.append(Diagnostic("PRI-LOCK-000", "/release-locks", "release lock directory is missing"))
