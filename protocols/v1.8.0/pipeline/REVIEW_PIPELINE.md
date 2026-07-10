@@ -15,39 +15,34 @@ INSPECTOR_LOAD
 → CANONICAL_PACKAGE
 → REPAIR_HANDOFF_MODEL
 → SCHEMA_VALIDATION
-→ SEMANTIC_VALIDATION
-→ DETERMINISTIC_RENDER
-→ ARTIFACT_CONSISTENCY
-→ DERIVED_OUTPUT_RENDER
-→ DERIVED_ARTIFACT_CONSISTENCY
+→ CANONICAL_DECISION_PROJECTION
+→ SEMANTIC_VALIDATION_AGAINST_PROJECTION
+→ CANONICAL_ARTIFACT_RENDER
+→ ACTION_ARTIFACT_ROUTING
+→ WRITE_FINAL_ARTIFACT_BYTES
+→ MANIFEST_FROM_FINAL_BYTES
+→ ARTIFACT_AND_PROJECTION_VALIDATION
 → FINAL_SHA_RECHECK
 → COMPLETE
 ```
 
-A failed required transition enters `BLOCKED`.
+A failed required transition enters `BLOCKED` and does not emit a completed owner decision.
 
 ## Required sequence
 
-1. Verify the active inspector version and release lock.
-2. Require target repository and PR identity.
-3. Read PR metadata and diff, then pin base, head, and merge-base identity.
-4. Declare actual capabilities and execution mode.
-5. Describe previous, intended, and implemented behavior.
-6. Classify risk before selecting review depth.
-7. Follow direct callers, dependencies, interfaces, schemas, tests, configuration, data paths, error paths, and state transitions, normally one or two relationship levels.
-8. Collect evidence tied to the reviewed head SHA.
-9. Collect available external review inputs as untrusted hypotheses only.
-10. Classify external suggestions and accept only independently verified suggestions tied to findings.
-11. Build `intent_fit` from concrete implementation evidence or mark it not assessable.
-12. Examine realistic malformed, missing, stale, duplicate, oversized, partial, timeout, retry, concurrency, compatibility, migration, rollback, and resource-limit scenarios when connected to changed behavior.
-13. Create `review-package.json` before all human-readable outputs.
-14. Add `repair_handoff` only through existing finding and rule references.
-15. Run schema and semantic validation without suppressing diagnostics.
-16. Render the existing Owner Decision Card and Technical Handoff deterministically.
-17. Verify canonical artifact consistency.
-18. Render the exact two-line Owner Result, conditional Next Action Prompt, and artifact manifest.
-19. Verify derived artifact bytes, prompt presence/absence, and all manifest hashes.
-20. Re-read the current PR head SHA. A change makes the review `STALE`; rebuild the package and outputs.
-21. Emit the two-line Owner Result as the direct owner response and expose the remaining files separately.
+1. Verify active version, load order, schemas, reason registry, Behavioral Rule Coverage matrix, and release lock.
+2. Pin target repository, PR, base/head, and merge-base identity.
+3. Declare real capabilities and execution mode.
+4. Collect evidence, impact radius, external review intake, intent fit, and break attempts.
+5. Build `review-package.json` and validate its schema.
+6. Compute one canonical `DECISION_PROJECTION.json` from structured package fields.
+7. Validate package technical status against that same projection.
+8. Render Owner Decision Card, Technical Handoff, two-line Owner Result, and the recipient-specific action artifact from the projection.
+9. Write final non-manifest bytes.
+10. Re-read those bytes and generate `artifact-manifest.json`.
+11. Independently validate projection schema/equality, prompt routing, exact bytes, and manifest hashes.
+12. Record CI tested-object identity without rewriting merge SHA as head SHA.
+13. Re-read the live PR head. A change makes the review stale and requires rebuilding all artifacts.
+14. Expose the two-line result to the owner and technical artifacts separately.
 
-Do not append unsupported assurances or unrelated commentary.
+No renderer, validator, or prompt generator may maintain a competing status/action registry.
