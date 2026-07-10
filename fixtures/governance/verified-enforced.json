@@ -1,7 +1,7 @@
 {
   "bypass_actors": {
     "evidence": [
-      "ruleset bypass actors"
+      "https://api.github.com/repos/example/project/rulesets"
     ],
     "value": []
   },
@@ -15,14 +15,14 @@
   ],
   "code_owner_review_required": {
     "evidence": [
-      "review policy"
+      "https://api.github.com/repos/example/project/branches/main/protection"
     ],
     "value": true
   },
   "default_branch": "main",
   "dismiss_stale_approvals": {
     "evidence": [
-      "review policy"
+      "https://api.github.com/repos/example/project/branches/main/protection"
     ],
     "value": true
   },
@@ -30,7 +30,7 @@
   "limitations": [],
   "merge_queue_required": {
     "evidence": [
-      "ruleset"
+      "https://api.github.com/repos/example/project/rulesets"
     ],
     "value": false
   },
@@ -38,20 +38,20 @@
   "pull_request_number": 42,
   "pull_request_required": {
     "evidence": [
-      "branch protection"
+      "https://api.github.com/repos/example/project/branches/main/protection"
     ],
     "value": true
   },
   "repository": "example/project",
   "required_approvals": {
     "evidence": [
-      "required reviews"
+      "https://api.github.com/repos/example/project/branches/main/protection"
     ],
     "value": 1
   },
   "required_status_checks": {
     "evidence": [
-      "required checks"
+      "https://api.github.com/repos/example/project/branches/main/protection"
     ],
     "value": [
       "Validate PR Inspector repository"
