@@ -1,22 +1,21 @@
-name: Apply parent payload on rebase staging
+name: Apply parent payload on stacked head
 
 on:
-  push:
-    branches:
-      - fix/canonical-artifact-enforcement-rebase-tmp
+  pull_request:
 
 permissions:
   contents: write
 
 jobs:
   apply:
+    if: github.event.pull_request.head.ref == 'fix/canonical-artifact-enforcement'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check out exact staging head
+      - name: Check out exact stacked head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: true
           fetch-depth: 2
 
@@ -39,4 +38,4 @@ jobs:
           git add -A
           git diff --cached --quiet && exit 0
           git commit -m "fix: integrate parent governance payload"
-          git push origin HEAD:fix/canonical-artifact-enforcement-rebase-tmp
+          git push origin HEAD:fix/canonical-artifact-enforcement
