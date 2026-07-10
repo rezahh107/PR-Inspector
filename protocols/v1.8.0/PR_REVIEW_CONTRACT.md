@@ -36,6 +36,7 @@ Validity is exactly `CURRENT`, `STALE`, or `UNKNOWN`.
 - Missing or unconfirmed identity is `UNKNOWN`.
 - `STALE` or `UNKNOWN` cannot be technically Green.
 - A non-current package may generate only `action_mode: rerun_review`; it MUST NOT authorize code repair from obsolete findings.
+- At the simple owner surface, non-current validity takes precedence and emits the approved Yellow action wording rather than describing an obsolete repair as current.
 
 ## 5. Capabilities and execution
 
@@ -45,6 +46,8 @@ Execution mode is exactly `NONE`, `SAFE_LOCAL`, or `CI_EVIDENCE_ONLY`.
 
 `REPRODUCED` requires an execution or CI evidence record tied to the exact reviewed head SHA. Production and sensitive credential access are forbidden by default.
 
+A pull-request workflow cited as exact-head evidence MUST explicitly check out the PR head SHA and assert that `git rev-parse HEAD` equals the expected head. Validation of `refs/pull/<number>/merge` is merge-tree evidence, not exact-head evidence.
+
 ## 6. Risk and approval
 
 Risk is exactly `LOW`, `MODERATE`, `HIGH`, or `SENSITIVE`.
@@ -52,6 +55,8 @@ Risk is exactly `LOW`, `MODERATE`, `HIGH`, or `SENSITIVE`.
 Sensitive domains include authentication, authorization, payments, personal or regulated data, credential access, cryptography, destructive changes, migrations, production infrastructure, backup/recovery, public API compatibility, complex concurrency, security boundaries, supply-chain trust, and safety-critical behavior.
 
 Every Sensitive review requires at least `HUMAN_TECHNICAL_REVIEW_REQUIRED`. Security- or domain-specialist categories require `SECURITY_OR_DOMAIN_SPECIALIST_REQUIRED`.
+
+A technically Green result does not erase `approval_requirement`. The simple Green owner output MUST remain conservative and MUST NOT authorize merge before required owner, human-technical, or specialist approval is satisfied.
 
 ## 7. Evidence
 
@@ -108,11 +113,14 @@ Decision gates remain deterministic and are defined in `DECISION_GATES.md` plus 
 
 After schema validation, semantic validation, and canonical artifact rendering:
 
-- Green emits the exact two-line Green Owner Result and forbids `NEXT_ACTION_PROMPT.en.md`.
-- Yellow emits the exact two-line Yellow Owner Result and requires one deterministic prompt.
-- Red emits the exact two-line Red Owner Result and requires one deterministic prompt.
+- Current Green emits the exact conservative two-line Green Owner Result and forbids `NEXT_ACTION_PROMPT.en.md`.
+- Current Yellow emits the exact two-line Yellow Owner Result and requires one deterministic prompt.
+- Current Red emits the exact two-line Red Owner Result and requires one deterministic prompt.
+- Non-current Yellow or Red emits the approved Yellow owner wording and requires a non-authorizing `rerun_review` prompt.
 - `artifact-manifest.json` records canonical and rendered SHA-256 values.
-- `action_mode` is derived structurally as `repair`, `verify`, `repair_and_verify`, or `rerun_review`.
+- Validator enforcement compares exact UTF-8 LF bytes and independently recomputes manifest hashes from the written files.
+- `action_mode` is derived structurally as `repair`, `verify`, `repair_and_verify`, or `rerun_review` from the same status-driving field shapes.
+- `verify` prohibits repository edits; `repair_and_verify` separately requires confirmed repair and missing-evidence resolution.
 - The downstream implementer MUST use `implemented_pending_rereview`, never final finding closure.
 - The repaired exact head requires a later independent PR Inspector review.
 
@@ -128,4 +136,4 @@ The interface may expose files separately, but the default direct owner message 
 
 ## 16. Enforcement status
 
-Version 1.8.0 is schema-validated, semantically validated, fixture-tested, deterministically rendered, artifact-hash checked, and release-lock protected. Enforcement applies only when supplied artifacts are processed by the included validators.
+Version 1.8.0 is schema-validated, semantically validated, fixture-tested, deterministically rendered, artifact-byte/hash checked, exact-head CI asserted, and release-lock protected. Enforcement applies only when supplied artifacts are processed by the included validators.
