@@ -38,10 +38,15 @@ def test_active_lifecycle_documentation_is_not_candidate_wording():
         assert all(phrase not in text for phrase in forbidden)
 
 
-def test_readme_no_longer_describes_active_protocol_as_unmerged():
+def test_lifecycle_documents_do_not_self_assert_merged_activation():
+    current = (ROOT / "CURRENT_VERSION").read_text(encoding="utf-8").strip()
     readme = (ROOT / "README.md").read_text(encoding="utf-8").lower()
-    assert "unmerged pr" not in readme
-    assert "authoritative `main`" in readme
+    contract = (ROOT / f"protocols/{current}/PR_REVIEW_CONTRACT.md").read_text(encoding="utf-8").lower()
+    assert "active protocol inside the unmerged pr branch" not in readme
+    assert "repository authority is determined from live `main`" in readme
+    assert "branch snapshot or its own documentation cannot prove" in readme
+    assert "active merged protocol on authoritative `main`" not in contract
+    assert "activation is determined from live `main`" in contract
 
 
 def test_pr12_history_preserves_uncertainty():
