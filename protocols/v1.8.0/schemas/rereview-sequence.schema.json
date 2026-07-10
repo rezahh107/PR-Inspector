@@ -1,0 +1,106 @@
+{
+  "$id": "https://github.com/rezahh107/PR-Inspector/protocols/v1.8.0/schemas/rereview-sequence.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "events": {
+      "items": {
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "const": "pr_inspector_rereview_completed"
+                }
+              },
+              "required": [
+                "event_type"
+              ]
+            },
+            "then": {
+              "required": [
+                "reviewed_head_sha",
+                "review_validity",
+                "inspector_repository",
+                "inspector_commit_sha",
+                "review_result"
+              ]
+            }
+          }
+        ],
+        "properties": {
+          "event_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "event_type": {
+            "enum": [
+              "implemented_pending_rereview",
+              "pr_inspector_rereview_completed",
+              "technically_accepted",
+              "merge_authorized",
+              "merged"
+            ]
+          },
+          "inspector_commit_sha": {
+            "pattern": "^[0-9a-f]{40}$",
+            "type": "string"
+          },
+          "inspector_repository": {
+            "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+            "type": "string"
+          },
+          "pr_number": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "resulting_head_sha": {
+            "pattern": "^[0-9a-f]{40}$",
+            "type": "string"
+          },
+          "review_result": {
+            "enum": [
+              "PASSED",
+              "FAILED"
+            ]
+          },
+          "review_validity": {
+            "enum": [
+              "CURRENT",
+              "STALE",
+              "UNKNOWN"
+            ]
+          },
+          "reviewed_head_sha": {
+            "pattern": "^[0-9a-f]{40}$",
+            "type": "string"
+          },
+          "target_repository": {
+            "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "event_type",
+          "target_repository",
+          "pr_number",
+          "resulting_head_sha"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "schema_version",
+    "events"
+  ],
+  "title": "PR Inspector Identity-Bound Re-review Sequence v1.8.0",
+  "type": "object"
+}
