@@ -33,7 +33,9 @@ The projection contains:
 - recipient, code-modification authority, prompt requirement, and prompt kind;
 - review validity and reviewed head SHA.
 
-Semantic status validation, Owner Decision Card, simple Owner Result, action artifact, and manifest routing MUST consume this projection. They MUST NOT maintain competing status/action maps. Producer-supplied readiness, action, recipient, or reason fields are not trusted.
+Semantic status validation, Owner Decision Card, simple Owner Result, Technical Handoff action guidance, action artifact, and manifest routing MUST consume this projection. They MUST NOT maintain competing status/action maps or label producer free text as an exact or canonical action.
+
+`decision.next_required_action` remains in `review-package.json` only as legacy producer context for package compatibility. It is non-authoritative, MUST NOT be rendered as an instruction, and cannot override the projection-derived action kind, recipient, authority, or action text.
 
 A projection/schema/semantic/rendering/manifest/release-lock/final-head failure is an internal blocked state, not a completed Green/Yellow/Red owner decision.
 
@@ -73,7 +75,7 @@ Technical Green is not owner readiness. `merge_now` is allowed only when review 
 
 Every technical-status and next-action reason MUST exist in `registries/DECISION_REASON_REGISTRY.yaml`. Each entry defines trigger, predicate, technical effect, action effect, recipient, code-modification authority, prompt kind, and recovery action. Unregistered codes or divergent mappings fail closed.
 
-Free text such as `decision.next_required_action` is displayed as evidence/obligation but is never parsed to classify status or authority.
+Free text such as `decision.next_required_action` may remain package evidence or context, but it is never parsed to classify status or authority and is never presented as the authoritative next action.
 
 ## 8. Next actions and recipients
 
@@ -88,6 +90,8 @@ The canonical next action is one of:
 - `repair_and_verify`
 - `rerun_review`
 - `blocked_internal_error`
+
+Technical action text is a finite deterministic rendering keyed only by `DECISION_PROJECTION.json#/next_action/kind`. The Technical Handoff MUST render that projection-derived text and MUST omit conflicting legacy action prose.
 
 `verify`, human/specialist review, and `rerun_review` have `may_modify_code: false`. A model prompt cannot satisfy or claim mandatory human/specialist approval. `repair` and `repair_and_verify` grant bounded same-PR implementation authority only.
 
@@ -121,7 +125,19 @@ CI evidence records tested ref type, tested SHA, tested tree SHA where available
 
 ## 12. Re-review boundary
 
-Implementer output uses `implemented_pending_rereview`. It does not close findings. Acceptance or merge authorization after repair requires a later `pr_inspector_rereview_passed` event. The sequence validator rejects premature acceptance.
+Implementer output uses `implemented_pending_rereview`. It does not close findings.
+
+Lifecycle evidence MUST conform to `schemas/rereview-sequence.schema.json`. Every event records an event ID, target repository, PR number, and resulting repaired head SHA. A re-review completion additionally records reviewed head SHA, review validity, inspector repository, inspector commit SHA, and review result.
+
+Acceptance or merge authorization is permitted only after a later, non-replayed `pr_inspector_rereview_completed` event whose:
+
+- target repository and PR number match the pending repair event;
+- `resulting_head_sha` and `reviewed_head_sha` both equal the pending repaired head;
+- `review_validity` is `CURRENT`;
+- `review_result` is `PASSED`; and
+- inspector identity is present and schema-valid.
+
+Wrong-PR, wrong-head, stale, failed, missing, or replayed re-review evidence cannot unlock acceptance. The sequence validator fails closed.
 
 ## 13. Behavioral Rule Coverage
 
