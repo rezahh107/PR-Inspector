@@ -1,0 +1,50 @@
+name: Diagnose governance tests
+
+on:
+  push:
+    branches: [agent/post-merge-governance-v1-9]
+    paths:
+      - .github/workflows/diagnose-governance-tests.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact branch head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Run focused governance tests
+        id: tests
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m pip install --disable-pip-version-check ".[dev]" > /tmp/governance-tests.log 2>&1
+          python -m pytest -vv tests/test_governance_enforcement.py >> /tmp/governance-tests.log 2>&1
+
+      - name: Upload diagnostic log
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: governance-test-diagnostic
+          path: /tmp/governance-tests.log
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Preserve test conclusion
+        if: steps.tests.outcome == 'failure'
+        run: exit 1
