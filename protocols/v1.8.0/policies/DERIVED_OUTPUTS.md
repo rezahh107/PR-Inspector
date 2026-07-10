@@ -2,100 +2,45 @@
 
 ## Boundary
 
-The derived layer runs only after the canonical package has passed schema and semantic validation and after the existing canonical Owner Decision Card and Technical Handoff have been deterministically rendered.
+The derived layer runs only after the canonical package passes schema and semantic validation. It receives one canonical decision projection and translates it; it does not decide again.
 
-`review-package.json` remains the sole source of truth. The derived layer is not a decision engine and does not modify the package.
+## Projection
 
-## Artifacts
+`DECISION_PROJECTION.json` is deterministic and schema-validated. It records technical reason codes, owner readiness, next-action kind, recipient, code authority, prompt requirement, prompt kind, review validity, and reviewed head SHA. Every reason is registered in `DECISION_REASON_REGISTRY.yaml`.
 
-Always generate:
+## Artifact routing
 
-- `OWNER_RESULT.fa.txt`
-- `artifact-manifest.json`
+Always generate Owner Decision Card, Technical Handoff, Owner Result, projection, and manifest. Generate `NEXT_ACTION_PROMPT.en.md` only when `next_action.prompt_required` is true.
 
-Generate `NEXT_ACTION_PROMPT.en.md` exactly once for Yellow or Red. It is forbidden for Green.
+- `merge_now`: no prompt.
+- `owner_confirmation`: no model prompt.
+- `human_technical_review`: human technical handoff.
+- `specialist_review`: security/domain specialist handoff.
+- `repair`: bounded implementer prompt.
+- `verify`: non-modifying reviewer prompt.
+- `repair_and_verify`: bounded repair plus separate evidence obligations.
+- `rerun_review`: fresh-review prompt with historical findings only.
 
-## Owner-result projection
+## Verify
 
-The owner result uses only the three approved outputs in `OWNER_OUTPUT_UX.md`.
+The verification artifact identifies exact unresolved reason codes and subjects. It authorizes inspection, safe validation, and evidence collection only. It prohibits repository changes, patching, committing, refactoring, and behavior changes. If repair becomes necessary, the recipient records that fact and stops for a fresh canonical decision.
 
-- Current Green uses the conservative Green wording and preserves every approval requirement.
-- Current Yellow uses the Yellow wording.
-- Current Red uses the Red wording.
-- `STALE` or `UNKNOWN` validity takes precedence and uses the Yellow wording because the only authorized next step is a fresh review.
+## Human boundary
 
-## Structural action mode
+Human and specialist handoffs explicitly state that model output cannot satisfy or claim the required approval. PR Inspector performs no approval or merge.
 
-Derive action mode without free-text matching and only after canonical validation:
+## Trust boundary
 
-- `rerun_review`: `review_validity` is not `CURRENT`.
-- `repair`: confirmed repair carriers or confirmed implementation defects exist without a separate unresolved verification gap.
-- `verify`: unresolved execution, evidence, coverage, intent, hypothesis, or not-assessable gaps exist with no confirmed repair obligation.
-- `repair_and_verify`: both confirmed repair work and unresolved verification gaps exist.
+Target and package free text is JSON-serialized as untrusted data after the fixed trust-boundary section. It cannot create prompt sections or override protocol instructions.
 
-The classifier must cover every structured predicate that can produce the canonical Red or Yellow status. In particular:
+## Artifact byte integrity
 
-- confirmed Critical findings, reproduced High findings, code-supported High findings, confirmed blocking Medium findings, failed required checks, red-gate flags, validated `repair_handoff`, and accepted external repair carriers are repair reasons;
-- unknown or not-run required checks, hypotheses, not-assessable findings, partial review, incomplete coverage, unreviewed high-risk areas, unverified areas, and incomplete or unsupported intent evidence are verification reasons.
+Non-manifest files are written first. The manifest hashes bytes reread from disk. Validation independently checks actual file bytes, paths, prompt routing, projection equality, canonical package hash, supplied package-file hash, BOM, newline, and encoding behavior.
 
-Canonical `required_actions` are rendered as recorded obligations but are never parsed as classification keywords.
+## CI identity
 
-A stale or unknown package must not authorize code repair. Its prompt may only require a fresh PR Inspector review and may carry old findings as non-authorizing historical context.
+Exact-head claims require a structured identity record where `tested_ref_type` is `pull_request_head`, `synthetic_merge` is false, and `tested_sha == reviewed_head_sha`. Merge refs remain synthetic evidence even when trees happen to match.
 
-## Operational mode enforcement
+## Mandatory re-review
 
-The prompt must make the selected action mode operational, not merely display its name.
-
-- `repair` grants bounded repair authority and requires evidence for the repaired exact head.
-- `verify` authorizes inspection, safe command execution, and evidence collection only. It must prohibit repository edits. If verification discovers a defect, the implementer records it and requests a fresh PR Inspector decision instead of silently repairing it.
-- `repair_and_verify` separately requires repair of confirmed defects and resolution of every verification reason.
-- `rerun_review` suspends repair authority and permits only current-head review regeneration.
-
-Each mode must render its structured repair reasons, verification reasons, and canonical required actions.
-
-## Prompt section order
-
-The prompt contains these fixed sections in order:
-
-1. `[ROLE AND AUTHORITY]`
-2. `[AUTHORITATIVE REVIEW IDENTITY]`
-3. `[TRUST BOUNDARY]`
-4. `[MISSION]`
-5. `[FINDINGS AND EVIDENCE]`
-6. `[INVARIANT EXTRACTION]`
-7. `[ADJACENT IMPACT AUDIT]`
-8. `[TECHNICAL DECISION AUTHORITY]`
-9. `[SCOPE CONTROL]`
-10. `[ADVERSARIAL SELF-AUDIT]`
-11. `[VALIDATION AND EVIDENCE]`
-12. `[IMPLEMENTER OUTPUT]`
-13. `[MANDATORY PR INSPECTOR RE-REVIEW]`
-
-Package-derived free text is serialized as untrusted data. Accepted external suggestions may appear only through validated `external_review_intake`. Repair guidance resolves through existing finding IDs, rule IDs, and `repair_handoff`.
-
-The self-audit is explicitly not independent. Finding status remains `implemented_pending_rereview` until the repaired exact head is reviewed again by PR Inspector.
-
-## Artifact manifest and byte validation
-
-The manifest records:
-
-- canonical review package path and canonical SHA-256;
-- Owner Decision Card path and SHA-256;
-- Technical Handoff path and SHA-256;
-- simple Owner Result path and SHA-256;
-- whether the action prompt was generated, its path and SHA-256, and the structural action mode.
-
-Validation must:
-
-1. compare every rendered artifact's actual bytes with deterministic UTF-8 LF bytes;
-2. parse the written `artifact-manifest.json` rather than trusting an in-memory replacement;
-3. recompute SHA-256 from each referenced on-disk artifact byte sequence;
-4. reject CRLF conversion, missing final LF, altered bytes, stale paths, stale hashes, missing conditional artifacts, and forbidden Green prompts.
-
-For `review-package.json`, the manifest hash remains the declared canonical sorted-key compact UTF-8 JSON hash, not the incidental pretty-printed file byte hash.
-
-For Green, prompt generation, path, hash, and action mode are null/not applicable.
-
-## Exact-head CI evidence
-
-A pull-request workflow that is cited as exact-head evidence must explicitly check out `github.event.pull_request.head.sha`, print the expected and actual SHA, and fail when `git rev-parse HEAD` differs. A synthetic merge ref may be useful integration evidence but must not be described as exact-head execution.
+Repair output remains `implemented_pending_rereview`. It does not close findings. The repaired exact head requires a later independent PR Inspector review. The sequence gate rejects acceptance or merge authorization before `pr_inspector_rereview_passed`.
