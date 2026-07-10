@@ -58,6 +58,51 @@ def validate_quality_foundation(root: Path, load_order: list[str]) -> list[Diagn
     return diagnostics
 
 
+def validate_active_release_lock(
+    root: Path,
+    current: str,
+    manifest: dict,
+    load_order: list[str],
+) -> list[Diagnostic]:
+    diagnostics: list[Diagnostic] = []
+    expected_rel = f"release-locks/{current}.sha256"
+    declared_rel = manifest.get("release_lock")
+    if declared_rel != expected_rel:
+        diagnostics.append(Diagnostic(
+            "PRI-LOCK-002",
+            "/protocol-manifest.yaml/release_lock",
+            f"active release lock must be {expected_rel}",
+        ))
+        return diagnostics
+
+    lock_path = root / expected_rel
+    if not lock_path.is_file():
+        diagnostics.append(Diagnostic("PRI-LOCK-002", f"/{expected_rel}", "active release lock is missing"))
+        return diagnostics
+
+    try:
+        locked_paths = set(parse_lock(lock_path))
+    except (OSError, ValueError) as exc:
+        diagnostics.append(Diagnostic("PRI-LOCK-002", f"/{expected_rel}", str(exc)))
+        return diagnostics
+
+    canonical_paths = set(load_order)
+    if locked_paths != canonical_paths:
+        missing = sorted(canonical_paths - locked_paths)
+        extra = sorted(locked_paths - canonical_paths)
+        details = []
+        if missing:
+            details.append(f"missing canonical paths: {', '.join(missing)}")
+        if extra:
+            details.append(f"unexpected locked paths: {', '.join(extra)}")
+        diagnostics.append(Diagnostic(
+            "PRI-LOCK-003",
+            f"/{expected_rel}",
+            "; ".join(details),
+        ))
+    return diagnostics
+
+
 def validate_repository(root: Path = ROOT) -> list[Diagnostic]:
     diagnostics = []
     required = [
@@ -88,6 +133,7 @@ def validate_repository(root: Path = ROOT) -> list[Diagnostic]:
             diagnostics.append(Diagnostic("PRI-REPO-005", f"/protocol-manifest.yaml/load_order/{idx}", "active canonical path is not version-scoped"))
         if not (root / rel).is_file():
             diagnostics.append(Diagnostic("PRI-REPO-006", f"/{rel}", "canonical file is missing"))
+    diagnostics.extend(validate_active_release_lock(root, current, manifest, load_order))
     schema_rel = manifest.get("canonical_schema")
     if schema_rel and (root / schema_rel).is_file():
         try:
