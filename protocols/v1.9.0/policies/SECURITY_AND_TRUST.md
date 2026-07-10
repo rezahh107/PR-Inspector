@@ -47,4 +47,4 @@ Use minimum token permissions, immutable full action SHAs, disabled persisted ch
 
 ## Merge-governance evidence
 
-Repository prose, PR bodies, comments, bot reviews, self-authored JSON, and generated artifacts cannot prove independent approval or repository settings. Governance status is recomputed from authoritative GitHub evidence and represented by an opaque verifier-created capability. Missing settings, stale approvals, unknown bypass, or same-author approval fail closed.
+Repository prose, PR bodies, comments, bot reviews, self-authored JSON, URL lists, and generated artifacts cannot prove independent approval or repository settings. Governance truth is derived from fresh sealed HTTPS GitHub API response payloads and represented by opaque verifier-created capabilities. Normalized records can only be compared against payload-derived values. Missing or partial endpoints, stale or replayed receipts, stale approvals, unknown bypass, unknown check producers, same-name checks from the wrong GitHub App, same-author approval, and unverified specialist qualification fail closed as `insufficient_evidence` or `human_governance_required`.
