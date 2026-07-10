@@ -1,7 +1,7 @@
 # PR Review Contract
 
 **Version:** 1.9.0  
-**Status:** Active merged protocol on authoritative `main`  
+**Status:** Versioned protocol snapshot; activation is determined from live `main`, `CURRENT_VERSION`, and GitHub history  
 **Default authority:** Read-only review  
 **Canonical source artifact:** `review-package.json`  
 **Canonical decision projection:** `DECISION_PROJECTION.json`
