@@ -4,12 +4,13 @@ import json
 import os
 import shutil
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 from .decision_projection import ProjectionError
-from .derived_outputs import write_review_artifacts
+from .derived_outputs import MANIFEST_NAME, write_review_artifacts
 from .diagnostics import Diagnostic
-from .validation_v2 import validate_package
+from .validation_v2 import validate_directory, validate_package
 from ._official_bundle import (
     IncompleteReview,
     VerifiedReviewCompletion,
@@ -23,8 +24,23 @@ from ._official_head import (
 )
 
 
+@dataclass(frozen=True)
+class RollbackOutcome:
+    """Filesystem-observed rollback result; no failure is treated as success."""
+
+    restored_previous: bool
+    official_path_authoritative: bool
+    backup_path: Path | None
+    quarantine_path: Path | None
+    diagnostics: tuple[Diagnostic, ...]
+
+
+def _item(code: str, path: str, message: str) -> Diagnostic:
+    return Diagnostic(code, path, message)
+
+
 def diagnostic(code: str, path: str, message: str) -> IncompleteReview:
-    return IncompleteReview((Diagnostic(code, path, message),))
+    return IncompleteReview((_item(code, path, message),))
 
 
 def stage_directory(output: Path) -> Path:
@@ -38,25 +54,237 @@ def unused_sibling(output: Path, label: str) -> Path:
     return path
 
 
-def publish(stage: Path, output: Path) -> Path | None:
-    backup = None
+def _authoritative(path: Path) -> bool:
+    if not path.is_dir():
+        return False
+    try:
+        return validate_directory(path) == []
+    except Exception:
+        return False
+
+
+def _invalidate_manifest(output: Path) -> tuple[Diagnostic, ...]:
+    """Make a stranded failed directory non-authoritative before deletion fallback."""
+
+    if not output.exists():
+        return ()
+    manifest = output / MANIFEST_NAME
+    if not manifest.exists():
+        return ()
+    diagnostics: list[Diagnostic] = []
+    try:
+        marker = unused_sibling(output, "invalid-manifest")
+        os.replace(manifest, marker)
+    except Exception as rename_exc:
+        diagnostics.append(
+            _item(
+                "PRI-COMPLETE-ROLLBACK-004",
+                f"/{output.name}/{MANIFEST_NAME}",
+                f"could not quarantine the failed manifest: {rename_exc}",
+            )
+        )
+        try:
+            manifest.unlink()
+        except Exception as unlink_exc:
+            diagnostics.append(
+                _item(
+                    "PRI-COMPLETE-ROLLBACK-005",
+                    f"/{output.name}/{MANIFEST_NAME}",
+                    f"could not remove the failed manifest: {unlink_exc}",
+                )
+            )
+    if _authoritative(output):
+        diagnostics.append(
+            _item(
+                "PRI-COMPLETE-ROLLBACK-006",
+                f"/{output.name}",
+                "failed output could not be made non-authoritative",
+            )
+        )
+    return tuple(diagnostics)
+
+
+def _remove_tree(path: Path, *, code: str, context: str) -> tuple[Diagnostic, ...]:
+    if not path.exists():
+        return ()
+    try:
+        shutil.rmtree(path)
+    except Exception as exc:
+        return (_item(code, f"/{path.name}", f"{context}: {exc}"),)
+    if path.exists():
+        return (_item(code, f"/{path.name}", f"{context}: path still exists"),)
+    return ()
+
+
+def restore(output: Path, backup: Path | None) -> RollbackOutcome:
+    """Quarantine failed publication, restore backup, then clean quarantine.
+
+    Recursive deletion is a cleanup mechanism, never the authoritative rollback
+    decision. Failure paths retain backup/quarantine evidence and diagnostics.
+    """
+
+    diagnostics: list[Diagnostic] = []
+    quarantine: Path | None = None
+    restored = False
+
     if output.exists():
-        backup = unused_sibling(output, "backup")
-        os.replace(output, backup)
+        try:
+            quarantine = unused_sibling(output, "quarantine")
+            os.replace(output, quarantine)
+        except Exception as exc:
+            diagnostics.append(
+                _item(
+                    "PRI-COMPLETE-ROLLBACK-001",
+                    f"/{output.name}",
+                    f"could not quarantine failed published directory: {exc}",
+                )
+            )
+            diagnostics.extend(_invalidate_manifest(output))
+            diagnostics.extend(
+                _remove_tree(
+                    output,
+                    code="PRI-COMPLETE-ROLLBACK-002",
+                    context="could not delete non-authoritative failed directory",
+                )
+            )
+            if output.exists():
+                diagnostics.append(
+                    _item(
+                        "PRI-COMPLETE-ROLLBACK-003",
+                        f"/{output.name}",
+                        "failed directory remains at official path after deletion attempt",
+                    )
+                )
+                diagnostics.extend(_invalidate_manifest(output))
+
+    if backup is not None:
+        if not backup.exists():
+            diagnostics.append(
+                _item(
+                    "PRI-COMPLETE-ROLLBACK-007",
+                    f"/{backup.name}",
+                    "previous-output backup is missing; restoration did not complete",
+                )
+            )
+        elif output.exists():
+            diagnostics.append(
+                _item(
+                    "PRI-COMPLETE-ROLLBACK-008",
+                    f"/{output.name}",
+                    "official path is occupied; previous-output backup was retained",
+                )
+            )
+        else:
+            try:
+                os.replace(backup, output)
+                restored = output.exists() and not backup.exists()
+                if not restored:
+                    raise OSError("backup rename did not establish the official path")
+            except Exception as exc:
+                diagnostics.append(
+                    _item(
+                        "PRI-COMPLETE-ROLLBACK-009",
+                        f"/{output.name}",
+                        f"could not restore previous-output backup: {exc}",
+                    )
+                )
+
+    authoritative = _authoritative(output)
+    if backup is None and authoritative:
+        diagnostics.extend(_invalidate_manifest(output))
+        authoritative = _authoritative(output)
+    if backup is not None and not restored and authoritative:
+        diagnostics.extend(_invalidate_manifest(output))
+        authoritative = _authoritative(output)
+
+    cleanup_allowed = restored or (backup is None and not authoritative)
+    if quarantine is not None and quarantine.exists() and cleanup_allowed:
+        cleanup = _remove_tree(
+            quarantine,
+            code="PRI-COMPLETE-ROLLBACK-010",
+            context="rollback quarantine cleanup failed",
+        )
+        diagnostics.extend(cleanup)
+        if quarantine.exists():
+            diagnostics.append(
+                _item(
+                    "PRI-COMPLETE-ROLLBACK-011",
+                    f"/{quarantine.name}",
+                    "rollback quarantine remains after cleanup attempt",
+                )
+            )
+
+    return RollbackOutcome(
+        restored_previous=restored,
+        official_path_authoritative=authoritative,
+        backup_path=backup if backup is not None and backup.exists() else None,
+        quarantine_path=(
+            quarantine if quarantine is not None and quarantine.exists() else None
+        ),
+        diagnostics=tuple(diagnostics),
+    )
+
+
+def publish(stage: Path, output: Path) -> tuple[Path | None, tuple[Diagnostic, ...]]:
+    backup: Path | None = None
+    if output.exists():
+        try:
+            backup = unused_sibling(output, "backup")
+            os.replace(output, backup)
+        except Exception as exc:
+            return None, (
+                _item(
+                    "PRI-COMPLETE-005",
+                    f"/{output.name}",
+                    f"could not move existing output to backup: {exc}",
+                ),
+            )
     try:
         os.replace(stage, output)
-    except OSError:
-        if backup is not None and backup.exists():
-            os.replace(backup, output)
-        raise
-    return backup
+    except Exception as exc:
+        rollback = restore(output, backup)
+        return None, (
+            _item(
+                "PRI-COMPLETE-005",
+                f"/{output.name}",
+                f"could not publish validated staging directory: {exc}",
+            ),
+            *rollback.diagnostics,
+        )
+    return backup, ()
 
 
-def restore(output: Path, backup: Path | None) -> None:
-    if output.exists():
-        shutil.rmtree(output, ignore_errors=True)
-    if backup is not None and backup.exists():
-        os.replace(backup, output)
+def _bounded_restore(
+    output: Path,
+    backup: Path | None,
+) -> RollbackOutcome:
+    try:
+        return restore(output, backup)
+    except Exception as exc:
+        diagnostics = [
+            _item(
+                "PRI-COMPLETE-ROLLBACK-999",
+                f"/{output.name}",
+                f"unexpected rollback failure was bounded: {exc}",
+            )
+        ]
+        try:
+            diagnostics.extend(_invalidate_manifest(output))
+        except Exception as invalidate_exc:
+            diagnostics.append(
+                _item(
+                    "PRI-COMPLETE-ROLLBACK-998",
+                    f"/{output.name}",
+                    f"emergency non-authoritative marking failed: {invalidate_exc}",
+                )
+            )
+        return RollbackOutcome(
+            restored_previous=False,
+            official_path_authoritative=_authoritative(output),
+            backup_path=backup if backup is not None and backup.exists() else None,
+            quarantine_path=None,
+            diagnostics=tuple(diagnostics),
+        )
 
 
 def complete_review(
@@ -69,7 +297,7 @@ def complete_review(
     output = Path(output_directory)
     try:
         initial = head_source.fetch()
-    except (AttributeError, CompletionError) as exc:
+    except Exception as exc:
         return diagnostic(
             "PRI-COMPLETE-008",
             "/live-target-head",
@@ -88,15 +316,15 @@ def complete_review(
         return diagnostic("PRI-COMPLETE-002", "/package-validation", str(exc))
     if diagnostics:
         return IncompleteReview(tuple(diagnostics))
-    identity = package["review_identity"]
     try:
+        identity = package["review_identity"]
         require_head(
             initial,
             identity["target_repository"],
             identity["pr_number"],
             identity["reviewed_head_sha"],
         )
-    except CompletionError as exc:
+    except (KeyError, TypeError, CompletionError) as exc:
         return diagnostic("PRI-COMPLETE-007", "/review_identity", str(exc))
     if identity["review_validity"] != "CURRENT":
         return diagnostic(
@@ -108,13 +336,13 @@ def complete_review(
         return diagnostic("PRI-COMPLETE-005", f"/{output.name}", "output is not a directory")
     try:
         stage = stage_directory(output)
-    except OSError as exc:
+    except Exception as exc:
         return diagnostic("PRI-COMPLETE-005", f"/{output.name}", str(exc))
-    backup = None
-    published = False
+
+    result: VerifiedReviewCompletion | IncompleteReview
     try:
-        (stage / "review-package.json").write_bytes(package_bytes)
         try:
+            (stage / "review-package.json").write_bytes(package_bytes)
             write_review_artifacts(package, stage, review_package_bytes=package_bytes)
             staged = validate_bundle(stage, initial.repository, initial.pr_number, initial.head_sha)
         except (OSError, ValueError, KeyError, TypeError, ProjectionError, CompletionError) as exc:
@@ -123,13 +351,13 @@ def complete_review(
             require_head(
                 head_source.fetch(), staged.repository, staged.pr_number, staged.head_sha
             )
-        except CompletionError as exc:
+        except Exception as exc:
             return diagnostic("PRI-COMPLETE-008", "/prepublication-head-recheck", str(exc))
-        try:
-            backup = publish(stage, output)
-            published = True
-        except OSError as exc:
-            return diagnostic("PRI-COMPLETE-005", f"/{output.name}", str(exc))
+
+        backup, publication_diagnostics = publish(stage, output)
+        if publication_diagnostics:
+            return IncompleteReview(publication_diagnostics)
+
         try:
             final_bundle = validate_bundle(
                 output, initial.repository, initial.pr_number, initial.head_sha
@@ -141,15 +369,37 @@ def complete_review(
                 final_bundle.pr_number,
                 final_bundle.head_sha,
             )
-        except CompletionError as exc:
-            restore(output, backup)
-            published = False
-            return diagnostic("PRI-COMPLETE-008", "/final-head-recheck", str(exc))
+        except Exception as exc:
+            rollback = _bounded_restore(output, backup)
+            return IncompleteReview(
+                (
+                    _item("PRI-COMPLETE-008", "/final-head-recheck", str(exc)),
+                    *rollback.diagnostics,
+                )
+            )
+
         if backup is not None:
-            shutil.rmtree(backup, ignore_errors=True)
-        return completion(final_bundle, head_source, final_head)
+            cleanup = _remove_tree(
+                backup,
+                code="PRI-COMPLETE-009",
+                context="previous-output backup cleanup failed",
+            )
+            if cleanup:
+                rollback = _bounded_restore(output, backup)
+                return IncompleteReview((*cleanup, *rollback.diagnostics))
+        result = completion(final_bundle, head_source, final_head)
+        return result
+    except Exception as exc:
+        return diagnostic(
+            "PRI-COMPLETE-999",
+            "/official-review-boundary",
+            f"unexpected handled completion failure: {exc}",
+        )
     finally:
         if stage.exists():
-            shutil.rmtree(stage, ignore_errors=True)
-        if not published and backup is not None and backup.exists() and not output.exists():
-            os.replace(backup, output)
+            try:
+                shutil.rmtree(stage)
+            except Exception:
+                # Staging is never an official output path. All authoritative-path
+                # failures are reported by publish/restore before this cleanup.
+                pass

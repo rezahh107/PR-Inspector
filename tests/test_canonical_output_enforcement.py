@@ -316,6 +316,7 @@ CANONICAL_OUTPUT_RULE_IDS = {
     "PRR-FINAL-HEAD-RECHECK-001",
 }
 FOCUSED_COMMAND = "python -m pytest -q tests/test_canonical_output_enforcement.py"
+ATOMICITY_COMMAND = "python -m pytest -q tests/test_canonical_output_atomicity.py"
 
 
 def test_canonical_output_behavioral_coverage_has_dedicated_mutations_and_ci():
@@ -335,7 +336,9 @@ def test_canonical_output_behavioral_coverage_has_dedicated_mutations_and_ci():
     ).read_text(encoding="utf-8")
     assert all(f"`{rule}`" in policy for rule in CANONICAL_OUTPUT_RULE_IDS)
     assert FOCUSED_COMMAND in policy
+    assert ATOMICITY_COMMAND in policy
     workflow = (ROOT / ".github/workflows/validate-repository.yml").read_text(
         encoding="utf-8"
     )
     assert FOCUSED_COMMAND in workflow
+    assert ATOMICITY_COMMAND in workflow

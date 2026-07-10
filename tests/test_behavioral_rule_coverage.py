@@ -8,6 +8,7 @@ from pr_inspector.behavioral_coverage import FOCUSED_COMMAND, REQUIRED_RULE_IDS,
 from pr_inspector.ci_identity import build_ci_identity, validate_ci_identity
 from pr_inspector.decision_projection import owner_result_text, project_decision
 from pr_inspector.governance import verify_github_governance_source, verify_governance_record
+from tests.governance_test_support import responses as governance_responses
 from pr_inspector.derived_outputs import PROJECTION_NAME, PROMPT_NAME, write_review_artifacts
 from pr_inspector.render import canonical_action_text, render_handoff
 from pr_inspector.review_provenance import (
@@ -201,53 +202,13 @@ def rereview_sequence() -> dict:
     )
 
 
-def _governance_record(head_sha: str) -> dict:
-    base = "https://api.github.com/repos/example/project"
-    protection = f"{base}/branches/main/protection"
-    return {
-        "schema_version": 1,
-        "repository": "example/project",
-        "default_branch": "main",
-        "pull_request_number": 42,
-        "exact_head_sha": head_sha,
-        "observed_at": "2026-07-10T18:00:00Z",
-        "source": "github_rest_api_https",
-        "pull_request_required": {"value": True, "evidence": [protection]},
-        "required_status_checks": {"value": ["validate"], "evidence": [protection]},
-        "required_approvals": {"value": 1, "evidence": [protection]},
-        "dismiss_stale_approvals": {"value": True, "evidence": [protection]},
-        "code_owner_review_required": {"value": True, "evidence": [protection]},
-        "bypass_actors": {"value": [], "evidence": [f"{base}/rulesets"]},
-        "merge_queue_required": {"value": False, "evidence": [f"{base}/rulesets"]},
-        "reviews": [{"reviewer": "reviewer", "state": "APPROVED", "commit_id": head_sha, "is_bot": False, "is_author": False}],
-        "checks": [{"name": "validate", "head_sha": head_sha, "status": "completed", "conclusion": "success"}],
-        "specialist_review": {"required": False, "reviewer_identity_observed": False, "qualification_verified": False, "reviewer": None, "enforcement_status": "not_required"},
-        "status": "verified_enforced",
-        "limitations": [],
-    }
-
-
-def _governance_source(record: dict):
-    repository = record["repository"]
-    base = f"https://api.github.com/repos/{repository}"
+def _governance_source(head_sha: str):
     return verify_github_governance_source(
-        record,
-        repository_payload={
-            "id": 4242,
-            "full_name": repository,
-            "url": base,
-            "html_url": f"https://github.com/{repository}",
-        },
-        response_urls=[
-            base,
-            f"{base}/branches/{record['default_branch']}/protection",
-            f"{base}/rulesets",
-            f"{base}/pulls/{record['pull_request_number']}/reviews",
-            f"{base}/commits/{record['exact_head_sha']}/check-runs",
-        ],
-        expected_repository=repository,
+        governance_responses(),
+        expected_repository="example/project",
+        expected_pr_number=42,
+        expected_head_sha=head_sha,
     )
-
 
 def _github_payloads(commit_sha: str) -> tuple[dict, dict]:
     repository = "rezahh107/PR-Inspector"
@@ -297,9 +258,8 @@ def verified_sequence(tmp_path, value: dict | None = None):
                 "resulting_head_sha": evidence.reviewed_head_sha,
             }
         )
-    governance_record = _governance_record(evidence.reviewed_head_sha)
     governance = verify_governance_record(
-        _governance_source(governance_record),
+        _governance_source(evidence.reviewed_head_sha),
         expected_repository=evidence.target_repository,
         expected_pr_number=evidence.pr_number,
         expected_head_sha=evidence.reviewed_head_sha,

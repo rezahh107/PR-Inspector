@@ -85,6 +85,9 @@ jobs:
       - name: Run focused canonical output enforcement tests
         run: python -m pytest -q tests/test_canonical_output_enforcement.py
 
+      - name: Run focused canonical output atomicity tests
+        run: python -m pytest -q tests/test_canonical_output_atomicity.py
+
       - name: Run focused artifact byte-consistency tests
         run: python -m pytest -q tests/test_dual_audience_outputs.py -k "manifest or byte or crlf or bom or newline"
 

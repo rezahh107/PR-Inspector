@@ -53,6 +53,12 @@ canonical package bytes
 
 A changed head before publication prevents publication. A changed head or failed endpoint after publication restores the prior directory. Partial payloads, non-canonical identity, network failure, invalid artifacts, or any other failed gate return `IncompleteReview` with diagnostics only.
 
+## Rollback invariant
+
+After a post-publication failure, PR Inspector atomically renames the failed directory to a unique quarantine path before restoring the previous backup. Quarantine cleanup occurs only after restoration succeeds. If quarantine rename fails, the manifest is removed first so leftover files cannot remain an authoritative bundle; explicit deletion is then attempted and verified.
+
+Backup restore, deletion, quarantine, and cleanup failures are returned as diagnostics. The implementation does not use `ignore_errors=True` as rollback evidence and does not claim restoration unless the backup rename established the official path. Failed restoration retains backup/quarantine evidence and leaves the official path absent or non-authoritative.
+
 ## Completion and output claims
 
 `VerifiedReviewCompletion` binds the repository, PR, reviewed head, canonical package hash, package file hash, projection hash, manifest hash, all official artifact hashes, and a canonical GitHub PR-payload receipt hash. Official accessors re-read both the bundle and live PR head.
