@@ -1,0 +1,42 @@
+name: Apply parent payload on rebase staging
+
+on:
+  push:
+    branches:
+      - fix/canonical-artifact-enforcement-rebase-tmp
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact staging head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: true
+          fetch-depth: 2
+
+      - name: Apply parent payload and retain stacked contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .github/workflows/validate-repository.yml /tmp/validate-repository.yml
+          cp protocol-manifest.yaml /tmp/protocol-manifest.yaml
+          cp protocols/v1.9.0/policies/CANONICAL_OUTPUT_BEHAVIORAL_RULE_COVERAGE.md /tmp/canonical-output-coverage.md
+          python .repair/governance-repair-payload.py
+          cp /tmp/validate-repository.yml .github/workflows/validate-repository.yml
+          cp /tmp/protocol-manifest.yaml protocol-manifest.yaml
+          cp /tmp/canonical-output-coverage.md protocols/v1.9.0/policies/CANONICAL_OUTPUT_BEHAVIORAL_RULE_COVERAGE.md
+          rm -rf .repair
+          rm -f .github/workflows/apply-bounded-governance-repair.yml
+          rm -f .github/workflows/apply-parent-payload-temp.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: integrate parent governance payload"
+          git push origin HEAD:fix/canonical-artifact-enforcement-rebase-tmp
