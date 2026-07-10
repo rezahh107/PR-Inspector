@@ -61,9 +61,9 @@
       "rule_id": "PRR-EXACT-HEAD-CLAIM-001"
     },
     {
-      "case_id": "accept_before_rereview",
-      "expected_diagnostic": "PRI-SEQUENCE-001",
-      "mutation": "accept_without_rereview",
+      "case_id": "accept_without_verified_rereview",
+      "expected_diagnostic": "PRI-SEQUENCE-008",
+      "mutation": "remove_verified_review_evidence",
       "rule_id": "PRR-PENDING-REREVIEW-001"
     },
     {
