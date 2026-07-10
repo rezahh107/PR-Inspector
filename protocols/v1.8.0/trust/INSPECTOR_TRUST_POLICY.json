@@ -1,5 +1,5 @@
 {
-  "commit_evidence_source": "github_rest_api",
+  "commit_evidence_source": "github_rest_api_https",
   "github_api_version": "2026-03-10",
   "inspector_repository": "rezahh107/PR-Inspector",
   "inspector_repository_id": 1288323264,
