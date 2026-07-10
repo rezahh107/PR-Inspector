@@ -1,0 +1,41 @@
+name: Debug focused coverage output
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install --disable-pip-version-check ".[dev]"
+      - name: Capture focused test output
+        shell: bash
+        run: |
+          set +e
+          python -m pytest -q tests/test_behavioral_rule_coverage.py --tb=long -x > focused-output.txt 2>&1
+          status=$?
+          echo "$status" > focused-status.txt
+          cat focused-output.txt
+          exit 0
+      - name: Upload focused diagnostic
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: focused-coverage-output
+          path: |
+            focused-output.txt
+            focused-status.txt
+          if-no-files-found: error
+          retention-days: 1
