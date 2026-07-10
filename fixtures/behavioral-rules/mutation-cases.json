@@ -1,0 +1,77 @@
+{
+  "cases": [
+    {
+      "case_id": "owner_merge_with_pending_approval",
+      "expected": "owner_action_not_merge_now",
+      "mutation": "set_project_owner_confirmation",
+      "rule_id": "PRR-OWNER-MERGE-001"
+    },
+    {
+      "case_id": "owner_result_third_line",
+      "expected_diagnostic": "PRI-CONSIST-001",
+      "mutation": "append_owner_result_line",
+      "rule_id": "PRR-OWNER-TWO-LINE-001"
+    },
+    {
+      "case_id": "projection_action_drift",
+      "expected_diagnostic": "PRI-PROJECTION-003",
+      "mutation": "change_projection_action_kind",
+      "rule_id": "PRR-DECISION-SOURCE-001"
+    },
+    {
+      "case_id": "unregistered_reason_code",
+      "expected_diagnostic": "PRI-PROJECTION-004",
+      "mutation": "inject_unregistered_reason",
+      "rule_id": "PRR-REASON-REGISTRY-001"
+    },
+    {
+      "case_id": "verify_repair_authority",
+      "expected_diagnostic": "PRI-CONSIST-001",
+      "mutation": "inject_verify_repair_authority",
+      "rule_id": "PRR-VERIFY-NOMODIFY-001"
+    },
+    {
+      "case_id": "stale_routes_to_repair",
+      "expected_diagnostic": "PRI-PROJECTION-003",
+      "mutation": "set_stale_then_force_repair_projection",
+      "rule_id": "PRR-STALE-NOREPAIR-001"
+    },
+    {
+      "case_id": "specialist_routes_to_implementer",
+      "expected_diagnostic": "PRI-PROJECTION-003",
+      "mutation": "set_specialist_then_force_implementer",
+      "rule_id": "PRR-RECIPIENT-BOUNDARY-001"
+    },
+    {
+      "case_id": "artifact_byte_changed",
+      "expected_diagnostic": "PRI-MANIFEST-003",
+      "mutation": "change_owner_result_byte",
+      "rule_id": "PRR-MANIFEST-BYTES-001"
+    },
+    {
+      "case_id": "synthetic_merge_claimed_exact",
+      "expected_diagnostic": "PRI-CI-IDENTITY-003",
+      "mutation": "synthetic_merge_exact_claim",
+      "rule_id": "PRR-CI-IDENTITY-001"
+    },
+    {
+      "case_id": "merge_sha_substituted_for_head",
+      "expected_diagnostic": "PRI-CI-IDENTITY-003",
+      "mutation": "merge_sha_exact_claim",
+      "rule_id": "PRR-EXACT-HEAD-CLAIM-001"
+    },
+    {
+      "case_id": "accept_before_rereview",
+      "expected_diagnostic": "PRI-SEQUENCE-001",
+      "mutation": "accept_without_rereview",
+      "rule_id": "PRR-PENDING-REREVIEW-001"
+    },
+    {
+      "case_id": "prompt_section_injection",
+      "expected": "serialized_untrusted_data",
+      "mutation": "inject_prompt_section",
+      "rule_id": "PRR-PROMPT-INJECTION-001"
+    }
+  ],
+  "schema_version": 1
+}
