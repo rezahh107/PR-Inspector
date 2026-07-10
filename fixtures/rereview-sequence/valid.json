@@ -1,0 +1,38 @@
+{
+  "events": [
+    {
+      "event_id": "evt-pending-a",
+      "event_type": "implemented_pending_rereview",
+      "pr_number": 12,
+      "resulting_head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "target_repository": "rezahh107/PR-Inspector"
+    },
+    {
+      "event_id": "evt-review-a",
+      "event_type": "pr_inspector_rereview_completed",
+      "inspector_commit_sha": "cccccccccccccccccccccccccccccccccccccccc",
+      "inspector_repository": "rezahh107/PR-Inspector",
+      "pr_number": 12,
+      "resulting_head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "review_result": "PASSED",
+      "review_validity": "CURRENT",
+      "reviewed_head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "target_repository": "rezahh107/PR-Inspector"
+    },
+    {
+      "event_id": "evt-accepted-a",
+      "event_type": "technically_accepted",
+      "pr_number": 12,
+      "resulting_head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "target_repository": "rezahh107/PR-Inspector"
+    },
+    {
+      "event_id": "evt-authorized-a",
+      "event_type": "merge_authorized",
+      "pr_number": 12,
+      "resulting_head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "target_repository": "rezahh107/PR-Inspector"
+    }
+  ],
+  "schema_version": 1
+}
