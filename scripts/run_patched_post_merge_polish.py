@@ -4,6 +4,7 @@ import base64
 import zlib
 from pathlib import Path
 
+# One-shot adapter: patch the generated v1.9 source before executing it.
 GENERATOR = Path(__file__).with_name("generate_post_merge_polish.py")
 wrapper = GENERATOR.read_text(encoding="utf-8")
 prefix = "_PAYLOAD = r'''"
