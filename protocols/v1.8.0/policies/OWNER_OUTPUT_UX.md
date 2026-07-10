@@ -1,40 +1,42 @@
 # Owner Output UX Policy
 
-The Persian Owner Decision Card remains a decision interface, not a compressed engineering report.
+## Decision source
 
-It must state what changed, the practical risk, what was checked, what remains unknown, exactly one next action, and whether specialist review is required. Its existing deterministic rendering remains intact.
+Both the existing Owner Decision Card and the direct Owner Result consume `DECISION_PROJECTION.json`. They do not independently map technical status, approval, findings, or validity.
 
-## Default direct owner result
+## Two-line contract
 
-The default owner-facing result is a separate UTF-8 text artifact named `OWNER_RESULT.fa.txt`. It contains exactly two LF-terminated lines and no additional visible text.
+`OWNER_RESULT.fa.txt` is UTF-8, contains exactly two LF-terminated visible Persian lines, exactly one status icon, no heading, link, SHA, path, rule ID, evidence detail, or third line. Text comes only from the finite owner-message registry keyed by `owner_readiness.message_key`.
 
-Only the following three byte-exact outputs are allowed.
+## Merge-now
 
-Green:
+The Green merge message is permitted only for canonical `next_action.kind: merge_now`:
 
 ```text
 🟢 وضعیت: آمادهٔ مرج
-مشکل فنی مهمی باقی نمانده است؛ پس از تأییدهای لازم ادغام شود.
+مشکل فنی مهمی باقی نمانده است؛ مرج کن.
 ```
 
-The Green wording is deliberately conservative. It reports technical readiness but never bypasses `PROJECT_OWNER_CONFIRMATION`, `HUMAN_TECHNICAL_REVIEW_REQUIRED`, or `SECURITY_OR_DOMAIN_SPECIALIST_REQUIRED`. It is not automatic merge authorization.
+`merge_now` requires current validity, technical Green, `NO_ADDITIONAL_TECHNICAL_APPROVAL`, and no pending structured action.
 
-Yellow:
+## Yellow actions
 
-```text
-🟡 وضعیت: هنوز آماده نیست
-بخشی از کار باید اصلاح یا اثبات شود؛ پرامپت اقدام آماده است.
-```
+Yellow messages distinguish one practical action without jargon:
 
-Red:
+- owner confirmation;
+- human technical review;
+- specialist review;
+- missing evidence verification;
+- repair;
+- repair plus verification;
+- fresh review for stale/unknown identity.
 
-```text
-🔴 وضعیت: ادغام نشود
-یک مشکل جدی پیدا شده است؛ پرامپت اصلاح آماده است.
-```
+A stale package must say the report is old and that a fresh-review prompt is ready; it must not say a repair prompt is ready.
 
-When `review_validity` is `STALE` or `UNKNOWN`, validity takes precedence at the simple owner surface and the approved Yellow output is emitted regardless of the stored non-Green technical status. This does not create a fourth output. The corresponding prompt must use `action_mode: rerun_review` and must not authorize repair from obsolete evidence.
+## Red actions
 
-No alternative wording is allowed in default owner mode. Do not append headings, greetings, links, paths, hashes, findings, jargon, explanations, recommendations, follow-up questions, artifact descriptions, or a third line.
+Red is used only when the canonical technical status is `RED_DO_NOT_MERGE`. The second line distinguishes repair from repair plus verification.
 
-The interface may expose generated artifacts as attachments or file cards without adding text to the Owner Result.
+## Internal failure
+
+A schema, semantic, projection, manifest, release-lock, or final-head failure prevents a completed owner decision. An invalid artifact set must not emit a misleading completed Green/Yellow/Red result.
