@@ -1,0 +1,17 @@
+# PR Inspector protocol v1.8.0 canonical SHA-256 lock
+8af26c83a23fb2c46a7ff873475be6c72d5d7538314ae8338abd7de580d0adad  protocols/v1.8.0/PR_REVIEW_CONTRACT.md
+9afbc8fd21f79931d58a39b33b87de75f97b0311acf71ab24d6b8f7e80ea7d96  protocols/v1.8.0/policies/SECURITY_AND_TRUST.md
+5027355306dfe435d01700f4a538253270e666d88bbfd9e46bc8001674b2ce1b  protocols/v1.8.0/trust/INSPECTOR_TRUST_POLICY.json
+e29e20fa1c5620a4a4a9c0082e43600ed92817a85b22c0a3a87286f5f7cbaa8f  protocols/v1.8.0/policies/DECISION_GATES.md
+69c0540d376a9746a5e3f68c35eaaba92f5e89e4807bf15bcfc9d05871509d3c  protocols/v1.8.0/registries/DECISION_REASON_REGISTRY.yaml
+4a8f4f78febea49fdb972fd23b0fd348ae391327c23440e89d8d9588fd3ce93c  protocols/v1.8.0/policies/OWNER_OUTPUT_UX.md
+febbb67014f4e44f8854374077ed4c0eafb456281832e90d42593f592e3d1d44  protocols/v1.8.0/policies/DERIVED_OUTPUTS.md
+602f215942191c45102e92c10dea636c24a5b31ecff713d231ea80e084242c27  protocols/v1.8.0/policies/BEHAVIORAL_RULE_COVERAGE.md
+44cf4995c82b81eb3ce1f39134571e2fd4203dfbea6ca9e8fcafef445da63e7f  protocols/v1.8.0/pipeline/REVIEW_PIPELINE.md
+8fcd238b5dfd0ac9dad3160943d273d42cf803f13cb4fa9ccc78d5d357eca6aa  protocols/v1.8.0/templates/OWNER_DECISION_CARD.fa.md
+79ff2952bf719b206c12bfa8f80c126119d1a6dee1b0bb0430bbc81dfe6b87cd  protocols/v1.8.0/templates/TECHNICAL_HANDOFF.en.md
+a90be2add4db94119a81a95f8a9a8eac9f219398222cfa00e2f5589f5a39620f  protocols/v1.8.0/schemas/review-package.schema.json
+ae6d9710544b737afd197b9a8f4c81517b6b7396b5a38f22fab31c98c26e8561  protocols/v1.8.0/schemas/decision-projection.schema.json
+0b4bb8ae5d12761be9f9d30e3e7ca1a0df63b78691bc631f7ef77379dfc403d8  protocols/v1.8.0/schemas/ci-identity.schema.json
+1e928a7bc64bc67dd68ed5b9e9f93ba95a5308d74584f3a2cb6468601e6ca487  protocols/v1.8.0/schemas/rereview-sequence.schema.json
+5c4f1eefb7523673bfe2699814179b71ea00bf3ebd5eaa49fdc02637af2386a0  protocols/v1.8.0/prompts/INTAKE_RESPONSE.fa.md

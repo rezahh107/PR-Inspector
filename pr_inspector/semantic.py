@@ -71,56 +71,10 @@ def _has_accepted_external_suggestion(pkg: dict[str, Any]) -> bool:
 
 
 def expected_status(pkg: dict[str, Any]) -> tuple[str, list[str]]:
-    red: list[str] = []
-    yellow: list[str] = []
-    identity = pkg["review_identity"]
-    scope = pkg["scope"]
-    findings = pkg["findings"]
-    checks = pkg["checks"]
-    intent_fit = pkg.get("intent_fit")
+    """Compatibility wrapper around the single active decision projection."""
+    from .decision_projection import expected_technical_status
 
-    if pkg.get("red_gate_flags"):
-        red.append("explicit red-gate flag")
-    if any(c["required"] and c["result"] == "FAIL" for c in checks):
-        red.append("required check failed")
-    if any(f["severity"] == "CRITICAL" and f["evidence_label"] in {"REPRODUCED", "CODE_SUPPORTED"} for f in findings):
-        red.append("critical supported finding")
-    if any(f["severity"] == "HIGH" and f["evidence_label"] == "REPRODUCED" for f in findings):
-        red.append("high reproduced finding")
-    if red:
-        return STATUS_RED, red
-
-    if any(c["required"] and c["result"] in {"UNKNOWN", "NOT_RUN"} for c in checks):
-        yellow.append("required check missing or unknown")
-    if any(f["blocking"] and f["evidence_label"] == "HYPOTHESIS" for f in findings):
-        yellow.append("blocking hypothesis")
-    if any(f["severity"] == "HIGH" and f["evidence_label"] in {"CODE_SUPPORTED", "HYPOTHESIS"} for f in findings):
-        yellow.append("unresolved high finding")
-    if any(f["severity"] == "MEDIUM" and f["blocking"] for f in findings):
-        yellow.append("blocking medium finding")
-    if any(f["evidence_label"] == "NOT_ASSESSABLE" for f in findings):
-        yellow.append("not assessable finding")
-    if identity["review_mode"] == "PARTIAL":
-        yellow.append("partial review")
-    if identity["review_validity"] != "CURRENT":
-        yellow.append("review validity is not current")
-    if scope["high_risk_areas_not_reviewed"]:
-        yellow.append("high-risk area unreviewed")
-    if not scope["coverage_complete"]:
-        yellow.append("coverage incomplete")
-    if intent_fit is None:
-        yellow.append("intent fit missing")
-    elif intent_fit["intent_fit_result"] != "satisfied":
-        yellow.append("intent fit is not satisfied")
-    elif intent_fit["unsupported_claims"]:
-        yellow.append("unsupported intent claim remains")
-    if pkg.get("repair_handoff"):
-        yellow.append("same-PR repair handoff present")
-    if _has_accepted_external_suggestion(pkg):
-        yellow.append("accepted external review suggestion present")
-    if yellow:
-        return STATUS_YELLOW, yellow
-    return STATUS_GREEN, []
+    return expected_technical_status(pkg)
 
 
 def validate_intent_fit(pkg: dict[str, Any], evidence: dict[str, dict[str, Any]]) -> list[Diagnostic]:
@@ -208,11 +162,7 @@ def validate_external_review_intake(
     finding_ids = {item["finding_id"] for item in pkg["findings"]}
 
     inaccessible_sources = {source["source_id"] for source in intake["sources_inspected"] if not source["inspected"]}
-    insufficient_sources = {
-        item["source_id"]
-        for item in intake["suggestions"]
-        if item["triage_decision"] == "insufficient_evidence"
-    }
+    insufficient_sources = {item["source_id"] for item in intake["suggestions"] if item["triage_decision"] == "insufficient_evidence"}
     for source_id in sorted(inaccessible_sources - insufficient_sources):
         diagnostics.append(_diag("PRI-EXT-010", "/external_review_intake/sources_inspected", f"inaccessible external review source {source_id} must be represented by an insufficient_evidence suggestion"))
 

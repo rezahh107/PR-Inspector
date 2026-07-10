@@ -1,0 +1,47 @@
+{
+  "events": [
+    {
+      "event_id": "evt-pending-a",
+      "event_type": "implemented_pending_rereview",
+      "pr_number": 42,
+      "resulting_head_sha": "1111111111111111111111111111111111111111",
+      "target_repository": "example/project"
+    },
+    {
+      "artifact_manifest_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "decision_projection_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "event_id": "evt-review-a",
+      "event_type": "pr_inspector_rereview_completed",
+      "inspector_commit_api_url": "https://api.github.com/repos/rezahh107/PR-Inspector/commits/3333333333333333333333333333333333333333",
+      "inspector_commit_html_url": "https://github.com/rezahh107/PR-Inspector/commit/3333333333333333333333333333333333333333",
+      "inspector_commit_sha": "3333333333333333333333333333333333333333",
+      "inspector_evidence_source": "github_rest_api_https",
+      "inspector_repository": "rezahh107/PR-Inspector",
+      "inspector_repository_id": 1288323264,
+      "pr_number": 42,
+      "protocol_version": "v1.8.0",
+      "resulting_head_sha": "1111111111111111111111111111111111111111",
+      "review_evidence_id": "0000000000000000000000000000000000000000000000000000000000000000",
+      "review_package_canonical_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "review_package_file_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "review_validity": "CURRENT",
+      "reviewed_head_sha": "1111111111111111111111111111111111111111",
+      "target_repository": "example/project"
+    },
+    {
+      "event_id": "evt-accepted-a",
+      "event_type": "technically_accepted",
+      "pr_number": 42,
+      "resulting_head_sha": "1111111111111111111111111111111111111111",
+      "target_repository": "example/project"
+    },
+    {
+      "event_id": "evt-authorized-a",
+      "event_type": "merge_authorized",
+      "pr_number": 42,
+      "resulting_head_sha": "1111111111111111111111111111111111111111",
+      "target_repository": "example/project"
+    }
+  ],
+  "schema_version": 2
+}

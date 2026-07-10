@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.8.0
+
+- Added one canonical deterministic `DECISION_PROJECTION.json` consumed by semantic validation, owner rendering, technical handoff, action routing, and artifact validation.
+- Added a versioned canonical decision-reason registry with stable technical effects, action effects, recipients, modification authority, prompt kinds, and recovery actions.
+- Separated technical status from owner readiness and approval state.
+- Limited Green merge-now wording to current technical Green reviews with no additional approval and no pending structured action.
+- Added finite two-line Persian owner messages for owner confirmation, human review, specialist review, verification, repair, repair plus verification, stale review, Red states, and internal blocked state.
+- Routed mandatory human and specialist approval to dedicated handoffs that explicitly cannot be satisfied or claimed by model output.
+- Made verification and stale-review artifacts non-modifying; repair discovery during verification requires a fresh canonical decision.
+- Added projection-backed bounded `repair` and separately enforced `repair_and_verify` behavior.
+- Removed the active and legacy competing technical-status mappings; compatibility status calls delegate to the canonical projection.
+- Added a versioned Behavioral Rule Coverage matrix with dedicated mutation fixtures, focused CI enforcement, and a sequence gate for mandatory post-repair PR Inspector re-review.
+- Added structured CI object-identity schema, fixtures, validator, recorder, exact-head assertion, synthetic-merge distinction, workflow run, job, SHA, and tree traceability.
+- Added `artifact-manifest.json` schema v2 behavior: canonical package hash, actual package-file hash, and hashes recomputed from final bytes reread from disk.
+- Added rejection coverage for byte mutation, CRLF, BOM, trailing-newline drift, stale manifests, projection drift, unregistered reason codes, prompt injection, recipient drift, exact-head overclaim, premature acceptance, and orphan acceptance without a preceding pending-repair event.
+- Added focused Behavioral Rule Coverage tests, focused artifact byte tests, and full-suite CI across Python 3.10–3.14.
+- Added the decision projection, reason registry, coverage matrix, schemas, policies, templates, and pipeline to the active v1.8 load order and release lock.
+- Preserved the released v1.7.0 snapshot and release lock byte-for-byte.
+
 ## 1.7.0
 
 - Added optional canonical `external_review_intake` for untrusted external PR review suggestions.
