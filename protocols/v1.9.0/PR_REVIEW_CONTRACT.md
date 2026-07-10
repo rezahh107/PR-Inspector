@@ -183,13 +183,13 @@ When technical readiness appears satisfied but repository-hosted enforcement is 
 
 ## 17. Governance evidence and authorization
 
-Governance evidence conforms to `schemas/governance-evidence.schema.json` and is converted into an opaque verifier-created capability. A caller-supplied `verified_enforced` string cannot create that capability. Merge authorization requires:
+Governance evidence conforms to `schemas/governance-evidence.schema.json`, but the normalized record is derived only from fresh sealed official GitHub API response payloads. A caller-supplied record, `verified_enforced` string, boolean specialist claim, or canonical-looking URL list cannot create the opaque capability. Required checks are bound to both context and configured GitHub App ID. The operational sequence CLI fetches the payload bundle, verifies it, binds the resulting evidence ID to the exact event, and passes the capability into sequence validation. Merge authorization requires:
 
 - current exact-head technical Green;
 - no pending canonical action or additional technical approval;
 - required exact-head CI success;
 - current human approvals from non-bot reviewers other than the PR author;
-- current specialist approval when applicable;
+- current specialist approval when applicable, plus authoritative active team-membership qualification evidence;
 - authoritative repository-settings evidence;
 - recorded bypass actors; and
 - `verified_enforced` repository protection with no unsupported bypass assumption.
