@@ -1,13 +1,18 @@
 {
   "$defs": {
+    "evidenceUrls": {
+      "items": {
+        "pattern": "^https://api\\.github\\.com/",
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
     "nullableBooleanEvidence": {
       "additionalProperties": false,
       "properties": {
         "evidence": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
+          "$ref": "#/$defs/evidenceUrls"
         },
         "value": {
           "type": [
@@ -26,10 +31,7 @@
       "additionalProperties": false,
       "properties": {
         "evidence": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
+          "$ref": "#/$defs/evidenceUrls"
         },
         "value": {
           "minimum": 0,
@@ -45,14 +47,52 @@
       ],
       "type": "object"
     },
+    "requiredCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "app_id": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "context": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "context",
+        "app_id"
+      ],
+      "type": "object"
+    },
+    "requiredCheckListEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "$ref": "#/$defs/evidenceUrls"
+        },
+        "value": {
+          "items": {
+            "$ref": "#/$defs/requiredCheck"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "value",
+        "evidence"
+      ],
+      "type": "object"
+    },
     "stringListEvidence": {
       "additionalProperties": false,
       "properties": {
         "evidence": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
+          "$ref": "#/$defs/evidenceUrls"
         },
         "value": {
           "items": {
@@ -83,6 +123,20 @@
       "items": {
         "additionalProperties": false,
         "properties": {
+          "app_id": {
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "completed_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "conclusion": {
             "type": [
               "string",
@@ -107,9 +161,11 @@
         },
         "required": [
           "name",
+          "app_id",
           "head_sha",
           "status",
-          "conclusion"
+          "conclusion",
+          "completed_at"
         ],
         "type": "object"
       },
@@ -154,11 +210,15 @@
       "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
       "type": "string"
     },
+    "repository_id": {
+      "minimum": 1,
+      "type": "integer"
+    },
     "required_approvals": {
       "$ref": "#/$defs/nullableIntegerEvidence"
     },
     "required_status_checks": {
-      "$ref": "#/$defs/stringListEvidence"
+      "$ref": "#/$defs/requiredCheckListEvidence"
     },
     "reviews": {
       "items": {
@@ -189,6 +249,10 @@
               "DISMISSED",
               "PENDING"
             ]
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "type": "string"
           }
         },
         "required": [
@@ -196,20 +260,18 @@
           "state",
           "commit_id",
           "is_bot",
-          "is_author"
+          "is_author",
+          "submitted_at"
         ],
         "type": "object"
       },
       "type": "array"
     },
     "schema_version": {
-      "const": 1
+      "const": 2
     },
     "source": {
-      "enum": [
-        "github_rest_api_https",
-        "unavailable"
-      ]
+      "const": "github_rest_api_https"
     },
     "specialist_review": {
       "additionalProperties": false,
@@ -221,8 +283,15 @@
             "repository_team_enforced"
           ]
         },
-        "qualification_verified": {
-          "type": "boolean"
+        "qualification_evidence": {
+          "$ref": "#/$defs/evidenceUrls"
+        },
+        "qualification_status": {
+          "enum": [
+            "not_required",
+            "verified",
+            "unverified"
+          ]
         },
         "required": {
           "type": "boolean"
@@ -232,16 +301,13 @@
             "string",
             "null"
           ]
-        },
-        "reviewer_identity_observed": {
-          "type": "boolean"
         }
       },
       "required": [
         "required",
-        "reviewer_identity_observed",
-        "qualification_verified",
         "reviewer",
+        "qualification_status",
+        "qualification_evidence",
         "enforcement_status"
       ],
       "type": "object"
@@ -251,7 +317,6 @@
         "verified_enforced",
         "verified_not_enforced",
         "partially_enforced",
-        "unavailable",
         "insufficient_evidence"
       ]
     }
@@ -259,6 +324,7 @@
   "required": [
     "schema_version",
     "repository",
+    "repository_id",
     "default_branch",
     "pull_request_number",
     "exact_head_sha",
@@ -277,6 +343,6 @@
     "status",
     "limitations"
   ],
-  "title": "PR Inspector GitHub Governance Evidence v1.9.0",
+  "title": "PR Inspector Payload-Derived GitHub Governance Evidence v1.9.0",
   "type": "object"
 }
