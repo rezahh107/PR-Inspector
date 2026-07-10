@@ -81,7 +81,7 @@ def test_active_lifecycle_documentation_is_not_candidate_wording():
 def test_readme_no_longer_describes_active_protocol_as_unmerged():
     readme = (ROOT / "README.md").read_text(encoding="utf-8").lower()
     assert "unmerged pr" not in readme
-    assert "authoritative `main`" in readme
+    assert "repository authority is determined from live `main`" in readme
 
 
 def test_pr12_history_preserves_uncertainty():
