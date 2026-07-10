@@ -34,7 +34,7 @@ Pull-request CI checks out the triggering PR head, asserts the tested SHA, recor
 
 `v1.9.0`
 
-The snapshot under [`protocols/v1.9.0/`](protocols/v1.9.0/) is the active protocol selected by `CURRENT_VERSION` on authoritative `main` and is protected by [`release-locks/v1.9.0.sha256`](release-locks/v1.9.0.sha256). Earlier snapshots, including v1.8.0, remain immutable historical releases.
+`CURRENT_VERSION` selects the snapshot under [`protocols/v1.9.0/`](protocols/v1.9.0/) in this checkout, protected by [`release-locks/v1.9.0.sha256`](release-locks/v1.9.0.sha256). Repository authority is determined from live `main`; a branch snapshot or its own documentation cannot prove that it is active or merged. Earlier snapshots, including v1.8.0, remain immutable historical releases.
 
 ## License
 
