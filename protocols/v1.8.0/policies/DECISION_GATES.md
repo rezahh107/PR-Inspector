@@ -1,53 +1,67 @@
 # Deterministic Decision Gates
 
-Apply gates in this order. The semantic validator implements the same ordering.
+## One authoritative projection
 
-## Validity
+`pr_inspector.decision_projection.project_decision` is the only active v1.8 implementation that converts structured package fields into technical status, owner readiness, reason codes, recipient, authority, and prompt routing. `semantic_v2`, renderers, validators, and scripts consume it. No component may parse free text to derive status or action.
 
-- Exact confirmed head SHA → `CURRENT`.
-- Changed head SHA → `STALE`.
-- Missing or unconfirmed head SHA → `UNKNOWN`.
-- Non-current validity blocks Green.
-- Non-current validity forces derived `action_mode: rerun_review`.
+## Registered reason evaluation
 
-## Red
+Evaluate predicates in the versioned order of `registries/DECISION_REASON_REGISTRY.yaml`.
 
-Return `RED_DO_NOT_MERGE` when any applies:
+### Red technical effects
 
-- a required check has result `FAIL`;
-- a Critical finding is `REPRODUCED` or `CODE_SUPPORTED`;
-- a High finding is `REPRODUCED`;
-- any explicit red-gate flag is present, including data loss, data corruption, severe financial or production risk, implementation contradiction, a missing mandatory safeguard, or falsified evidence.
+- explicit red-gate flag;
+- failed required check;
+- supported Critical finding;
+- reproduced High finding.
 
-## Yellow
+### Yellow technical effects
 
-When no Red gate applies, return `YELLOW_CHANGES_OR_VERIFICATION_REQUIRED` when any applies:
+- unresolved required check;
+- High code-supported or hypothesis finding;
+- blocking Medium finding;
+- blocking hypothesis;
+- not-assessable finding;
+- partial review;
+- non-current review;
+- unreviewed high-risk area;
+- incomplete coverage;
+- missing, unsatisfied, or unsupported intent evidence;
+- validated repair handoff;
+- accepted external repair suggestion.
 
-- a required check is missing, unknown, or not run;
-- an important blocking Hypothesis remains;
-- a High `CODE_SUPPORTED` or High `HYPOTHESIS` finding remains;
-- a blocking Medium finding remains;
-- review mode is `PARTIAL`;
-- a `NOT_ASSESSABLE` finding remains;
-- validity is not `CURRENT`;
-- a high-risk functional area is unreviewed;
-- coverage is incomplete;
-- intent fit is missing, not assessable, not satisfied, only partially satisfied, or contains unsupported satisfaction claims;
-- same-PR `repair_handoff` is present;
-- an accepted external review suggestion is present.
+### Action-only reasons
 
-## Green
+Explicit `unverified_areas`, structured `required_actions`, and approval requirements affect owner readiness and next action without rewriting the technical status. This preserves the distinction between technical readiness and practical merge readiness.
 
-Return `GREEN_TECHNICALLY_READY` only when no Red or Yellow reason exists, validity is current, required checks passed with evidence, coverage is complete, no high-risk area is unreviewed, implementation matches intended behavior with concrete intent-fit evidence, no same-PR repair handoff remains, and no accepted external review suggestion remains.
+## Status precedence
 
-Green is not a guarantee and does not replace required human approval.
+1. Any registered Red effect → `RED_DO_NOT_MERGE`.
+2. Otherwise any registered Yellow effect → `YELLOW_CHANGES_OR_VERIFICATION_REQUIRED`.
+3. Otherwise → `GREEN_TECHNICALLY_READY`.
 
-## Derived mapping
+The package's `decision.technical_status` must equal this projection or `PRI-STATUS-001` is emitted.
 
-The derived layer maps only the validated technical status:
+## Action precedence
 
-- Green → Green Owner Result; action prompt forbidden.
-- Yellow → Yellow Owner Result; action prompt required.
-- Red → Red Owner Result; action prompt required.
+1. Non-current validity → `rerun_review`.
+2. Non-Green with repair and verify reasons → `repair_and_verify`.
+3. Non-Green with repair reasons → `repair`.
+4. Non-Green with verification reasons → `verify`.
+5. Technically Green with structured verification/pending-action reason → `verify`.
+6. Otherwise route the independent approval requirement to `owner_confirmation`, `human_technical_review`, or `specialist_review`.
+7. Only current Green with no pending action and no additional approval → `merge_now`.
 
-The derived layer MUST NOT upgrade or reinterpret the technical decision.
+A non-Green state without a registered repair or verification reason is a projection error and fails closed.
+
+## Authority invariants
+
+- `merge_now`: no prompt and no code authority.
+- `owner_confirmation`: no model prompt.
+- `human_technical_review` and `specialist_review`: human handoff only; models cannot satisfy approval.
+- `verify`: reviewer model; no patch, commit, refactor, or behavior change.
+- `repair`: implementer model; bounded same-PR repair.
+- `repair_and_verify`: bounded repair plus separate evidence obligations.
+- `rerun_review`: reviewer model; previous findings are non-authorizing.
+
+Any route divergence is rejected before artifact acceptance.
