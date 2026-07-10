@@ -6,6 +6,8 @@ Status: code-side hardening implemented; repository settings not changed and not
 
 The repository contains a pull-request validation workflow and CODEOWNERS entry, but those files do not prove that GitHub requires pull requests, required checks, approvals, code-owner review, stale-approval dismissal, merge queue, or no-bypass enforcement. The historical PR #12 record showed successful CI and one `COMMENTED` bot review; no authoritative settings response was available to this implementation.
 
+A schema-valid repository JSON file is not authoritative settings evidence. The governance verifier accepts only an opaque capability bound to canonical official GitHub API repository identity and fetched response receipts for settings, current-head reviews, and exact-head checks.
+
 ## Exact settings still required
 
 1. Create an active ruleset for `main` requiring pull requests.
