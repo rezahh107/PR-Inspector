@@ -8,6 +8,12 @@ The derived layer runs only after the canonical package passes schema and semant
 
 `DECISION_PROJECTION.json` is deterministic and schema-validated. It records technical reason codes, owner readiness, next-action kind, recipient, code authority, prompt requirement, prompt kind, review validity, and reviewed head SHA. Every reason is registered in `DECISION_REASON_REGISTRY.yaml`.
 
+## Authoritative action text
+
+The Technical Handoff renders one finite English action text keyed only by `DECISION_PROJECTION.json#/next_action/kind`.
+
+`decision.next_required_action` remains in `review-package.json` solely for legacy package compatibility. It is non-authoritative, is not rendered as an instruction, is never labeled exact or canonical, and cannot override projection-derived status, recipient, modification authority, or action text.
+
 ## Artifact routing
 
 Always generate Owner Decision Card, Technical Handoff, Owner Result, projection, and manifest. Generate `NEXT_ACTION_PROMPT.en.md` only when `next_action.prompt_required` is true.
@@ -43,4 +49,8 @@ Exact-head claims require a structured identity record where `tested_ref_type` i
 
 ## Mandatory re-review
 
-Repair output remains `implemented_pending_rereview`. It does not close findings. The repaired exact head requires a later independent PR Inspector review. The sequence gate rejects acceptance or merge authorization before `pr_inspector_rereview_passed`.
+Repair output remains `implemented_pending_rereview`. It does not close findings.
+
+The sequence gate consumes `rereview-sequence.schema.json` records, not bare event strings. A valid unlock requires a later `pr_inspector_rereview_completed` event tied to the same repository, PR number, and repaired head; the reviewed head must match exactly, validity must be `CURRENT`, result must be `PASSED`, inspector identity must be present, and the event ID must not be replayed.
+
+Wrong-PR, wrong-head, stale, failed, missing, or replayed evidence blocks acceptance and merge authorization.
