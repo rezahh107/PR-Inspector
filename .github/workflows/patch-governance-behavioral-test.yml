@@ -1,0 +1,87 @@
+name: Apply governance behavioral test patch
+
+on:
+  push:
+    branches: [agent/post-merge-governance-v1-9]
+    paths:
+      - .github/workflows/patch-governance-behavioral-test.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: agent/post-merge-governance-v1-9
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Apply exact test adapter patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("tests/test_behavioral_rule_coverage.py")
+          text = path.read_text(encoding="utf-8")
+
+          def replace_once(old: str, new: str, label: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one occurrence, found {count}")
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              "from pr_inspector.governance import verify_governance_record",
+              "from pr_inspector.governance import verify_github_governance_source, verify_governance_record",
+              "governance import",
+          )
+          replace_once(
+              '''def _governance_record(head_sha: str) -> dict:\n    return {\n''',
+              '''def _governance_record(head_sha: str) -> dict:\n    base = "https://api.github.com/repos/example/project"\n    protection = f"{base}/branches/main/protection"\n    return {\n''',
+              "governance record header",
+          )
+          for old, new, label in (
+              ('"pull_request_required": {"value": True, "evidence": ["test"]}', '"pull_request_required": {"value": True, "evidence": [protection]}', "pull request evidence"),
+              ('"required_status_checks": {"value": ["validate"], "evidence": ["test"]}', '"required_status_checks": {"value": ["validate"], "evidence": [protection]}', "check evidence"),
+              ('"required_approvals": {"value": 1, "evidence": ["test"]}', '"required_approvals": {"value": 1, "evidence": [protection]}', "approval evidence"),
+              ('"dismiss_stale_approvals": {"value": True, "evidence": ["test"]}', '"dismiss_stale_approvals": {"value": True, "evidence": [protection]}', "stale approval evidence"),
+              ('"code_owner_review_required": {"value": True, "evidence": ["test"]}', '"code_owner_review_required": {"value": True, "evidence": [protection]}', "code owner evidence"),
+              ('"bypass_actors": {"value": [], "evidence": ["test"]}', '"bypass_actors": {"value": [], "evidence": [f"{base}/rulesets"]}', "bypass evidence"),
+              ('"merge_queue_required": {"value": False, "evidence": ["test"]}', '"merge_queue_required": {"value": False, "evidence": [f"{base}/rulesets"]}', "merge queue evidence"),
+          ):
+              replace_once(old, new, label)
+
+          marker = "\n\ndef _github_payloads(commit_sha: str) -> tuple[dict, dict]:\n"
+          helper = '''\n\ndef _governance_source(record: dict):\n    repository = record["repository"]\n    base = f"https://api.github.com/repos/{repository}"\n    return verify_github_governance_source(\n        record,\n        repository_payload={\n            "id": 4242,\n            "full_name": repository,\n            "url": base,\n            "html_url": f"https://github.com/{repository}",\n        },\n        response_urls=[\n            base,\n            f"{base}/branches/{record['default_branch']}/protection",\n            f"{base}/rulesets",\n            f"{base}/pulls/{record['pull_request_number']}/reviews",\n            f"{base}/commits/{record['exact_head_sha']}/check-runs",\n        ],\n        expected_repository=repository,\n    )\n'''
+          replace_once(marker, helper + marker, "governance source helper")
+          replace_once(
+              '''    governance = verify_governance_record(\n        _governance_record(evidence.reviewed_head_sha),\n''',
+              '''    governance_record = _governance_record(evidence.reviewed_head_sha)\n    governance = verify_governance_record(\n        _governance_source(governance_record),\n''',
+              "verified governance call",
+          )
+
+          path.write_text(text, encoding="utf-8", newline="\n")
+          PY
+          python -m py_compile tests/test_behavioral_rule_coverage.py
+          git diff --check
+
+      - name: Commit patch and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/patch-governance-behavioral-test.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/test_behavioral_rule_coverage.py
+          git diff --cached --check
+          git commit -m "test: bind sequence governance to API receipts"
+          git push origin HEAD:agent/post-merge-governance-v1-9
