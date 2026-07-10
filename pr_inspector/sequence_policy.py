@@ -181,6 +181,17 @@ def validate_rereview_sequence(
         if event_type in ACCEPTANCE_EVENTS:
             expected_head = pending_heads.get(key)
             if expected_head is None:
+                diagnostics.append(
+                    Diagnostic(
+                        "PRI-SEQUENCE-001",
+                        path,
+                        (
+                            f"{event_type} is forbidden without a preceding "
+                            "implemented_pending_rereview event for the same "
+                            "repository and pull request"
+                        ),
+                    )
+                )
                 continue
             if resulting_head != expected_head:
                 diagnostics.append(
