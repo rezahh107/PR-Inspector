@@ -1,0 +1,10 @@
+3ab48382299c0d0a0fe23d0706e9fe3f348fe8214d0bffb9d6d1a2a66ee86362  protocols/v1.8.0/PR_REVIEW_CONTRACT.md
+756bf926d0b0a6e725d56caffa31cc2fd21e38d47ee35ee43bc2e5c7f44b64c1  protocols/v1.8.0/policies/SECURITY_AND_TRUST.md
+cec17a3072490e5ea7f9f724ed2781d7ef82f1d7b340e807851cb8dd3d7cd734  protocols/v1.8.0/policies/DECISION_GATES.md
+2ad205317f69f4c9dc769c76b726b2875e91e47cec00f96bf5e0513b464ce043  protocols/v1.8.0/policies/OWNER_OUTPUT_UX.md
+5447c0d42bcfed4544c388b56a38e30c5f91c416719b7a5ab7c52473df1873aa  protocols/v1.8.0/policies/DERIVED_OUTPUTS.md
+fa83fae35809fd9055013aeb38b348f6906f366fdcebc7b288deb8d65ea69cf4  protocols/v1.8.0/pipeline/REVIEW_PIPELINE.md
+293d195f0ca275b82cce246c46b13f038c8b8e9de83d31e13f412d61a8a33c49  protocols/v1.8.0/templates/OWNER_DECISION_CARD.fa.md
+1f5407ca7efab2306ba152c6a88be73a54fa5ecb949bf2432cc9e239fc891584  protocols/v1.8.0/templates/TECHNICAL_HANDOFF.en.md
+a90be2add4db94119a81a95f8a9a8eac9f219398222cfa00e2f5589f5a39620f  protocols/v1.8.0/schemas/review-package.schema.json
+5c4f1eefb7523673bfe2699814179b71ea00bf3ebd5eaa49fdc02637af2386a0  protocols/v1.8.0/prompts/INTAKE_RESPONSE.fa.md
