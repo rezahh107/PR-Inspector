@@ -50,4 +50,4 @@ No renderer, validator, or prompt generator may maintain a competing status/acti
 
 ## Post-review governance sequence
 
-After technical artifacts are complete, any `merge_authorized` event additionally requires authoritative GitHub settings, current-head check, review, author-identity, stale-approval, specialist, and bypass evidence. This is separate from the review projection and never permits PR Inspector to approve or merge.
+After technical artifacts are complete, any `merge_authorized` event additionally requires a freshly fetched, payload-derived GitHub governance bundle: repository and PR identity, branch protection and active rulesets, context-plus-GitHub-App required checks, exact-head check runs, current reviews and author identity, applicable authoritative specialist team membership, and known bypass actors. The sequence CLI must pass the resulting sealed evidence capability into `validate_rereview_sequence`. Missing, partial, stale, replayed, or producer-ambiguous evidence fails closed. This is separate from the review projection and never permits PR Inspector to approve or merge.
