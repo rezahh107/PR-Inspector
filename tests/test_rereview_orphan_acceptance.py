@@ -21,7 +21,7 @@ def _codes(sequence: dict) -> set[str]:
 )
 def test_orphan_acceptance_event_is_rejected(event_type: str):
     sequence = {
-        "schema_version": 2,
+        "schema_version": 3,
         "events": [
             {
                 "event_id": f"evt-orphan-{event_type}",

@@ -7,6 +7,7 @@ import pytest
 from pr_inspector.behavioral_coverage import FOCUSED_COMMAND, REQUIRED_RULE_IDS, load_mutation_cases, parse_coverage_matrix, validate_behavioral_coverage
 from pr_inspector.ci_identity import build_ci_identity, validate_ci_identity
 from pr_inspector.decision_projection import owner_result_text, project_decision
+from pr_inspector.governance import verify_governance_record
 from pr_inspector.derived_outputs import PROJECTION_NAME, PROMPT_NAME, write_review_artifacts
 from pr_inspector.render import canonical_action_text, render_handoff
 from pr_inspector.review_provenance import (
@@ -200,6 +201,30 @@ def rereview_sequence() -> dict:
     )
 
 
+def _governance_record(head_sha: str) -> dict:
+    return {
+        "schema_version": 1,
+        "repository": "example/project",
+        "default_branch": "main",
+        "pull_request_number": 42,
+        "exact_head_sha": head_sha,
+        "observed_at": "2026-07-10T18:00:00Z",
+        "source": "github_rest_api_https",
+        "pull_request_required": {"value": True, "evidence": ["test"]},
+        "required_status_checks": {"value": ["validate"], "evidence": ["test"]},
+        "required_approvals": {"value": 1, "evidence": ["test"]},
+        "dismiss_stale_approvals": {"value": True, "evidence": ["test"]},
+        "code_owner_review_required": {"value": True, "evidence": ["test"]},
+        "bypass_actors": {"value": [], "evidence": ["test"]},
+        "merge_queue_required": {"value": False, "evidence": ["test"]},
+        "reviews": [{"reviewer": "reviewer", "state": "APPROVED", "commit_id": head_sha, "is_bot": False, "is_author": False}],
+        "checks": [{"name": "validate", "head_sha": head_sha, "status": "completed", "conclusion": "success"}],
+        "specialist_review": {"required": False, "reviewer_identity_observed": False, "qualification_verified": False, "reviewer": None, "enforcement_status": "not_required"},
+        "status": "verified_enforced",
+        "limitations": [],
+    }
+
+
 def _github_payloads(commit_sha: str) -> tuple[dict, dict]:
     repository = "rezahh107/PR-Inspector"
     return (
@@ -248,30 +273,37 @@ def verified_sequence(tmp_path, value: dict | None = None):
                 "resulting_head_sha": evidence.reviewed_head_sha,
             }
         )
-    return sequence, {evidence.evidence_id: evidence}, evidence
+    governance = verify_governance_record(
+        _governance_record(evidence.reviewed_head_sha),
+        expected_repository=evidence.target_repository,
+        expected_pr_number=evidence.pr_number,
+        expected_head_sha=evidence.reviewed_head_sha,
+    )
+    sequence["events"][3]["governance_evidence_id"] = governance.evidence_id
+    return sequence, {evidence.evidence_id: evidence}, {governance.evidence_id: governance}, evidence
 
 
-def sequence_codes(sequence: dict, evidence: dict | None = None) -> set[str]:
+def sequence_codes(sequence: dict, evidence: dict | None = None, governance: dict | None = None) -> set[str]:
     return {
         item.code
-        for item in validate_rereview_sequence(sequence, evidence)
+        for item in validate_rereview_sequence(sequence, evidence, governance)
     }
 
 
 def test_identity_and_artifact_bound_rereview_accepts_matching_green_review(tmp_path):
-    sequence, evidence, _ = verified_sequence(tmp_path)
-    assert sequence_codes(sequence, evidence) == set()
+    sequence, evidence, governance, _ = verified_sequence(tmp_path)
+    assert sequence_codes(sequence, evidence, governance) == set()
 
 
 def test_acceptance_without_verified_review_evidence_fails_sequence_gate(tmp_path):
-    sequence, _, _ = verified_sequence(tmp_path)
+    sequence, _, governance, _ = verified_sequence(tmp_path)
     assert sequence_codes(sequence) == {"PRI-SEQUENCE-001", "PRI-SEQUENCE-008"}
 
 
 def test_forged_inspector_repository_is_schema_rejected(tmp_path):
-    sequence, evidence, _ = verified_sequence(tmp_path)
+    sequence, evidence, governance, _ = verified_sequence(tmp_path)
     sequence["events"][1]["inspector_repository"] = "attacker/fake-inspector"
-    assert sequence_codes(sequence, evidence) == {"PRI-SEQUENCE-SCHEMA-001"}
+    assert sequence_codes(sequence, evidence, governance) == {"PRI-SEQUENCE-SCHEMA-001"}
 
 
 def test_forged_inspector_commit_payload_is_rejected():
@@ -328,23 +360,23 @@ def test_missing_review_artifact_is_rejected_before_sequence_unlock(tmp_path):
 
 
 def test_mismatched_artifact_hash_cannot_unlock_acceptance(tmp_path):
-    sequence, evidence, _ = verified_sequence(tmp_path)
+    sequence, evidence, governance, _ = verified_sequence(tmp_path)
     sequence["events"][1]["artifact_manifest_sha256"] = "f" * 64
-    assert sequence_codes(sequence, evidence) == {"PRI-SEQUENCE-001", "PRI-SEQUENCE-009"}
+    assert sequence_codes(sequence, evidence, governance) == {"PRI-SEQUENCE-001", "PRI-SEQUENCE-009"}
 
 
 def test_non_green_verified_review_cannot_unlock_technical_acceptance(tmp_path):
     value = yellow_verify_package()
-    sequence, evidence, _ = verified_sequence(tmp_path, value)
-    observed = sequence_codes(sequence, evidence)
+    sequence, evidence, governance, _ = verified_sequence(tmp_path, value)
+    observed = sequence_codes(sequence, evidence, governance)
     assert "PRI-SEQUENCE-010" in observed
 
 
 def test_green_review_with_pending_approval_cannot_authorize_merge(tmp_path):
     value = package()
     value["decision"]["approval_requirement"] = "PROJECT_OWNER_CONFIRMATION"
-    sequence, evidence, _ = verified_sequence(tmp_path, value)
-    observed = sequence_codes(sequence, evidence)
+    sequence, evidence, governance, _ = verified_sequence(tmp_path, value)
+    observed = sequence_codes(sequence, evidence, governance)
     assert observed == {"PRI-SEQUENCE-010"}
 
 
@@ -367,27 +399,27 @@ def test_stale_review_artifact_cannot_create_verified_evidence(tmp_path):
 
 
 def test_rereview_from_wrong_pr_cannot_unlock_acceptance(tmp_path):
-    sequence, evidence, _ = verified_sequence(tmp_path)
+    sequence, evidence, governance, _ = verified_sequence(tmp_path)
     sequence["events"][1]["pr_number"] += 1
-    assert sequence_codes(sequence, evidence) == {"PRI-SEQUENCE-001", "PRI-SEQUENCE-002"}
+    assert sequence_codes(sequence, evidence, governance) == {"PRI-SEQUENCE-001", "PRI-SEQUENCE-002"}
 
 
 def test_rereview_of_wrong_head_cannot_unlock_acceptance(tmp_path):
-    sequence, evidence, _ = verified_sequence(tmp_path)
+    sequence, evidence, governance, _ = verified_sequence(tmp_path)
     wrong_head = "b" * 40
     sequence["events"][1]["resulting_head_sha"] = wrong_head
     sequence["events"][1]["reviewed_head_sha"] = wrong_head
-    assert sequence_codes(sequence, evidence) == {"PRI-SEQUENCE-001", "PRI-SEQUENCE-003", "PRI-SEQUENCE-009"}
+    assert sequence_codes(sequence, evidence, governance) == {"PRI-SEQUENCE-001", "PRI-SEQUENCE-003", "PRI-SEQUENCE-009"}
 
 
 def test_stale_rereview_cannot_unlock_acceptance(tmp_path):
-    sequence, evidence, _ = verified_sequence(tmp_path)
+    sequence, evidence, governance, _ = verified_sequence(tmp_path)
     sequence["events"][1]["review_validity"] = "STALE"
-    assert sequence_codes(sequence, evidence) == {"PRI-SEQUENCE-001", "PRI-SEQUENCE-004", "PRI-SEQUENCE-009"}
+    assert sequence_codes(sequence, evidence, governance) == {"PRI-SEQUENCE-001", "PRI-SEQUENCE-004", "PRI-SEQUENCE-009"}
 
 
 def test_replayed_rereview_event_cannot_unlock_new_repaired_head(tmp_path):
-    sequence, evidence, _ = verified_sequence(tmp_path)
+    sequence, evidence, governance, _ = verified_sequence(tmp_path)
     pending = sequence["events"][0]
     review = sequence["events"][1]
     acceptance = sequence["events"][2]
@@ -409,7 +441,7 @@ def test_replayed_rereview_event_cannot_unlock_new_repaired_head(tmp_path):
         replayed_review,
         second_acceptance,
     ]
-    assert sequence_codes(sequence, evidence) == {"PRI-SEQUENCE-001", "PRI-SEQUENCE-007"}
+    assert sequence_codes(sequence, evidence, governance) == {"PRI-SEQUENCE-001", "PRI-SEQUENCE-007"}
 
 
 def test_legacy_string_sequence_is_schema_rejected():

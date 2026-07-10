@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.9.0
+
+- Corrected post-merge lifecycle documentation and preserved PR #12 as historical provenance without inventing approvals.
+- Added governance evidence schema, opaque verifier capability, exact-head approval/check evaluation, specialist qualification honesty, bypass recording, and governance-bound merge authorization.
+- Distinguished implementation completion, technical acceptance, approval completion, repository enforcement, merge authorization, and merged state.
+- Added focused Behavioral Rule Coverage and adversarial tests for bot comments, author reviews, stale approvals, self-asserted evidence, missing settings, specialist boundaries, bypass actors, and exact-head CI.
+- Preserved the released v1.8.0 snapshot and release lock byte-for-byte.
+- Added a settings plan; no GitHub repository setting was changed or claimed as applied.
+
 ## 1.8.0
 
 - Added one canonical deterministic `DECISION_PROJECTION.json` consumed by semantic validation, owner rendering, technical handoff, action routing, and artifact validation.

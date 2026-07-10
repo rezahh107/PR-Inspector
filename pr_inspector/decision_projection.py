@@ -101,8 +101,8 @@ ACTION_ROUTING: dict[str, dict[str, Any]] = {
 
 OWNER_RESULT_REGISTRY: dict[str, str] = {
     "green_merge_now": (
-        "🟢 وضعیت: آمادهٔ مرج\n"
-        "مشکل فنی مهمی باقی نمانده است؛ مرج کن.\n"
+        "🟢 وضعیت: از نظر فنی آماده\n"
+        "آمادگی فنی تأیید شده؛ حفاظت ادغام در GitHub جداگانه بررسی شود.\n"
     ),
     "yellow_owner_confirmation": (
         "🟡 وضعیت: تأیید شما لازم است\n"
@@ -147,14 +147,14 @@ OWNER_RESULT_REGISTRY: dict[str, str] = {
 }
 
 OWNER_STATUS_TEXT = {
-    "GREEN": "🟢 سبز — آمادهٔ مرج",
+    "GREEN": "🟢 سبز — از نظر فنی آماده",
     "YELLOW": "🟡 زرد — هنوز آماده نیست",
     "RED": "🔴 قرمز — ادغام نشود",
     "BLOCKED": "⚪ مسدود — بررسی کامل نشد",
 }
 
 OWNER_ACTION_TEXT = {
-    "merge_now": "از نظر فنی آماده است؛ پس از تصمیم مالک ادغام شود.",
+    "merge_now": "آمادگی فنی برقرار است؛ مجوز و حفاظت واقعی ادغام باید از شواهد GitHub تأیید شود.",
     "owner_confirmation": "تأیید مالک پروژه لازم است.",
     "human_technical_review": "پیش از ادغام، بازبینی فنی انسانی لازم است.",
     "specialist_review": "پیش از ادغام، بازبینی متخصص امنیت یا حوزه لازم است.",

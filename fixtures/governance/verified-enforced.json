@@ -1,0 +1,79 @@
+{
+  "bypass_actors": {
+    "evidence": [
+      "ruleset bypass actors"
+    ],
+    "value": []
+  },
+  "checks": [
+    {
+      "conclusion": "success",
+      "head_sha": "1111111111111111111111111111111111111111",
+      "name": "Validate PR Inspector repository",
+      "status": "completed"
+    }
+  ],
+  "code_owner_review_required": {
+    "evidence": [
+      "review policy"
+    ],
+    "value": true
+  },
+  "default_branch": "main",
+  "dismiss_stale_approvals": {
+    "evidence": [
+      "review policy"
+    ],
+    "value": true
+  },
+  "exact_head_sha": "1111111111111111111111111111111111111111",
+  "limitations": [],
+  "merge_queue_required": {
+    "evidence": [
+      "ruleset"
+    ],
+    "value": false
+  },
+  "observed_at": "2026-07-10T18:00:00Z",
+  "pull_request_number": 42,
+  "pull_request_required": {
+    "evidence": [
+      "branch protection"
+    ],
+    "value": true
+  },
+  "repository": "example/project",
+  "required_approvals": {
+    "evidence": [
+      "required reviews"
+    ],
+    "value": 1
+  },
+  "required_status_checks": {
+    "evidence": [
+      "required checks"
+    ],
+    "value": [
+      "Validate PR Inspector repository"
+    ]
+  },
+  "reviews": [
+    {
+      "commit_id": "1111111111111111111111111111111111111111",
+      "is_author": false,
+      "is_bot": false,
+      "reviewer": "independent-reviewer",
+      "state": "APPROVED"
+    }
+  ],
+  "schema_version": 1,
+  "source": "github_rest_api_https",
+  "specialist_review": {
+    "enforcement_status": "not_required",
+    "qualification_verified": false,
+    "required": false,
+    "reviewer": null,
+    "reviewer_identity_observed": false
+  },
+  "status": "verified_enforced"
+}

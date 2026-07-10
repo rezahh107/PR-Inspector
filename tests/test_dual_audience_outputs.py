@@ -168,7 +168,7 @@ def test_merge_now_requires_current_green_and_no_additional_approval():
         "prompt_kind": None,
         "reason_codes": [],
     }
-    assert render_owner_result(projection).endswith("مرج کن.\n")
+    assert render_owner_result(projection).endswith("حفاظت ادغام در GitHub جداگانه بررسی شود.\n")
     assert PROMPT_NAME not in build_review_artifacts(value)
 
 
@@ -481,7 +481,7 @@ def test_owner_renderer_consumes_projection_not_free_text():
     value = package()
     projection = project_decision(value)
     value["decision"]["next_required_action"] = "Never merge this."
-    assert owner_result_text(projection).endswith("مرج کن.\n")
+    assert owner_result_text(projection).endswith("حفاظت ادغام در GitHub جداگانه بررسی شود.\n")
     assert render_owner_result(projection) == owner_result_text(projection)
 
 

@@ -1,0 +1,33 @@
+{
+  "cases": [
+    {
+      "case_id": "stale_unmerged_candidate_wording",
+      "rule_id": "PRR-DOC-LIFECYCLE-001"
+    },
+    {
+      "case_id": "missing_settings_evidence",
+      "rule_id": "PRR-GOV-CLAIM-001"
+    },
+    {
+      "case_id": "bot_or_author_review",
+      "rule_id": "PRR-GOV-REVIEW-001"
+    },
+    {
+      "case_id": "specialist_identity_without_qualification",
+      "rule_id": "PRR-GOV-SPECIALIST-001"
+    },
+    {
+      "case_id": "missing_governance_capability",
+      "rule_id": "PRR-GOV-AUTHORIZATION-001"
+    },
+    {
+      "case_id": "bypass_actor_present",
+      "rule_id": "PRR-GOV-BYPASS-001"
+    },
+    {
+      "case_id": "fabricated_pr12_approval",
+      "rule_id": "PRR-HISTORY-NOFABRICATION-001"
+    }
+  ],
+  "schema_version": 1
+}

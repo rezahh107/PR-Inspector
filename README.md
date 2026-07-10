@@ -8,21 +8,15 @@ Ask the reviewing model to read [`BOOTSTRAP.md`](BOOTSTRAP.md). The bootstrap ve
 
 ## Authoritative output model
 
-Every completed review validates one canonical package and computes one canonical structured decision projection:
+Every completed review validates one canonical package and computes one canonical structured decision projection. Technical status, approval state, governance enforcement, and merge authorization are separate states.
 
-1. `review-package.json` — canonical review source of truth;
-2. `DECISION_PROJECTION.json` — registered technical reasons, owner readiness, next action, recipient, authority, prompt routing, validity, and reviewed head;
-3. `OWNER_DECISION_CARD.fa.md` — complete Persian owner decision interface;
-4. `TECHNICAL_HANDOFF.en.md` — complete English technical evidence handoff;
-5. `OWNER_RESULT.fa.txt` — exact two-line Persian owner-readiness result from a finite registry;
-6. `NEXT_ACTION_PROMPT.en.md` — generated only when the projection requires a recipient-specific action artifact;
-7. `artifact-manifest.json` — canonical and actual-file hashes plus projection-backed routing metadata.
+Repository code validates artifacts, provenance, identities, and lifecycle sequences. GitHub-hosted governance independently blocks merge when configured. Human or specialist reviewers supply judgment. PR Inspector records evidence but never approves or merges.
 
-Technical status, approval state, owner readiness, prompt recipient, and modification authority are not re-derived by individual renderers. Schema, semantic, projection, byte, manifest, release-lock, or exact-head failure blocks a completed owner decision.
+## Governance truth
 
-## Behavioral enforcement
+A documented requirement is not machine evidence, and machine evidence is not GitHub-enforced protection. A Green technical result does not prove required reviews, required status checks, CODEOWNERS enforcement, stale-approval dismissal, or bypass resistance. When repository settings cannot be observed, the result remains `insufficient_evidence`.
 
-The active v1.8 protocol includes a versioned decision-reason registry and a focused Behavioral Rule Coverage matrix. Critical per-artifact rules are mutation-tested in CI; mandatory post-repair PR Inspector re-review is sequence-tested.
+PR #12 is historical provenance for the merged v1.8.0 release; it is not a pending release boundary. Historical comments and timeline records are not rewritten as approvals.
 
 ## Validation
 
@@ -30,17 +24,17 @@ The active v1.8 protocol includes a versioned decision-reason registry and a foc
 python -m pip install ".[dev]"
 python scripts/validate_repository_v2.py
 python -m pytest -q tests/test_behavioral_rule_coverage.py
+python -m pytest -q tests/test_governance_enforcement.py
 python -m pytest
-python scripts/validate_review_v2.py fixtures/golden-green --package-only
 ```
 
-Pull-request CI explicitly checks out the triggering PR head, asserts the tested SHA, records tested-object identity, and distinguishes exact-head evidence from synthetic merge evidence.
+Pull-request CI checks out the triggering PR head, asserts the tested SHA, records object identity, and distinguishes exact-head evidence from synthetic merge evidence. CI success does not itself prove repository-settings enforcement.
 
 ## Active protocol
 
-`v1.8.0`
+`v1.9.0`
 
-This is the active protocol inside the unmerged PR branch. The snapshot is under [`protocols/v1.8.0/`](protocols/v1.8.0/) and protected by [`release-locks/v1.8.0.sha256`](release-locks/v1.8.0.sha256). The default branch remains authoritative for the released protocol until this pull request is independently re-reviewed and merged.
+The snapshot under [`protocols/v1.9.0/`](protocols/v1.9.0/) is the active protocol selected by `CURRENT_VERSION` on authoritative `main` and is protected by [`release-locks/v1.9.0.sha256`](release-locks/v1.9.0.sha256). Earlier snapshots, including v1.8.0, remain immutable historical releases.
 
 ## License
 
