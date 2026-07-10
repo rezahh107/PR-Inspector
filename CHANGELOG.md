@@ -14,7 +14,7 @@
 - Added a versioned Behavioral Rule Coverage matrix with dedicated mutation fixtures, focused CI enforcement, and a sequence gate for mandatory post-repair PR Inspector re-review.
 - Added structured CI object-identity schema, fixtures, validator, recorder, exact-head assertion, synthetic-merge distinction, workflow run, job, SHA, and tree traceability.
 - Added `artifact-manifest.json` schema v2 behavior: canonical package hash, actual package-file hash, and hashes recomputed from final bytes reread from disk.
-- Added rejection coverage for byte mutation, CRLF, BOM, trailing-newline drift, stale manifests, projection drift, unregistered reason codes, prompt injection, recipient drift, exact-head overclaim, and premature acceptance.
+- Added rejection coverage for byte mutation, CRLF, BOM, trailing-newline drift, stale manifests, projection drift, unregistered reason codes, prompt injection, recipient drift, exact-head overclaim, premature acceptance, and orphan acceptance without a preceding pending-repair event.
 - Added focused Behavioral Rule Coverage tests, focused artifact byte tests, and full-suite CI across Python 3.10–3.14.
 - Added the decision projection, reason registry, coverage matrix, schemas, policies, templates, and pipeline to the active v1.8 load order and release lock.
 - Preserved the released v1.7.0 snapshot and release lock byte-for-byte.
