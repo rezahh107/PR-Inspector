@@ -36,11 +36,11 @@ python scripts/validate_review_v2.py fixtures/golden-green --package-only
 
 Pull-request CI explicitly checks out the triggering PR head, asserts the tested SHA, records tested-object identity, and distinguishes exact-head evidence from synthetic merge evidence.
 
-## Active protocol candidate
+## Active protocol
 
 `v1.8.0`
 
-The unmerged protocol snapshot is under [`protocols/v1.8.0/`](protocols/v1.8.0/) and protected by [`release-locks/v1.8.0.sha256`](release-locks/v1.8.0.sha256). The default branch remains authoritative for the released protocol until this pull request is independently re-reviewed and merged.
+This is the active protocol inside the unmerged PR branch. The snapshot is under [`protocols/v1.8.0/`](protocols/v1.8.0/) and protected by [`release-locks/v1.8.0.sha256`](release-locks/v1.8.0.sha256). The default branch remains authoritative for the released protocol until this pull request is independently re-reviewed and merged.
 
 ## License
 
