@@ -1,0 +1,41 @@
+{
+  "cases": [
+    {
+      "case_id": "manual_package_status_injection",
+      "expected": "IncompleteReview",
+      "mutation": "change_package_technical_status_without_semantic_support",
+      "rule_id": "PRR-CANONICAL-PACKAGE-001"
+    },
+    {
+      "case_id": "caller_projection_action_injection",
+      "expected": "CompletionError",
+      "mutation": "replace_canonical_projection_action",
+      "rule_id": "PRR-CANONICAL-PROJECTION-001"
+    },
+    {
+      "case_id": "partial_or_conditional_artifact_set",
+      "expected": "CompletionError",
+      "mutation": "remove_required_or_add_forbidden_artifact",
+      "rule_id": "PRR-ARTIFACT-COMPLETENESS-001"
+    },
+    {
+      "case_id": "manifest_or_final_byte_drift",
+      "expected": "CompletionError",
+      "mutation": "change_manifest_hash_or_final_artifact_byte",
+      "rule_id": "PRR-MANIFEST-INTEGRITY-001"
+    },
+    {
+      "case_id": "caller_completion_flag_or_low_level_renderer",
+      "expected": "CompletionError",
+      "mutation": "substitute_boolean_marker_or_renderer_dictionary",
+      "rule_id": "PRR-VERIFIED-COMPLETION-001"
+    },
+    {
+      "case_id": "interrupted_render_or_rollback_failure",
+      "expected": "IncompleteReview_without_authoritative_output",
+      "mutation": "raise_after_publication_or_during_quarantine_restore_cleanup",
+      "rule_id": "PRR-FAIL-CLOSED-OUTPUT-001"
+    }
+  ],
+  "schema_version": 1
+}
