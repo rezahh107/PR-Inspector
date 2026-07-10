@@ -192,18 +192,18 @@ def rereview_sequence() -> dict:
     )
 
 
-def sequence_codes(sequence: dict) -> list[str]:
-    return sorted(item.code for item in validate_rereview_sequence(sequence))
+def sequence_codes(sequence: dict) -> set[str]:
+    return {item.code for item in validate_rereview_sequence(sequence)}
 
 
 def test_identity_bound_rereview_accepts_matching_current_pass():
-    assert sequence_codes(rereview_sequence()) == []
+    assert sequence_codes(rereview_sequence()) == set()
 
 
 def test_rereview_from_wrong_pr_cannot_unlock_acceptance():
     sequence = rereview_sequence()
     sequence["events"][1]["pr_number"] = 13
-    assert sequence_codes(sequence) == ["PRI-SEQUENCE-001", "PRI-SEQUENCE-002"]
+    assert sequence_codes(sequence) == {"PRI-SEQUENCE-001", "PRI-SEQUENCE-002"}
 
 
 def test_rereview_of_wrong_head_cannot_unlock_acceptance():
@@ -211,19 +211,19 @@ def test_rereview_of_wrong_head_cannot_unlock_acceptance():
     wrong_head = "b" * 40
     sequence["events"][1]["resulting_head_sha"] = wrong_head
     sequence["events"][1]["reviewed_head_sha"] = wrong_head
-    assert sequence_codes(sequence) == ["PRI-SEQUENCE-001", "PRI-SEQUENCE-003"]
+    assert sequence_codes(sequence) == {"PRI-SEQUENCE-001", "PRI-SEQUENCE-003"}
 
 
 def test_stale_rereview_cannot_unlock_acceptance():
     sequence = rereview_sequence()
     sequence["events"][1]["review_validity"] = "STALE"
-    assert sequence_codes(sequence) == ["PRI-SEQUENCE-001", "PRI-SEQUENCE-004"]
+    assert sequence_codes(sequence) == {"PRI-SEQUENCE-001", "PRI-SEQUENCE-004"}
 
 
 def test_failed_rereview_cannot_unlock_acceptance():
     sequence = rereview_sequence()
     sequence["events"][1]["review_result"] = "FAILED"
-    assert sequence_codes(sequence) == ["PRI-SEQUENCE-001", "PRI-SEQUENCE-005"]
+    assert sequence_codes(sequence) == {"PRI-SEQUENCE-001", "PRI-SEQUENCE-005"}
 
 
 def test_replayed_rereview_event_cannot_unlock_new_repaired_head():
@@ -253,7 +253,7 @@ def test_replayed_rereview_event_cannot_unlock_new_repaired_head():
         replayed_review,
         acceptance,
     ]
-    assert sequence_codes(sequence) == ["PRI-SEQUENCE-001", "PRI-SEQUENCE-007"]
+    assert sequence_codes(sequence) == {"PRI-SEQUENCE-001", "PRI-SEQUENCE-007"}
 
 
 def test_legacy_string_sequence_is_schema_rejected():
