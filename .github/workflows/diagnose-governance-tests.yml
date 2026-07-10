@@ -1,23 +1,22 @@
 name: Diagnose governance tests
 
 on:
-  push:
-    branches: [agent/post-merge-governance-v1-9]
-    paths:
-      - .github/workflows/diagnose-governance-tests.yml
+  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   diagnose:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check out exact branch head
+      - name: Check out exact PR head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
           fetch-depth: 1
 
