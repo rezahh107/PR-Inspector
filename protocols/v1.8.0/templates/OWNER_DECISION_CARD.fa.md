@@ -1,13 +1,13 @@
 # Owner Decision Card Template
 
-This file documents the deterministic rendered structure. Do not fill it manually when the renderer is available.
+This file documents deterministic rendering. Do not fill it manually when the renderer is available. Status and owner action come from the canonical `DECISION_PROJECTION.json`, not independent mappings.
 
 ```text
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 نتیجهٔ بررسی PR
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-وضعیت: [derived status]
+وضعیت: [projection.owner_readiness]
 
 این تغییر چه کاری می‌کند؟
 [owner_card.summary]
@@ -25,7 +25,7 @@ This file documents the deterministic rendered structure. Do not fill it manuall
 [owner_card.unknown]
 
 الان چه کار کنیم؟
-[derived canonical action]
+[projection.next_action]
 
 آیا متخصص لازم است؟
 [بله/خیر]
