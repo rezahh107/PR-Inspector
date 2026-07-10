@@ -86,7 +86,7 @@ jobs:
         run: python -m pytest
 
   capture-generator-failure:
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.sha == 'f2cfc80cee232e3c01cb57c58e03c59c06c68e1e'
+    if: github.event_name == 'pull_request'
     permissions:
       contents: write
     runs-on: ubuntu-latest
@@ -109,6 +109,10 @@ jobs:
         id: generation
         continue-on-error: true
         run: |
+          if [[ -f docs/GENERATOR_FAILURE.log ]]; then
+            echo "Bounded diagnostic already published."
+            exit 0
+          fi
           set +e
           {
             python -m pip install --disable-pip-version-check PyYAML==6.0.3
