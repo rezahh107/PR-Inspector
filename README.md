@@ -43,7 +43,7 @@ Pull-request CI checks out the triggering PR head, asserts the tested SHA, recor
 
 `v1.9.0`
 
-`CURRENT_VERSION` selects the snapshot under [`protocols/v1.9.0/`](protocols/v1.9.0/) in this checkout, protected by [`release-locks/v1.9.0.sha256`](release-locks/v1.9.0.sha256). Live `main` is authoritative for the merged implementation; a feature branch or its own prose cannot independently prove activation or merge state. Earlier snapshots, including v1.8.0, remain immutable historical releases.
+`CURRENT_VERSION` selects the snapshot under [`protocols/v1.9.0/`](protocols/v1.9.0/) in this checkout, protected by [`release-locks/v1.9.0.sha256`](release-locks/v1.9.0.sha256). Repository authority is determined from live `main`; the merged implementation is present there, while a feature branch or its own prose cannot independently prove activation or merge state. Earlier snapshots, including v1.8.0, remain immutable historical releases.
 
 ## License
 
