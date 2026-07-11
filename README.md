@@ -12,6 +12,12 @@ Every completed review validates one canonical package and computes one canonica
 
 Repository code validates artifacts, provenance, identities, and lifecycle sequences. GitHub-hosted governance independently blocks merge when configured. Human or specialist reviewers supply judgment. PR Inspector records evidence but never approves or merges.
 
+## Current v1.9 status
+
+The `v1.9.0` canonical-output boundary, publication commit point, verified-byte snapshot accessors, and governance code boundary are implemented on live `main`. PR #14 was integrated into PR #13, and PR #13 was then merged to `main`; those pull requests are historical provenance, not pending activation gates.
+
+Repository-settings enforcement remains `insufficient_evidence`. Successful CI does not prove branch protection, Rulesets, required reviews, CODEOWNERS enforcement, stale-approval dismissal, bypass restrictions, or merge-queue enforcement.
+
 ## Governance truth
 
 A documented requirement is not machine evidence, and machine evidence is not GitHub-enforced protection. A Green technical result does not prove required reviews, required status checks, CODEOWNERS enforcement, stale-approval dismissal, or bypass resistance. When repository settings cannot be observed, the result remains `insufficient_evidence`.
@@ -25,6 +31,9 @@ python -m pip install ".[dev]"
 python scripts/validate_repository_v2.py
 python -m pytest -q tests/test_behavioral_rule_coverage.py
 python -m pytest -q tests/test_governance_enforcement.py
+python -m pytest -q tests/test_repository_closure.py
+python -m pytest -q tests/test_canonical_output_enforcement.py
+python -m pytest -q tests/test_canonical_output_atomicity.py
 python -m pytest
 ```
 
@@ -34,7 +43,7 @@ Pull-request CI checks out the triggering PR head, asserts the tested SHA, recor
 
 `v1.9.0`
 
-`CURRENT_VERSION` selects the snapshot under [`protocols/v1.9.0/`](protocols/v1.9.0/) in this checkout, protected by [`release-locks/v1.9.0.sha256`](release-locks/v1.9.0.sha256). Repository authority is determined from live `main`; a branch snapshot or its own documentation cannot prove that it is active or merged. Earlier snapshots, including v1.8.0, remain immutable historical releases.
+`CURRENT_VERSION` selects the snapshot under [`protocols/v1.9.0/`](protocols/v1.9.0/) in this checkout, protected by [`release-locks/v1.9.0.sha256`](release-locks/v1.9.0.sha256). Live `main` is authoritative for the merged implementation; a feature branch or its own prose cannot independently prove activation or merge state. Earlier snapshots, including v1.8.0, remain immutable historical releases.
 
 ## License
 
