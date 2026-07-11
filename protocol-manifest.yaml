@@ -65,5 +65,11 @@ validation_commands:
   behavioral_coverage: python -m pytest -q tests/test_behavioral_rule_coverage.py
   canonical_output_enforcement: python -m pytest -q tests/test_canonical_output_enforcement.py
   canonical_output_atomicity: python -m pytest -q tests/test_canonical_output_atomicity.py
+  publication_commit_point: >-
+    python -m pytest -q tests/test_canonical_output_atomicity.py
+    -k partial_backup_cleanup_failure_after_commit
+  verified_byte_snapshot: >-
+    python -m pytest -q tests/test_canonical_output_enforcement.py
+    -k toctou
   full_suite: python -m pytest
   governance: python -m pytest -q tests/test_governance_enforcement.py
