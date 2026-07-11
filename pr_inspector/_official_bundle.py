@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
@@ -27,6 +28,7 @@ _OFFICIAL = {
     "OWNER_RESULT.fa.txt",
     MANIFEST_NAME,
 }
+_CAPTURE_CANDIDATES = frozenset({*_OFFICIAL, PROMPT_NAME})
 _OWNER_FAILURE = (
     "⚪ وضعیت: بررسی رسمی PR Inspector کامل نشد.\n"
     "هیچ تصمیم معتبر یا پرامپت اقدامی تولید نشد.\n"
@@ -56,6 +58,7 @@ class _Bundle:
     projection_sha256: str
     manifest_sha256: str
     artifact_sha256: Mapping[str, str]
+    artifact_bytes: Mapping[str, bytes] = field(repr=False, compare=False)
 
 
 @dataclass(frozen=True)
@@ -73,6 +76,7 @@ class VerifiedReviewCompletion:
     target_head_receipt_sha256: str
     _head_source: GitHubPullRequestHeadSource = field(repr=False, compare=False)
     _marker: object = field(repr=False, compare=False)
+    cleanup_diagnostics: tuple[Diagnostic, ...] = field(default=(), compare=False)
 
     def _reverify(self) -> _Bundle:
         if self._marker is not _COMPLETION_MARKER:
@@ -110,61 +114,140 @@ class VerifiedReviewCompletion:
         return bundle
 
     def decision_projection(self) -> dict[str, Any]:
-        self._reverify()
-        return json_object(self.output_directory / PROJECTION_NAME)
+        bundle = self._reverify()
+        return json_object_bytes(
+            PROJECTION_NAME,
+            required_artifact_bytes(bundle.artifact_bytes, PROJECTION_NAME),
+        )
 
     def owner_result_text(self) -> str:
-        self._reverify()
-        return utf8(self.output_directory / "OWNER_RESULT.fa.txt")
+        bundle = self._reverify()
+        return utf8_bytes(
+            "OWNER_RESULT.fa.txt",
+            required_artifact_bytes(bundle.artifact_bytes, "OWNER_RESULT.fa.txt"),
+        )
 
     def owner_decision_card_text(self) -> str:
-        self._reverify()
-        return utf8(self.output_directory / "OWNER_DECISION_CARD.fa.md")
+        bundle = self._reverify()
+        return utf8_bytes(
+            "OWNER_DECISION_CARD.fa.md",
+            required_artifact_bytes(
+                bundle.artifact_bytes,
+                "OWNER_DECISION_CARD.fa.md",
+            ),
+        )
 
     def technical_handoff_text(self) -> str:
-        self._reverify()
-        return utf8(self.output_directory / "TECHNICAL_HANDOFF.en.md")
+        bundle = self._reverify()
+        return utf8_bytes(
+            "TECHNICAL_HANDOFF.en.md",
+            required_artifact_bytes(
+                bundle.artifact_bytes,
+                "TECHNICAL_HANDOFF.en.md",
+            ),
+        )
 
     def next_action_prompt_text(self) -> str | None:
-        projection = self.decision_projection()
-        path = self.output_directory / PROMPT_NAME
-        if not projection["next_action"]["prompt_required"]:
-            if path.exists():
-                raise CompletionError("canonical projection forbids a next-action prompt")
+        bundle = self._reverify()
+        projection = json_object_bytes(
+            PROJECTION_NAME,
+            required_artifact_bytes(bundle.artifact_bytes, PROJECTION_NAME),
+        )
+        prompt_required = projection["next_action"]["prompt_required"]
+        prompt_bytes = bundle.artifact_bytes.get(PROMPT_NAME)
+        if not prompt_required:
+            if prompt_bytes is not None:
+                raise CompletionError(
+                    "canonical projection forbids a next-action prompt"
+                )
             return None
-        if not path.is_file():
-            raise CompletionError("canonical projection requires a next-action prompt")
-        return utf8(path)
+        if prompt_bytes is None:
+            raise CompletionError(
+                "canonical projection requires a next-action prompt"
+            )
+        return utf8_bytes(PROMPT_NAME, prompt_bytes)
 
 
 def sha256(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
-def utf8(path: Path) -> str:
+def utf8_bytes(name: str, raw: bytes) -> str:
     try:
-        return path.read_bytes().decode("utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        raise CompletionError(f"cannot read {path.name}: {exc}") from exc
+        return raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise CompletionError(f"cannot decode {name}: {exc}") from exc
 
 
-def json_object(path: Path) -> dict[str, Any]:
+def json_object_bytes(name: str, raw: bytes) -> dict[str, Any]:
     try:
-        value = json.loads(utf8(path))
+        value = json.loads(utf8_bytes(name, raw))
     except json.JSONDecodeError as exc:
-        raise CompletionError(f"cannot parse {path.name}: {exc}") from exc
+        raise CompletionError(f"cannot parse {name}: {exc}") from exc
     if not isinstance(value, dict):
-        raise CompletionError(f"{path.name} must contain a JSON object")
+        raise CompletionError(f"{name} must contain a JSON object")
     return value
 
 
-def artifact_hashes(directory: Path, projection: Mapping[str, Any]) -> Mapping[str, str]:
+def required_artifact_bytes(
+    artifacts: Mapping[str, bytes],
+    name: str,
+) -> bytes:
+    try:
+        return artifacts[name]
+    except KeyError as exc:
+        raise CompletionError(f"missing expected artifact: {name}") from exc
+
+
+def capture_artifact_bytes(
+    directory: Path,
+) -> tuple[Mapping[str, bytes], frozenset[str]]:
+    if not directory.is_dir():
+        raise CompletionError("review directory is missing or is not a directory")
+    files: dict[str, bytes] = {}
+    directories: set[str] = set()
+    for name in sorted(_CAPTURE_CANDIDATES):
+        path = directory / name
+        try:
+            if path.is_file():
+                files[name] = path.read_bytes()
+            elif path.exists():
+                directories.add(name)
+        except OSError as exc:
+            raise CompletionError(f"cannot capture {name}: {exc}") from exc
+    return MappingProxyType(files), frozenset(directories)
+
+
+def validate_captured_directory(
+    files: Mapping[str, bytes],
+    directories: frozenset[str],
+) -> list[Diagnostic]:
+    try:
+        with tempfile.TemporaryDirectory(prefix="pr-inspector-verified-") as temp:
+            snapshot = Path(temp)
+            for name, raw in files.items():
+                (snapshot / name).write_bytes(raw)
+            for name in directories:
+                (snapshot / name).mkdir()
+            return validate_directory(snapshot)
+    except OSError as exc:
+        raise CompletionError(
+            f"could not construct verified artifact snapshot: {exc}"
+        ) from exc
+
+
+def artifact_hashes(
+    artifacts: Mapping[str, bytes],
+    projection: Mapping[str, Any],
+) -> Mapping[str, str]:
     names = set(_OFFICIAL)
     if projection["next_action"]["prompt_required"]:
         names.add(PROMPT_NAME)
-    return MappingProxyType(
-        {name: sha256((directory / name).read_bytes()) for name in sorted(names)}
-    )
+    try:
+        hashes = {name: sha256(artifacts[name]) for name in sorted(names)}
+    except KeyError as exc:
+        raise CompletionError(f"missing expected artifact: {exc.args[0]}") from exc
+    return MappingProxyType(hashes)
 
 
 def validate_bundle(
@@ -173,38 +256,55 @@ def validate_bundle(
     pr_number: int,
     head_sha: str,
 ) -> _Bundle:
+    directory = Path(directory)
+    artifact_bytes, artifact_directories = capture_artifact_bytes(directory)
     try:
-        diagnostics = validate_directory(directory)
+        diagnostics = validate_captured_directory(
+            artifact_bytes,
+            artifact_directories,
+        )
     except Exception as exc:
+        if isinstance(exc, CompletionError):
+            raise
         raise CompletionError(f"review directory validation failed: {exc}") from exc
     if diagnostics:
         raise CompletionError(
             "review directory validation failed: "
             + "; ".join(item.line() for item in diagnostics)
         )
-    package_path = directory / "review-package.json"
-    projection_path = directory / PROJECTION_NAME
-    manifest_path = directory / MANIFEST_NAME
-    package_bytes = package_path.read_bytes()
-    projection_bytes = projection_path.read_bytes()
-    manifest_bytes = manifest_path.read_bytes()
-    package = json_object(package_path)
-    projection = json_object(projection_path)
-    manifest = json_object(manifest_path)
+
+    package_bytes = required_artifact_bytes(
+        artifact_bytes,
+        "review-package.json",
+    )
+    projection_bytes = required_artifact_bytes(artifact_bytes, PROJECTION_NAME)
+    manifest_bytes = required_artifact_bytes(artifact_bytes, MANIFEST_NAME)
+    package = json_object_bytes("review-package.json", package_bytes)
+    projection = json_object_bytes(PROJECTION_NAME, projection_bytes)
+    manifest = json_object_bytes(MANIFEST_NAME, manifest_bytes)
     identity = package["review_identity"]
     if (
         identity["target_repository"],
         identity["pr_number"],
         identity["reviewed_head_sha"],
     ) != (repository, pr_number, head_sha):
-        raise CompletionError("review bundle identity does not match live GitHub identity")
+        raise CompletionError(
+            "review bundle identity does not match live GitHub identity"
+        )
     if identity["review_validity"] != "CURRENT":
         raise CompletionError("official completion requires CURRENT review validity")
     if projection["review_identity"]["reviewed_head_sha"] != head_sha:
-        raise CompletionError("projection reviewed head does not match live GitHub head")
-    if manifest["canonical_review_package"]["canonical_sha256"] != package_sha256(package):
+        raise CompletionError(
+            "projection reviewed head does not match live GitHub head"
+        )
+    if (
+        manifest["canonical_review_package"]["canonical_sha256"]
+        != package_sha256(package)
+    ):
         raise CompletionError("canonical review package hash is invalid")
-    if manifest["canonical_review_package"]["file_sha256"] != sha256(package_bytes):
+    if manifest["canonical_review_package"]["file_sha256"] != sha256(
+        package_bytes
+    ):
         raise CompletionError("review package final-file hash is invalid")
     if manifest["decision_projection"]["sha256"] != sha256(projection_bytes):
         raise CompletionError("decision projection final-file hash is invalid")
@@ -218,7 +318,8 @@ def validate_bundle(
         sha256(package_bytes),
         sha256(projection_bytes),
         sha256(manifest_bytes),
-        artifact_hashes(directory, projection),
+        artifact_hashes(artifact_bytes, projection),
+        artifact_bytes,
     )
 
 
@@ -226,6 +327,8 @@ def completion(
     bundle: _Bundle,
     source: GitHubPullRequestHeadSource,
     receipt: VerifiedLivePullRequestHead,
+    *,
+    cleanup_diagnostics: tuple[Diagnostic, ...] = (),
 ) -> VerifiedReviewCompletion:
     return VerifiedReviewCompletion(
         bundle.directory,
@@ -241,6 +344,7 @@ def completion(
         receipt.receipt_sha256,
         source,
         _COMPLETION_MARKER,
+        cleanup_diagnostics,
     )
 
 
@@ -251,7 +355,10 @@ def verify_completed_review(
 ) -> VerifiedReviewCompletion:
     first = head_source.fetch()
     bundle = validate_bundle(
-        Path(review_directory), first.repository, first.pr_number, first.head_sha
+        Path(review_directory),
+        first.repository,
+        first.pr_number,
+        first.head_sha,
     )
     final = head_source.fetch()
     require_head(final, bundle.repository, bundle.pr_number, bundle.head_sha)
@@ -259,7 +366,10 @@ def verify_completed_review(
 
 
 def is_verified_review_completion(value: object) -> bool:
-    return isinstance(value, VerifiedReviewCompletion) and value._marker is _COMPLETION_MARKER
+    return (
+        isinstance(value, VerifiedReviewCompletion)
+        and value._marker is _COMPLETION_MARKER
+    )
 
 
 def official_owner_result(value: VerifiedReviewCompletion) -> str:
