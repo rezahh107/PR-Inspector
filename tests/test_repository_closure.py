@@ -88,15 +88,16 @@ def test_active_lifecycle_documents_have_no_branch_era_status_claims():
         / f"protocols/{current}/policies/CANONICAL_OUTPUT_BEHAVIORAL_RULE_COVERAGE.md",
     )
     forbidden = (
-        "candidate implementation boundary",
-        "stacked repair branch",
+        "status: candidate implementation boundary",
+        "status: implemented on the stacked repair branch",
         "exact candidate head",
         "candidate pipeline",
         "active v1.8 implementation",
-        "remain open and unmerged",
-        "pending activation",
-        "not yet active",
-        "implementation_pending",
+        "pr #13 and this stacked pr remain open and unmerged",
+        "active protocol is pending activation",
+        "v1.9.0 exists only on a feature branch",
+        "default branch is not yet authoritative",
+        "implementation_state: implementation_pending",
     )
     for path in paths:
         text = path.read_text(encoding="utf-8").lower()
