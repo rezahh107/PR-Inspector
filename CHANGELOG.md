@@ -6,6 +6,9 @@
 - Added governance evidence schema, opaque verifier capability, exact-head approval/check evaluation, specialist qualification honesty, bypass recording, and governance-bound merge authorization.
 - Distinguished implementation completion, technical acceptance, approval completion, repository enforcement, merge authorization, and merged state.
 - Added focused Behavioral Rule Coverage and adversarial tests for bot comments, author reviews, stale approvals, self-asserted evidence, missing settings, specialist boundaries, bypass actors, and exact-head CI.
+- Added the canonical-output completion boundary, publication commit point, quarantine-first pre-commit rollback, bounded obsolete-backup cleanup, and verified-byte snapshot accessors.
+- Recorded PR #14 and PR #13 as merged historical provenance and removed remaining candidate/stacked-branch wording from active v1.9 documentation.
+- Added focused lifecycle, version-alignment, historical release-lock, workflow-permission, immutable-action-pin, and temporary-repair-residue regression coverage.
 - Preserved the released v1.8.0 snapshot and release lock byte-for-byte.
 - Added a settings plan; no GitHub repository setting was changed or claimed as applied.
 

@@ -2,7 +2,7 @@
 
 ## One authoritative projection
 
-`pr_inspector.decision_projection.project_decision` is the only active v1.8 implementation that converts structured package fields into technical status, owner readiness, reason codes, recipient, authority, and prompt routing. `semantic_v2`, renderers, validators, and scripts consume it. No component may parse free text to derive status or action.
+`pr_inspector.decision_projection.project_decision` is the only active v1.9 implementation that converts structured package fields into technical status, owner readiness, reason codes, recipient, authority, and prompt routing. `semantic_v2`, renderers, validators, and scripts consume it. No component may parse free text to derive status or action.
 
 ## Registered reason evaluation
 
