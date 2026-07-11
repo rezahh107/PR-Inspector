@@ -10,6 +10,11 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
 from .diagnostics import Diagnostic
+from .governance import (
+    VerifiedGovernanceEvidence,
+    governance_matches_event,
+    is_verified_governance_evidence,
+)
 from .review_provenance import (
     VerifiedReviewEvidence,
     evidence_matches_event,
@@ -63,6 +68,7 @@ def _schema_diagnostics(sequence: Any) -> list[Diagnostic]:
 def validate_rereview_sequence(
     sequence: Mapping[str, Any],
     verified_evidence: Mapping[str, VerifiedReviewEvidence] | None = None,
+    verified_governance: Mapping[str, VerifiedGovernanceEvidence] | None = None,
 ) -> list[Diagnostic]:
     """Require artifact- and GitHub-bound re-review evidence before acceptance."""
 
@@ -71,6 +77,7 @@ def validate_rereview_sequence(
         return schema_diagnostics
 
     evidence_by_id = verified_evidence or {}
+    governance_by_id = verified_governance or {}
     events = sequence["events"]
     diagnostics: list[Diagnostic] = []
     seen_event_ids: set[str] = set()
@@ -249,5 +256,32 @@ def validate_rereview_sequence(
                         ),
                     )
                 )
+            elif event_type == "merge_authorized":
+                governance_id = event.get("governance_evidence_id")
+                governance = governance_by_id.get(governance_id)
+                if not is_verified_governance_evidence(governance):
+                    diagnostics.append(
+                        Diagnostic(
+                            "PRI-GOV-001",
+                            f"{path}/governance_evidence_id",
+                            "merge readiness appears satisfied, but repository-level enforcement is unverified",
+                        )
+                    )
+                elif not governance_matches_event(governance, event):
+                    diagnostics.append(
+                        Diagnostic(
+                            "PRI-GOV-002",
+                            path,
+                            "governance evidence identity does not match the merge event",
+                        )
+                    )
+                elif not governance.merge_authorized:
+                    diagnostics.append(
+                        Diagnostic(
+                            "PRI-GOV-003",
+                            path,
+                            governance.conclusion,
+                        )
+                    )
 
     return sorted(set(diagnostics))

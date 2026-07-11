@@ -1,0 +1,49 @@
+{
+  "cases": [
+    {
+      "case_id": "stale_unmerged_candidate_wording",
+      "rule_id": "PRR-DOC-LIFECYCLE-001"
+    },
+    {
+      "case_id": "missing_settings_evidence",
+      "rule_id": "PRR-GOV-CLAIM-001"
+    },
+    {
+      "case_id": "fabricated_record_with_canonical_urls",
+      "rule_id": "PRR-GOV-PAYLOAD-PROVENANCE-001"
+    },
+    {
+      "case_id": "bot_author_or_stale_review",
+      "rule_id": "PRR-GOV-REVIEW-001"
+    },
+    {
+      "case_id": "same_name_check_wrong_app",
+      "rule_id": "PRR-GOV-CHECK-PRODUCER-001"
+    },
+    {
+      "case_id": "specialist_boolean_without_membership",
+      "rule_id": "PRR-GOV-SPECIALIST-001"
+    },
+    {
+      "case_id": "stale_or_replayed_api_receipt",
+      "rule_id": "PRR-GOV-FRESHNESS-001"
+    },
+    {
+      "case_id": "missing_governance_capability",
+      "rule_id": "PRR-GOV-AUTHORIZATION-001"
+    },
+    {
+      "case_id": "merge_authorized_cli_without_governance",
+      "rule_id": "PRR-GOV-CLI-001"
+    },
+    {
+      "case_id": "unknown_or_present_bypass_actor",
+      "rule_id": "PRR-GOV-BYPASS-001"
+    },
+    {
+      "case_id": "fabricated_pr12_approval",
+      "rule_id": "PRR-HISTORY-NOFABRICATION-001"
+    }
+  ],
+  "schema_version": 2
+}

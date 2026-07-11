@@ -162,6 +162,22 @@ def validate_repository(root: Path = ROOT) -> list[Diagnostic]:
     diagnostics.extend(validate_reason_registry())
     diagnostics.extend(validate_behavioral_coverage(root))
 
+    lifecycle_paths = [
+        root / "README.md",
+        root / f"protocols/{current}/PR_REVIEW_CONTRACT.md",
+    ]
+    forbidden_lifecycle = (
+        "active candidate on the unmerged pr branch",
+        "default branch remains authoritative until this pr is merged",
+    )
+    for lifecycle_path in lifecycle_paths:
+        text = lifecycle_path.read_text(encoding="utf-8").lower()
+        for phrase in forbidden_lifecycle:
+            if phrase in text:
+                diagnostics.append(
+                    Diagnostic("PRI-LIFECYCLE-001", f"/{lifecycle_path.relative_to(root)}", f"stale lifecycle wording remains: {phrase}")
+                )
+
     lock_dir = root / "release-locks"
     if not lock_dir.is_dir():
         diagnostics.append(Diagnostic("PRI-LOCK-000", "/release-locks", "release lock directory is missing"))
