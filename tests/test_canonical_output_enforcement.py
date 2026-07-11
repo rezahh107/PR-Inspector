@@ -5,7 +5,12 @@ from pathlib import Path
 
 import pytest
 
-from pr_inspector.derived_outputs import MANIFEST_NAME, PROJECTION_NAME, PROMPT_NAME, build_review_artifacts
+from pr_inspector.derived_outputs import (
+    MANIFEST_NAME,
+    PROJECTION_NAME,
+    PROMPT_NAME,
+    build_review_artifacts,
+)
 from pr_inspector.official_review import (
     CompletionError,
     IncompleteReview,
@@ -30,7 +35,9 @@ API_VERSION = "2026-03-10"
 
 def package(name: str = "golden-green") -> dict:
     return json.loads(
-        (ROOT / "fixtures" / name / "review-package.json").read_text(encoding="utf-8")
+        (ROOT / "fixtures" / name / "review-package.json").read_text(
+            encoding="utf-8"
+        )
     )
 
 
@@ -99,7 +106,11 @@ def source():
     )
 
 
-def completed_bundle(tmp_path: Path, monkeypatch, name: str = "golden-green"):
+def completed_bundle(
+    tmp_path: Path,
+    monkeypatch,
+    name: str = "golden-green",
+):
     install_live_payloads(monkeypatch)
     value = package(name)
     package_path = tmp_path / f"{name}.json"
@@ -111,21 +122,61 @@ def completed_bundle(tmp_path: Path, monkeypatch, name: str = "golden-green"):
     return result, output, value
 
 
-def test_schema_valid_but_semantically_invalid_package_has_no_completion(tmp_path, monkeypatch):
+def mutate_after_bundle_verification(
+    monkeypatch,
+    output: Path,
+    artifact_name: str,
+    unverified_bytes: bytes,
+) -> None:
+    from pr_inspector import _official_bundle
+
+    real_validate_bundle = _official_bundle.validate_bundle
+
+    def validate_then_mutate(*args, **kwargs):
+        bundle = real_validate_bundle(*args, **kwargs)
+        (output / artifact_name).write_bytes(unverified_bytes)
+        return bundle
+
+    monkeypatch.setattr(
+        _official_bundle,
+        "validate_bundle",
+        validate_then_mutate,
+    )
+
+
+def test_schema_valid_but_semantically_invalid_package_has_no_completion(
+    tmp_path,
+    monkeypatch,
+):
     install_live_payloads(monkeypatch)
     value = package()
     value["decision"]["technical_status"] = "RED_DO_NOT_MERGE"
     package_path = tmp_path / "review-package.json"
     write_package(package_path, value)
-    result = complete_review(package_path, tmp_path / "review", head_source=source())
+    result = complete_review(
+        package_path,
+        tmp_path / "review",
+        head_source=source(),
+    )
     assert isinstance(result, IncompleteReview)
     assert not (tmp_path / "review").exists()
     assert not hasattr(result, "technical_status")
     assert "No valid decision or action prompt was produced." in result.technical_message
 
 
-@pytest.mark.parametrize("field,value", [("technical_status", "RED_DO_NOT_MERGE"), ("approval_requirement", "PROJECT_OWNER_CONFIRMATION")])
-def test_caller_projection_drift_is_rejected(tmp_path, monkeypatch, field, value):
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("technical_status", "RED_DO_NOT_MERGE"),
+        ("approval_requirement", "PROJECT_OWNER_CONFIRMATION"),
+    ],
+)
+def test_caller_projection_drift_is_rejected(
+    tmp_path,
+    monkeypatch,
+    field,
+    value,
+):
     completion, output, _ = completed_bundle(tmp_path, monkeypatch)
     projection_path = output / PROJECTION_NAME
     projection = json.loads(projection_path.read_text(encoding="utf-8"))
@@ -136,13 +187,19 @@ def test_caller_projection_drift_is_rejected(tmp_path, monkeypatch, field, value
 
 
 def test_manual_action_and_owner_output_are_rejected(tmp_path, monkeypatch):
-    completion, output, _ = completed_bundle(tmp_path, monkeypatch, "repair-handoff-valid")
+    completion, output, _ = completed_bundle(
+        tmp_path,
+        monkeypatch,
+        "repair-handoff-valid",
+    )
     projection_path = output / PROJECTION_NAME
     projection = json.loads(projection_path.read_text(encoding="utf-8"))
     projection["next_action"]["kind"] = "merge_now"
     rewrite_json(projection_path, projection)
     (output / "OWNER_RESULT.fa.txt").write_text(
-        "🟢 وضعیت: آمادهٔ مرج\nمرج کن.\n", encoding="utf-8", newline="\n"
+        "🟢 وضعیت: آمادهٔ مرج\nمرج کن.\n",
+        encoding="utf-8",
+        newline="\n",
     )
     with pytest.raises(CompletionError):
         official_owner_result(completion)
@@ -150,9 +207,19 @@ def test_manual_action_and_owner_output_are_rejected(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize(
     "missing_name",
-    [PROJECTION_NAME, "OWNER_DECISION_CARD.fa.md", "TECHNICAL_HANDOFF.en.md", "OWNER_RESULT.fa.txt", MANIFEST_NAME],
+    [
+        PROJECTION_NAME,
+        "OWNER_DECISION_CARD.fa.md",
+        "TECHNICAL_HANDOFF.en.md",
+        "OWNER_RESULT.fa.txt",
+        MANIFEST_NAME,
+    ],
 )
-def test_missing_required_artifact_is_rejected(tmp_path, monkeypatch, missing_name):
+def test_missing_required_artifact_is_rejected(
+    tmp_path,
+    monkeypatch,
+    missing_name,
+):
     completion, output, _ = completed_bundle(tmp_path, monkeypatch)
     (output / missing_name).unlink()
     with pytest.raises(CompletionError):
@@ -161,20 +228,32 @@ def test_missing_required_artifact_is_rejected(tmp_path, monkeypatch, missing_na
 
 def test_forbidden_conditional_prompt_is_rejected(tmp_path, monkeypatch):
     completion, output, _ = completed_bundle(tmp_path, monkeypatch)
-    (output / PROMPT_NAME).write_text("manual prompt\n", encoding="utf-8", newline="\n")
+    (output / PROMPT_NAME).write_text(
+        "manual prompt\n",
+        encoding="utf-8",
+        newline="\n",
+    )
     with pytest.raises(CompletionError):
         official_next_action_prompt(completion)
 
 
 def test_required_conditional_prompt_missing_is_rejected(tmp_path, monkeypatch):
-    completion, output, _ = completed_bundle(tmp_path, monkeypatch, "repair-handoff-valid")
+    completion, output, _ = completed_bundle(
+        tmp_path,
+        monkeypatch,
+        "repair-handoff-valid",
+    )
     (output / PROMPT_NAME).unlink()
     with pytest.raises(CompletionError):
         official_next_action_prompt(completion)
 
 
 @pytest.mark.parametrize("mutation", ["artifact", "canonical_hash", "file_hash"])
-def test_manifest_and_final_byte_drift_is_rejected(tmp_path, monkeypatch, mutation):
+def test_manifest_and_final_byte_drift_is_rejected(
+    tmp_path,
+    monkeypatch,
+    mutation,
+):
     completion, output, _ = completed_bundle(tmp_path, monkeypatch)
     manifest_path = output / MANIFEST_NAME
     if mutation == "artifact":
@@ -194,7 +273,10 @@ def test_partial_output_directory_is_not_official(tmp_path, monkeypatch):
     output = tmp_path / "partial"
     output.mkdir()
     write_package(output / "review-package.json", package())
-    (output / "OWNER_RESULT.fa.txt").write_text("manual\n", encoding="utf-8")
+    (output / "OWNER_RESULT.fa.txt").write_text(
+        "manual\n",
+        encoding="utf-8",
+    )
     with pytest.raises(CompletionError):
         verify_completed_review(output, head_source=source())
 
@@ -203,12 +285,19 @@ def test_arbitrary_mapping_cannot_supply_live_head_source(tmp_path):
     value = package()
     package_path = tmp_path / "review-package.json"
     write_package(package_path, value)
-    result = complete_review(package_path, tmp_path / "review", head_source={})  # type: ignore[arg-type]
+    result = complete_review(
+        package_path,
+        tmp_path / "review",
+        head_source={},  # type: ignore[arg-type]
+    )
     assert isinstance(result, IncompleteReview)
     assert {item.code for item in result.diagnostics} == {"PRI-COMPLETE-008"}
 
 
-def test_fabricated_completion_marker_and_low_level_renderer_are_not_official(tmp_path, monkeypatch):
+def test_fabricated_completion_marker_and_low_level_renderer_are_not_official(
+    tmp_path,
+    monkeypatch,
+):
     completion, _, _ = completed_bundle(tmp_path, monkeypatch)
     forged = replace(completion, _marker=True)
     assert not is_verified_review_completion(forged)
@@ -221,28 +310,48 @@ def test_fabricated_completion_marker_and_low_level_renderer_are_not_official(tm
 
 
 def test_partial_or_mismatched_github_payload_fails_closed(tmp_path, monkeypatch):
-    install_live_payloads(monkeypatch, [{"number": PR_NUMBER, "head": {"sha": HEAD}}])
+    install_live_payloads(
+        monkeypatch,
+        [{"number": PR_NUMBER, "head": {"sha": HEAD}}],
+    )
     value = package()
     package_path = tmp_path / "review-package.json"
     write_package(package_path, value)
-    result = complete_review(package_path, tmp_path / "review", head_source=source())
+    result = complete_review(
+        package_path,
+        tmp_path / "review",
+        head_source=source(),
+    )
     assert isinstance(result, IncompleteReview)
     assert {item.code for item in result.diagnostics} == {"PRI-COMPLETE-008"}
     assert not (tmp_path / "review").exists()
 
 
-def test_stale_package_head_is_rejected_against_live_github(tmp_path, monkeypatch):
+def test_stale_package_head_is_rejected_against_live_github(
+    tmp_path,
+    monkeypatch,
+):
     install_live_payloads(monkeypatch, [pr_payload(OTHER_HEAD)])
     value = package()
     package_path = tmp_path / "review-package.json"
     write_package(package_path, value)
-    result = complete_review(package_path, tmp_path / "review", head_source=source())
+    result = complete_review(
+        package_path,
+        tmp_path / "review",
+        head_source=source(),
+    )
     assert isinstance(result, IncompleteReview)
     assert {item.code for item in result.diagnostics} == {"PRI-COMPLETE-007"}
 
 
-def test_head_change_before_publication_preserves_existing_output(tmp_path, monkeypatch):
-    install_live_payloads(monkeypatch, [pr_payload(), pr_payload(OTHER_HEAD)])
+def test_head_change_before_publication_preserves_existing_output(
+    tmp_path,
+    monkeypatch,
+):
+    install_live_payloads(
+        monkeypatch,
+        [pr_payload(), pr_payload(OTHER_HEAD)],
+    )
     value = package()
     package_path = tmp_path / "review-package.json"
     write_package(package_path, value)
@@ -257,7 +366,10 @@ def test_head_change_before_publication_preserves_existing_output(tmp_path, monk
     assert not (output / "OWNER_RESULT.fa.txt").exists()
 
 
-def test_head_change_after_publication_rolls_back_existing_output(tmp_path, monkeypatch):
+def test_head_change_after_publication_rolls_back_existing_output(
+    tmp_path,
+    monkeypatch,
+):
     install_live_payloads(
         monkeypatch,
         [pr_payload(), pr_payload(), pr_payload(OTHER_HEAD)],
@@ -283,17 +395,111 @@ def test_official_output_access_rechecks_live_head(tmp_path, monkeypatch):
         official_owner_result(completion)
 
 
-def test_successful_completion_exposes_only_validated_outputs(tmp_path, monkeypatch):
-    completion, output, value = completed_bundle(tmp_path, monkeypatch, "repair-handoff-valid")
+def test_successful_completion_exposes_only_validated_outputs(
+    tmp_path,
+    monkeypatch,
+):
+    completion, output, value = completed_bundle(
+        tmp_path,
+        monkeypatch,
+        "repair-handoff-valid",
+    )
     expected = build_review_artifacts(
         copy.deepcopy(value),
         review_package_bytes=(output / "review-package.json").read_bytes(),
     )
-    assert {path.name for path in output.iterdir()} == {"review-package.json", *expected}
-    assert official_owner_result(completion) == (output / "OWNER_RESULT.fa.txt").read_text(encoding="utf-8")
-    assert official_technical_handoff(completion) == (output / "TECHNICAL_HANDOFF.en.md").read_text(encoding="utf-8")
-    assert official_next_action_prompt(completion) == (output / PROMPT_NAME).read_text(encoding="utf-8")
+    assert {path.name for path in output.iterdir()} == {
+        "review-package.json",
+        *expected,
+    }
+    assert official_owner_result(completion) == (
+        output / "OWNER_RESULT.fa.txt"
+    ).read_text(encoding="utf-8")
+    assert official_technical_handoff(completion) == (
+        output / "TECHNICAL_HANDOFF.en.md"
+    ).read_text(encoding="utf-8")
+    assert official_next_action_prompt(completion) == (
+        output / PROMPT_NAME
+    ).read_text(encoding="utf-8")
     assert len(completion.target_head_receipt_sha256) == 64
+
+
+def test_owner_result_accessor_returns_verified_snapshot_not_toctou_bytes(
+    tmp_path,
+    monkeypatch,
+):
+    completion, output, _ = completed_bundle(tmp_path, monkeypatch)
+    expected = (output / "OWNER_RESULT.fa.txt").read_text(encoding="utf-8")
+    mutated = "unverified owner result\n".encode("utf-8")
+    mutate_after_bundle_verification(
+        monkeypatch,
+        output,
+        "OWNER_RESULT.fa.txt",
+        mutated,
+    )
+
+    assert official_owner_result(completion) == expected
+    assert (output / "OWNER_RESULT.fa.txt").read_bytes() == mutated
+
+
+def test_technical_handoff_accessor_returns_verified_snapshot_not_toctou_bytes(
+    tmp_path,
+    monkeypatch,
+):
+    completion, output, _ = completed_bundle(tmp_path, monkeypatch)
+    expected = (output / "TECHNICAL_HANDOFF.en.md").read_text(
+        encoding="utf-8"
+    )
+    mutated = b"unverified technical handoff\n"
+    mutate_after_bundle_verification(
+        monkeypatch,
+        output,
+        "TECHNICAL_HANDOFF.en.md",
+        mutated,
+    )
+
+    assert official_technical_handoff(completion) == expected
+    assert (output / "TECHNICAL_HANDOFF.en.md").read_bytes() == mutated
+
+
+def test_decision_projection_accessor_returns_verified_snapshot_not_toctou_bytes(
+    tmp_path,
+    monkeypatch,
+):
+    completion, output, _ = completed_bundle(tmp_path, monkeypatch)
+    expected = json.loads((output / PROJECTION_NAME).read_text(encoding="utf-8"))
+    mutated = b'{"unverified":true}\n'
+    mutate_after_bundle_verification(
+        monkeypatch,
+        output,
+        PROJECTION_NAME,
+        mutated,
+    )
+
+    assert completion.decision_projection() == expected
+    assert (output / PROJECTION_NAME).read_bytes() == mutated
+
+
+def test_next_action_prompt_accessor_returns_verified_snapshot_not_toctou_bytes(
+    tmp_path,
+    monkeypatch,
+):
+    completion, output, _ = completed_bundle(
+        tmp_path,
+        monkeypatch,
+        "repair-handoff-valid",
+    )
+    expected = (output / PROMPT_NAME).read_text(encoding="utf-8")
+    mutated = b"unverified next action prompt\n"
+    mutate_after_bundle_verification(
+        monkeypatch,
+        output,
+        PROMPT_NAME,
+        mutated,
+    )
+
+    assert official_next_action_prompt(completion) == expected
+    assert (output / PROMPT_NAME).read_bytes() == mutated
 
 
 def test_supported_cli_has_no_direct_low_level_render_bypass():
@@ -314,6 +520,8 @@ CANONICAL_OUTPUT_RULE_IDS = {
     "PRR-VERIFIED-COMPLETION-001",
     "PRR-FAIL-CLOSED-OUTPUT-001",
     "PRR-FINAL-HEAD-RECHECK-001",
+    "PRR-PUBLICATION-COMMIT-POINT-001",
+    "PRR-VERIFIED-BYTE-SNAPSHOT-001",
 }
 FOCUSED_COMMAND = "python -m pytest -q tests/test_canonical_output_enforcement.py"
 ATOMICITY_COMMAND = "python -m pytest -q tests/test_canonical_output_atomicity.py"
@@ -321,9 +529,10 @@ ATOMICITY_COMMAND = "python -m pytest -q tests/test_canonical_output_atomicity.p
 
 def test_canonical_output_behavioral_coverage_has_dedicated_mutations_and_ci():
     raw = json.loads(
-        (ROOT / "fixtures/canonical-output-enforcement/mutation-cases.json").read_text(
-            encoding="utf-8"
-        )
+        (
+            ROOT
+            / "fixtures/canonical-output-enforcement/mutation-cases.json"
+        ).read_text(encoding="utf-8")
     )
     by_rule: dict[str, list[str]] = {}
     for case in raw["cases"]:
@@ -332,7 +541,8 @@ def test_canonical_output_behavioral_coverage_has_dedicated_mutations_and_ci():
     assert all(len(values) == 1 for values in by_rule.values())
     policy = (
         ROOT
-        / "protocols/v1.9.0/policies/CANONICAL_OUTPUT_BEHAVIORAL_RULE_COVERAGE.md"
+        / "protocols/v1.9.0/policies/"
+        "CANONICAL_OUTPUT_BEHAVIORAL_RULE_COVERAGE.md"
     ).read_text(encoding="utf-8")
     assert all(f"`{rule}`" in policy for rule in CANONICAL_OUTPUT_RULE_IDS)
     assert FOCUSED_COMMAND in policy
