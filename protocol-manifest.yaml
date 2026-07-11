@@ -71,5 +71,6 @@ validation_commands:
   verified_byte_snapshot: >-
     python -m pytest -q tests/test_canonical_output_enforcement.py
     -k toctou
-  full_suite: python -m pytest
   governance: python -m pytest -q tests/test_governance_enforcement.py
+  repository_closure: python -m pytest -q tests/test_repository_closure.py
+  full_suite: python -m pytest
