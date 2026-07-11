@@ -2,6 +2,7 @@ import copy
 import json
 from pathlib import Path
 
+from pr_inspector.derived_outputs import build_review_artifacts
 from pr_inspector.official_review import (
     CompletionError,
     IncompleteReview,
@@ -21,9 +22,9 @@ OTHER_HEAD = "f" * 40
 API_VERSION = "2026-03-10"
 
 
-def package() -> dict:
+def package(name: str = "golden-green") -> dict:
     return json.loads(
-        (ROOT / "fixtures/golden-green/review-package.json").read_text(
+        (ROOT / "fixtures" / name / "review-package.json").read_text(
             encoding="utf-8"
         )
     )
@@ -70,17 +71,30 @@ def install_payloads(monkeypatch, payloads: list[dict] | None = None):
 
 def source():
     return github_pull_request_head_source(
-        REPOSITORY, PR_NUMBER, token=None, api_version=API_VERSION
+        REPOSITORY,
+        PR_NUMBER,
+        token=None,
+        api_version=API_VERSION,
     )
 
 
-def run_review(tmp_path: Path, monkeypatch, payloads=None, output=None):
+def run_review(
+    tmp_path: Path,
+    monkeypatch,
+    payloads=None,
+    output=None,
+    fixture: str = "golden-green",
+):
     install_payloads(monkeypatch, payloads)
-    value = package()
+    value = package(fixture)
     package_path = tmp_path / "review-package.json"
     write_package(package_path, value)
     output = output or tmp_path / "review"
-    return complete_review(package_path, output, head_source=source()), output, value
+    return (
+        complete_review(package_path, output, head_source=source()),
+        output,
+        value,
+    )
 
 
 def codes(result: IncompleteReview) -> set[str]:
@@ -93,7 +107,8 @@ def assert_not_authoritative(path: Path):
 
 
 def test_post_publication_failure_without_prior_output_leaves_no_official_bundle(
-    tmp_path, monkeypatch
+    tmp_path,
+    monkeypatch,
 ):
     result, output, _ = run_review(
         tmp_path,
@@ -105,7 +120,8 @@ def test_post_publication_failure_without_prior_output_leaves_no_official_bundle
 
 
 def test_existing_valid_output_is_restored_after_post_publication_failure(
-    tmp_path, monkeypatch
+    tmp_path,
+    monkeypatch,
 ):
     first, output, value = run_review(tmp_path, monkeypatch)
     assert is_verified_review_completion(first)
@@ -126,7 +142,8 @@ def test_existing_valid_output_is_restored_after_post_publication_failure(
 
 
 def test_quarantine_rename_failure_falls_back_to_explicit_delete_and_restore(
-    tmp_path, monkeypatch
+    tmp_path,
+    monkeypatch,
 ):
     from pr_inspector import _official_complete
 
@@ -156,7 +173,8 @@ def test_quarantine_rename_failure_falls_back_to_explicit_delete_and_restore(
 
 
 def test_failed_published_directory_deletion_leaves_only_non_authoritative_files(
-    tmp_path, monkeypatch
+    tmp_path,
+    monkeypatch,
 ):
     from pr_inspector import _official_complete
 
@@ -194,7 +212,8 @@ def test_failed_published_directory_deletion_leaves_only_non_authoritative_files
 
 
 def test_backup_restore_failure_keeps_official_path_absent_and_evidence_retained(
-    tmp_path, monkeypatch
+    tmp_path,
+    monkeypatch,
 ):
     from pr_inspector import _official_complete
 
@@ -224,7 +243,8 @@ def test_backup_restore_failure_keeps_official_path_absent_and_evidence_retained
 
 
 def test_unexpected_rollback_exception_is_bounded_and_manifest_invalidated(
-    tmp_path, monkeypatch
+    tmp_path,
+    monkeypatch,
 ):
     from pr_inspector import _official_complete
 
@@ -249,7 +269,8 @@ def test_unexpected_rollback_exception_is_bounded_and_manifest_invalidated(
 
 
 def test_quarantine_cleanup_failure_is_reported_not_successful_rollback(
-    tmp_path, monkeypatch
+    tmp_path,
+    monkeypatch,
 ):
     from pr_inspector import _official_complete
 
@@ -268,19 +289,82 @@ def test_quarantine_cleanup_failure_is_reported_not_successful_rollback(
             raise OSError("simulated quarantine cleanup failure")
         return real_rmtree(path, *args, **kwargs)
 
-    monkeypatch.setattr(_official_complete.shutil, "rmtree", fail_quarantine_cleanup)
+    monkeypatch.setattr(
+        _official_complete.shutil,
+        "rmtree",
+        fail_quarantine_cleanup,
+    )
     result = complete_review(package_path, output, head_source=source())
 
     assert isinstance(result, IncompleteReview)
-    assert {"PRI-COMPLETE-ROLLBACK-010", "PRI-COMPLETE-ROLLBACK-011"}.issubset(
-        codes(result)
-    )
+    assert {
+        "PRI-COMPLETE-ROLLBACK-010",
+        "PRI-COMPLETE-ROLLBACK-011",
+    }.issubset(codes(result))
     install_payloads(monkeypatch)
     verify_completed_review(output, head_source=source())
     assert list(tmp_path.glob(".review.quarantine-*"))
 
 
-def test_publication_failure_does_not_escape_supported_api(tmp_path, monkeypatch):
+def test_partial_backup_cleanup_failure_after_commit_keeps_new_official_bundle(
+    tmp_path,
+    monkeypatch,
+):
+    from pr_inspector import _official_complete
+
+    first, output, _ = run_review(tmp_path, monkeypatch)
+    assert is_verified_review_completion(first)
+    previous_owner_result = (output / "OWNER_RESULT.fa.txt").read_bytes()
+
+    second = package("repair-handoff-valid")
+    package_path = tmp_path / "second.json"
+    write_package(package_path, second)
+    expected = build_review_artifacts(
+        second,
+        review_package_bytes=package_path.read_bytes(),
+    )
+    expected_owner_result = expected["OWNER_RESULT.fa.txt"].encode("utf-8")
+    assert expected_owner_result != previous_owner_result
+
+    install_payloads(monkeypatch)
+    real_rmtree = _official_complete.shutil.rmtree
+    observed_backups: list[Path] = []
+
+    def partially_delete_backup(path, *args, **kwargs):
+        candidate = Path(path)
+        if ".backup-" in candidate.name:
+            observed_backups.append(candidate)
+            (candidate / "OWNER_RESULT.fa.txt").unlink()
+            raise OSError("simulated partial backup cleanup failure")
+        return real_rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr(
+        _official_complete.shutil,
+        "rmtree",
+        partially_delete_backup,
+    )
+    result = complete_review(package_path, output, head_source=source())
+
+    assert is_verified_review_completion(result)
+    assert {item.code for item in result.cleanup_diagnostics} == {
+        "PRI-COMPLETE-009"
+    }
+    assert (output / "OWNER_RESULT.fa.txt").read_bytes() == expected_owner_result
+    assert observed_backups
+    partial_backup = observed_backups[0]
+    assert partial_backup.exists()
+    assert not (partial_backup / "OWNER_RESULT.fa.txt").exists()
+
+    install_payloads(monkeypatch)
+    verified = verify_completed_review(output, head_source=source())
+    assert is_verified_review_completion(verified)
+    assert verified.owner_result_text() == expected["OWNER_RESULT.fa.txt"]
+
+
+def test_publication_failure_does_not_escape_supported_api(
+    tmp_path,
+    monkeypatch,
+):
     from pr_inspector import _official_complete
 
     install_payloads(monkeypatch)
