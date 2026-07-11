@@ -7,6 +7,8 @@
     {"case_id": "manifest_or_final_byte_drift", "rule_id": "PRR-MANIFEST-INTEGRITY-001"},
     {"case_id": "caller_completion_flag_or_low_level_renderer", "rule_id": "PRR-VERIFIED-COMPLETION-001"},
     {"case_id": "interrupted_render_or_validation_failure", "rule_id": "PRR-FAIL-CLOSED-OUTPUT-001"},
-    {"case_id": "live_head_changes_during_completion", "rule_id": "PRR-FINAL-HEAD-RECHECK-001"}
+    {"case_id": "live_head_changes_during_completion", "rule_id": "PRR-FINAL-HEAD-RECHECK-001"},
+    {"case_id": "partial_obsolete_backup_cleanup_after_publication_commit", "rule_id": "PRR-PUBLICATION-COMMIT-POINT-001"},
+    {"case_id": "accessor_validation_to_read_toctou", "rule_id": "PRR-VERIFIED-BYTE-SNAPSHOT-001"}
   ]
 }
