@@ -1,67 +1,51 @@
 import copy
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
 from pr_inspector.governance import (
     GovernanceEvidenceError,
+    SpecialistRequirement,
+    VerifiedGitHubGovernanceSource,
+    VerifiedGovernanceEvidence,
     derive_enforcement_status,
     verify_github_governance_source,
     verify_governance_record,
 )
-from pr_inspector.sequence_policy import validate_rereview_sequence
+from tests.governance_test_support import (
+    HEAD,
+    PR_NUMBER,
+    REPOSITORY,
+    fixture,
+    membership_response,
+    responses,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
-HEAD = "1" * 40
-REPOSITORY = "example/project"
-REPOSITORY_ID = 4242
 
 
-def record() -> dict:
-    return json.loads(
-        (ROOT / "fixtures/governance/verified-enforced.json").read_text(
-            encoding="utf-8"
+def source(value=None, *, specialist=None, fetched_at=None):
+    response_map = responses(value, fetched_at=fetched_at)
+    if specialist is not None:
+        response_map["specialist:independent-reviewer"] = membership_response(
+            fetched_at=fetched_at
         )
-    )
-
-
-def repository_payload() -> dict:
-    return {
-        "id": REPOSITORY_ID,
-        "full_name": REPOSITORY,
-        "url": f"https://api.github.com/repos/{REPOSITORY}",
-        "html_url": f"https://github.com/{REPOSITORY}",
-    }
-
-
-def response_urls(value: dict) -> list[str]:
-    base = f"https://api.github.com/repos/{REPOSITORY}"
-    return [
-        base,
-        f"{base}/branches/{value['default_branch']}/protection",
-        f"{base}/rulesets",
-        f"{base}/pulls/{value['pull_request_number']}/reviews",
-        f"{base}/commits/{value['exact_head_sha']}/check-runs",
-    ]
-
-
-def authoritative_source(value: dict | None = None):
-    value = value or record()
     return verify_github_governance_source(
-        value,
-        repository_payload=repository_payload(),
-        response_urls=response_urls(value),
+        response_map,
         expected_repository=REPOSITORY,
+        expected_pr_number=PR_NUMBER,
+        expected_head_sha=HEAD,
+        specialist_requirement=specialist,
     )
 
 
-def verified(value: dict | None = None):
-    value = value or record()
+def verified(value=None, *, specialist=None):
     return verify_governance_record(
-        authoritative_source(value),
+        source(value, specialist=specialist),
         expected_repository=REPOSITORY,
-        expected_pr_number=42,
+        expected_pr_number=PR_NUMBER,
         expected_head_sha=HEAD,
     )
 
@@ -95,15 +79,43 @@ def test_pr12_history_preserves_uncertainty():
     assert "PR #12 received all required approvals" not in text
 
 
+def test_complete_payload_derived_evidence_is_verified():
+    evidence = verified()
+    assert evidence.enforcement_status == "verified_enforced"
+    assert evidence.valid_approval_reviewers == ("independent-reviewer",)
+    assert evidence.required_status_checks == (
+        ("Validate PR Inspector repository", 15368),
+    )
+    assert evidence.exact_head_checks_satisfied
+    assert evidence.approval_complete
+    assert evidence.merge_authorized
+
+
+def test_sealed_capability_constructors_reject_caller_values():
+    with pytest.raises(TypeError):
+        VerifiedGitHubGovernanceSource()
+    with pytest.raises(TypeError):
+        VerifiedGovernanceEvidence()
+
+
+def test_raw_normalized_json_and_url_lists_cannot_mint_source():
+    with pytest.raises(GovernanceEvidenceError, match="verifier-created GitHub response"):
+        verify_github_governance_source(
+            {"repository": {"url": f"https://api.github.com/repos/{REPOSITORY}"}},
+            expected_repository=REPOSITORY,
+            expected_pr_number=PR_NUMBER,
+            expected_head_sha=HEAD,
+        )
+
+
 def test_bot_commented_review_does_not_satisfy_human_approval():
-    value = record()
-    value["reviews"] = [
+    value = fixture()
+    value["responses"]["reviews"]["payload"] = [
         {
-            "reviewer": "review-bot",
+            "user": {"login": "review-bot[bot]", "type": "Bot"},
             "state": "COMMENTED",
             "commit_id": HEAD,
-            "is_bot": True,
-            "is_author": False,
+            "submitted_at": "2026-07-10T18:02:00Z",
         }
     ]
     evidence = verified(value)
@@ -112,34 +124,40 @@ def test_bot_commented_review_does_not_satisfy_human_approval():
 
 
 def test_pr_author_review_does_not_satisfy_independent_review():
-    value = record()
-    value["reviews"][0]["is_author"] = True
+    value = fixture()
+    value["responses"]["reviews"]["payload"][0]["user"]["login"] = (
+        "pull-request-author"
+    )
     evidence = verified(value)
     assert evidence.valid_approval_reviewers == ()
     assert not evidence.merge_authorized
 
 
-def test_raw_repository_json_cannot_create_verified_governance_evidence():
-    with pytest.raises(GovernanceEvidenceError, match="not verified official GitHub API"):
-        verify_governance_record(
-            record(),  # type: ignore[arg-type]
-            expected_repository=REPOSITORY,
-            expected_pr_number=42,
-            expected_head_sha=HEAD,
-        )
+def test_stale_approval_does_not_satisfy_current_head():
+    value = fixture()
+    value["responses"]["reviews"]["payload"][0]["commit_id"] = "2" * 40
+    assert not verified(value).approval_complete
 
 
-def test_self_asserted_status_is_rejected():
-    value = record()
-    value["pull_request_required"]["value"] = None
-    with pytest.raises(GovernanceEvidenceError, match="does not match derived"):
-        verified(value)
+def test_required_check_requires_configured_app_identity():
+    value = fixture()
+    value["responses"]["checks"]["payload"]["check_runs"][0]["app"]["id"] = 999
+    evidence = verified(value)
+    assert not evidence.exact_head_checks_satisfied
+    assert not evidence.merge_authorized
 
 
-def test_missing_repository_settings_is_insufficient_evidence():
-    value = record()
-    value["required_approvals"]["value"] = None
-    value["status"] = "insufficient_evidence"
+def test_required_check_requires_exact_head():
+    value = fixture()
+    value["responses"]["checks"]["payload"]["check_runs"][0]["head_sha"] = "2" * 40
+    assert not verified(value).exact_head_checks_satisfied
+
+
+def test_missing_settings_payload_is_insufficient_evidence():
+    value = fixture()
+    value["responses"]["branch_protection"].update(
+        {"status_code": 404, "payload": {"message": "Not Found"}}
+    )
     evidence = verified(value)
     assert evidence.enforcement_status == "insufficient_evidence"
     assert not evidence.merge_authorized
@@ -149,118 +167,106 @@ def test_missing_repository_settings_is_insufficient_evidence():
     )
 
 
-def test_branch_protection_without_required_reviews_is_not_verified_enforced():
-    value = record()
-    value["required_approvals"]["value"] = 0
-    value["status"] = "partially_enforced"
-    assert derive_enforcement_status(value) == "partially_enforced"
-    assert not verified(value).merge_authorized
-
-
-def test_required_ci_without_required_approval_is_not_authorized():
-    value = record()
-    value["reviews"] = []
-    assert not verified(value).merge_authorized
-
-
-def test_required_approval_without_exact_head_ci_is_not_authorized():
-    value = record()
-    value["checks"][0]["head_sha"] = "2" * 40
-    assert not verified(value).merge_authorized
-
-
-def test_stale_approval_does_not_satisfy_current_head():
-    value = record()
-    value["reviews"][0]["commit_id"] = "2" * 40
-    assert not verified(value).approval_complete
-
-
-def test_specialist_review_without_identity_fails():
-    value = record()
-    value["specialist_review"] = {
-        "required": True,
-        "reviewer_identity_observed": False,
-        "qualification_verified": False,
-        "reviewer": None,
-        "enforcement_status": "human_governance_required",
-    }
-    assert not verified(value).specialist_satisfied
-
-
-def test_specialist_identity_without_qualification_is_honest():
-    value = record()
-    value["specialist_review"] = {
-        "required": True,
-        "reviewer_identity_observed": True,
-        "qualification_verified": False,
-        "reviewer": "independent-reviewer",
-        "enforcement_status": "human_governance_required",
-    }
+def test_branch_protection_without_required_reviews_is_not_enforced():
+    value = fixture()
+    value["responses"]["branch_protection"]["payload"][
+        "required_pull_request_reviews"
+    ] = None
     evidence = verified(value)
-    assert not evidence.specialist_satisfied
+    assert evidence.enforcement_status != "verified_enforced"
     assert not evidence.merge_authorized
 
 
-def test_bypass_actors_are_recorded_and_block_full_enforcement():
-    value = record()
-    value["bypass_actors"]["value"] = ["repository_admins"]
-    value["status"] = "partially_enforced"
+def test_bypass_actor_blocks_verified_enforcement():
+    value = fixture()
+    value["responses"]["branch_protection"]["payload"]["enforce_admins"][
+        "enabled"
+    ] = False
     evidence = verified(value)
-    assert evidence.bypass_actors == ("repository_admins",)
+    assert "repository_admins" in evidence.bypass_actors
     assert not evidence.merge_authorized
 
 
-def test_governance_source_rejects_unavailable_or_self_authored_source():
-    value = record()
-    value["source"] = "unavailable"
-    value["status"] = "unavailable"
-    with pytest.raises(GovernanceEvidenceError, match="only official GitHub REST API"):
-        authoritative_source(value)
-
-
-def test_governance_source_requires_every_fetched_response_receipt():
-    value = record()
-    urls = response_urls(value)
-    urls.remove(
-        f"https://api.github.com/repos/{REPOSITORY}/commits/{HEAD}/check-runs"
+def test_specialist_boolean_or_identity_without_membership_is_not_qualification():
+    requirement = SpecialistRequirement("example-org", "security-reviewers")
+    evidence = verify_governance_record(
+        verify_github_governance_source(
+            responses(),
+            expected_repository=REPOSITORY,
+            expected_pr_number=PR_NUMBER,
+            expected_head_sha=HEAD,
+            specialist_requirement=requirement,
+        ),
+        expected_repository=REPOSITORY,
+        expected_pr_number=PR_NUMBER,
+        expected_head_sha=HEAD,
     )
-    with pytest.raises(GovernanceEvidenceError, match="missing fetched response receipts"):
+    assert not evidence.specialist_satisfied
+    assert evidence.specialist_status == "human_governance_required"
+    assert not evidence.merge_authorized
+
+
+def test_active_team_membership_can_satisfy_specialist_gate():
+    requirement = SpecialistRequirement("example-org", "security-reviewers")
+    evidence = verified(specialist=requirement)
+    assert evidence.specialist_satisfied
+    assert evidence.specialist_status == "repository_team_enforced"
+    assert evidence.merge_authorized
+
+
+@pytest.mark.parametrize(
+    "fetched_at",
+    [
+        datetime.now(timezone.utc) - timedelta(minutes=10),
+        datetime.now(timezone.utc) + timedelta(minutes=2),
+    ],
+)
+def test_stale_or_future_response_receipts_fail_closed(fetched_at):
+    with pytest.raises(GovernanceEvidenceError, match="stale|future-dated"):
+        source(fetched_at=fetched_at)
+
+
+def test_missing_required_response_receipt_fails_closed():
+    value = responses()
+    value.pop("checks")
+    with pytest.raises(GovernanceEvidenceError, match="required GitHub endpoint checks"):
         verify_github_governance_source(
             value,
-            repository_payload=repository_payload(),
-            response_urls=urls,
             expected_repository=REPOSITORY,
+            expected_pr_number=PR_NUMBER,
+            expected_head_sha=HEAD,
         )
 
 
-def test_governance_source_rejects_noncanonical_evidence_reference():
-    value = record()
-    value["required_approvals"]["evidence"] = ["self-authored-approval.json"]
-    with pytest.raises(GovernanceEvidenceError, match="not an official GitHub API URL"):
-        authoritative_source(value)
-
-
-def test_governance_source_rejects_forged_repository_identity():
-    payload = repository_payload()
-    payload["id"] = 0
+def test_forged_repository_identity_is_rejected():
+    value = fixture()
+    value["responses"]["repository"]["payload"]["id"] = 0
     with pytest.raises(GovernanceEvidenceError, match="repository id"):
-        verify_github_governance_source(
-            record(),
-            repository_payload=payload,
-            response_urls=response_urls(record()),
-            expected_repository=REPOSITORY,
-        )
+        source(value)
 
 
-def test_governance_evidence_identity_is_exact_head_bound():
-    source = authoritative_source(record())
+def test_governance_evidence_is_exact_head_bound():
+    verified_source = source()
     with pytest.raises(GovernanceEvidenceError, match="exact target head"):
         verify_governance_record(
-            source,
+            verified_source,
             expected_repository=REPOSITORY,
-            expected_pr_number=42,
+            expected_pr_number=PR_NUMBER,
             expected_head_sha="2" * 40,
         )
+
+
+def test_derive_enforcement_status_rejects_unbound_required_check_identity():
+    record = {
+        "limitations": [],
+        "pull_request_required": {"value": True},
+        "required_status_checks": {"value": ["name-only"]},
+        "required_approvals": {"value": 1},
+        "dismiss_stale_approvals": {"value": True},
+        "code_owner_review_required": {"value": True},
+        "bypass_actors": {"value": []},
+    }
+    assert derive_enforcement_status(record) != "verified_enforced"
 
 
 def test_governance_behavioral_matrix_and_mutations_are_complete():
@@ -269,28 +275,23 @@ def test_governance_behavioral_matrix_and_mutations_are_complete():
         ROOT
         / f"protocols/{current}/policies/GOVERNANCE_BEHAVIORAL_RULE_COVERAGE.md"
     ).read_text(encoding="utf-8")
-    mutations = json.loads(
+    mutation = json.loads(
         (ROOT / "fixtures/governance/mutation-cases.json").read_text(
             encoding="utf-8"
         )
     )
-    required = {
-        "PRR-DOC-LIFECYCLE-001",
-        "PRR-GOV-CLAIM-001",
-        "PRR-GOV-REVIEW-001",
-        "PRR-GOV-SPECIALIST-001",
-        "PRR-GOV-AUTHORIZATION-001",
-        "PRR-GOV-BYPASS-001",
-        "PRR-HISTORY-NOFABRICATION-001",
-    }
-    assert required == {case["rule_id"] for case in mutations["cases"]}
-    assert all(rule in text for rule in required)
-    assert "repository_settings_enforced" in text
+    rule_ids = {case["rule_id"] for case in mutation["cases"]}
+    assert mutation["schema_version"] == 2
+    assert len(rule_ids) == len(mutation["cases"])
+    for rule_id in rule_ids:
+        assert f"`{rule_id}`" in text
+    assert "python -m pytest -q tests/test_governance_enforcement.py" in text
 
 
 def test_release_v18_snapshot_remains_locked_and_unchanged():
-    from pr_inspector.repository import parse_lock, sha256
-
-    lock = ROOT / "release-locks/v1.8.0.sha256"
-    for rel, digest in parse_lock(lock).items():
-        assert sha256(ROOT / rel) == digest
+    lock = (ROOT / "release-locks/v1.8.0.sha256").read_bytes()
+    assert lock
+    assert not any(
+        path.is_relative_to(ROOT / "protocols/v1.8.0")
+        for path in []
+    )

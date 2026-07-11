@@ -23,6 +23,9 @@ INSPECTOR_LOAD
 → MANIFEST_FROM_FINAL_BYTES
 → ARTIFACT_AND_PROJECTION_VALIDATION
 → FINAL_SHA_RECHECK
+→ PUBLICATION_COMMIT_POINT
+→ OBSOLETE_BACKUP_CLEANUP
+→ VERIFIED_BYTE_ACCESS
 → COMPLETE
 ```
 
@@ -42,11 +45,13 @@ A failed required transition enters `BLOCKED` and does not emit a completed owne
 10. Re-read those bytes and generate `artifact-manifest.json`.
 11. Independently validate projection schema/equality, prompt routing, exact bytes, and manifest hashes.
 12. Record CI tested-object identity without rewriting merge SHA as head SHA.
-13. Re-read the live PR head. A change makes the review stale and requires rebuilding all artifacts.
-14. Expose the two-line result to the owner and technical artifacts separately.
+13. The official completion boundary fetches the canonical GitHub PR payload, binds repository/PR/head identity, and re-reads the live head immediately before publication.
+14. Publish only a fully validated sibling staging directory, revalidate the published bundle, and re-read the live GitHub head again. Any observed drift or endpoint failure before the commit point rolls back publication and returns an incomplete result.
+15. Establish the publication commit point only after staged validation, atomic publication, post-publication bundle validation, and the final live-head verification all succeed.
+16. Treat the prior backup as obsolete cleanup material after the commit point. Cleanup failure or partial cleanup is recorded explicitly and may retain residue, but must not roll back, replace, quarantine, or invalidate the new verified official bundle.
+17. For every official accessor, recheck the live head and perform full bundle verification against an in-memory snapshot of the exact artifact bytes. Return, decode, or parse only those captured verified bytes; never reopen an artifact after verification.
 
 No renderer, validator, or prompt generator may maintain a competing status/action registry.
-
 
 ## Post-review governance sequence
 
