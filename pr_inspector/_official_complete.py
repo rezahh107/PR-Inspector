@@ -45,11 +45,15 @@ def diagnostic(code: str, path: str, message: str) -> IncompleteReview:
 
 def stage_directory(output: Path) -> Path:
     output.parent.mkdir(parents=True, exist_ok=True)
-    return Path(tempfile.mkdtemp(prefix=f".{output.name}.staging-", dir=output.parent))
+    return Path(
+        tempfile.mkdtemp(prefix=f".{output.name}.staging-", dir=output.parent)
+    )
 
 
 def unused_sibling(output: Path, label: str) -> Path:
-    path = Path(tempfile.mkdtemp(prefix=f".{output.name}.{label}-", dir=output.parent))
+    path = Path(
+        tempfile.mkdtemp(prefix=f".{output.name}.{label}-", dir=output.parent)
+    )
     path.rmdir()
     return path
 
@@ -104,7 +108,12 @@ def _invalidate_manifest(output: Path) -> tuple[Diagnostic, ...]:
     return tuple(diagnostics)
 
 
-def _remove_tree(path: Path, *, code: str, context: str) -> tuple[Diagnostic, ...]:
+def _remove_tree(
+    path: Path,
+    *,
+    code: str,
+    context: str,
+) -> tuple[Diagnostic, ...]:
     if not path.exists():
         return ()
     try:
@@ -144,7 +153,9 @@ def restore(output: Path, backup: Path | None) -> RollbackOutcome:
                 _remove_tree(
                     output,
                     code="PRI-COMPLETE-ROLLBACK-002",
-                    context="could not delete non-authoritative failed directory",
+                    context=(
+                        "could not delete non-authoritative failed directory"
+                    ),
                 )
             )
             if output.exists():
@@ -152,7 +163,10 @@ def restore(output: Path, backup: Path | None) -> RollbackOutcome:
                     _item(
                         "PRI-COMPLETE-ROLLBACK-003",
                         f"/{output.name}",
-                        "failed directory remains at official path after deletion attempt",
+                        (
+                            "failed directory remains at official path after "
+                            "deletion attempt"
+                        ),
                     )
                 )
                 diagnostics.extend(_invalidate_manifest(output))
@@ -179,7 +193,9 @@ def restore(output: Path, backup: Path | None) -> RollbackOutcome:
                 os.replace(backup, output)
                 restored = output.exists() and not backup.exists()
                 if not restored:
-                    raise OSError("backup rename did not establish the official path")
+                    raise OSError(
+                        "backup rename did not establish the official path"
+                    )
             except Exception as exc:
                 diagnostics.append(
                     _item(
@@ -225,7 +241,10 @@ def restore(output: Path, backup: Path | None) -> RollbackOutcome:
     )
 
 
-def publish(stage: Path, output: Path) -> tuple[Path | None, tuple[Diagnostic, ...]]:
+def publish(
+    stage: Path,
+    output: Path,
+) -> tuple[Path | None, tuple[Diagnostic, ...]]:
     backup: Path | None = None
     if output.exists():
         try:
@@ -309,7 +328,11 @@ def complete_review(
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         return diagnostic("PRI-COMPLETE-001", "/review-package.json", str(exc))
     if not isinstance(package, dict):
-        return diagnostic("PRI-COMPLETE-001", "/review-package.json", "package must be an object")
+        return diagnostic(
+            "PRI-COMPLETE-001",
+            "/review-package.json",
+            "package must be an object",
+        )
     try:
         diagnostics = validate_package(package)
     except Exception as exc:
@@ -333,7 +356,11 @@ def complete_review(
             "official completion requires CURRENT review validity",
         )
     if output.exists() and not output.is_dir():
-        return diagnostic("PRI-COMPLETE-005", f"/{output.name}", "output is not a directory")
+        return diagnostic(
+            "PRI-COMPLETE-005",
+            f"/{output.name}",
+            "output is not a directory",
+        )
     try:
         stage = stage_directory(output)
     except Exception as exc:
@@ -343,16 +370,39 @@ def complete_review(
     try:
         try:
             (stage / "review-package.json").write_bytes(package_bytes)
-            write_review_artifacts(package, stage, review_package_bytes=package_bytes)
-            staged = validate_bundle(stage, initial.repository, initial.pr_number, initial.head_sha)
-        except (OSError, ValueError, KeyError, TypeError, ProjectionError, CompletionError) as exc:
+            write_review_artifacts(
+                package,
+                stage,
+                review_package_bytes=package_bytes,
+            )
+            staged = validate_bundle(
+                stage,
+                initial.repository,
+                initial.pr_number,
+                initial.head_sha,
+            )
+        except (
+            OSError,
+            ValueError,
+            KeyError,
+            TypeError,
+            ProjectionError,
+            CompletionError,
+        ) as exc:
             return diagnostic("PRI-COMPLETE-004", "/artifact-bundle", str(exc))
         try:
             require_head(
-                head_source.fetch(), staged.repository, staged.pr_number, staged.head_sha
+                head_source.fetch(),
+                staged.repository,
+                staged.pr_number,
+                staged.head_sha,
             )
         except Exception as exc:
-            return diagnostic("PRI-COMPLETE-008", "/prepublication-head-recheck", str(exc))
+            return diagnostic(
+                "PRI-COMPLETE-008",
+                "/prepublication-head-recheck",
+                str(exc),
+            )
 
         backup, publication_diagnostics = publish(stage, output)
         if publication_diagnostics:
@@ -360,7 +410,10 @@ def complete_review(
 
         try:
             final_bundle = validate_bundle(
-                output, initial.repository, initial.pr_number, initial.head_sha
+                output,
+                initial.repository,
+                initial.pr_number,
+                initial.head_sha,
             )
             final_head = head_source.fetch()
             require_head(
@@ -373,21 +426,32 @@ def complete_review(
             rollback = _bounded_restore(output, backup)
             return IncompleteReview(
                 (
-                    _item("PRI-COMPLETE-008", "/final-head-recheck", str(exc)),
+                    _item(
+                        "PRI-COMPLETE-008",
+                        "/final-head-recheck",
+                        str(exc),
+                    ),
                     *rollback.diagnostics,
                 )
             )
 
+        # Publication is committed after post-publication bundle validation and the
+        # final live-head check. The obsolete backup is cleanup-only from here on;
+        # it may already be partially mutated by a failed recursive deletion and
+        # must never be used as rollback evidence after this point.
+        cleanup_diagnostics: tuple[Diagnostic, ...] = ()
         if backup is not None:
-            cleanup = _remove_tree(
+            cleanup_diagnostics = _remove_tree(
                 backup,
                 code="PRI-COMPLETE-009",
                 context="previous-output backup cleanup failed",
             )
-            if cleanup:
-                rollback = _bounded_restore(output, backup)
-                return IncompleteReview((*cleanup, *rollback.diagnostics))
-        result = completion(final_bundle, head_source, final_head)
+        result = completion(
+            final_bundle,
+            head_source,
+            final_head,
+            cleanup_diagnostics=cleanup_diagnostics,
+        )
         return result
     except Exception as exc:
         return diagnostic(
