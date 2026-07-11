@@ -1,6 +1,35 @@
 # Canonical Artifact and Official-Output Boundary
 
-Status: candidate implementation boundary for `v1.9.0` on the stacked repair branch. The released default-branch authority remains whatever live `main`, `CURRENT_VERSION`, the manifest, and release lock select.
+Status: implemented on live `main` for active protocol `v1.9.0`. PR #14 was integrated into PR #13, and PR #13 was then merged to `main`; those pull requests are historical provenance rather than pending activation or repair gates.
+
+## Current closure status
+
+```yaml
+active_protocol: v1.9.0
+implementation_state: merged_on_main
+live_main_head_at_audit_start: 35e3b398d8e8d6823007540f0a156ff2a3feece6
+source_prs:
+  - 13
+  - 14
+canonical_output_boundary: implemented
+publication_commit_point: implemented
+verified_byte_snapshot_accessors: implemented
+governance_code_boundary: implemented
+repository_settings_enforcement: insufficient_evidence
+merged_implementation_exact_head_ci:
+  tested_head: 815d7f5fccb51a256ae853930deb77a605495f1f
+  run_id: 29148064601
+  conclusion: success
+historical_v1_8_immutable: true
+open_implementation_findings: none_confirmed
+open_code_findings: []
+remaining_operational_actions:
+  - independent review of the closure-polish pull request on its exact final head
+  - authoritative verification or application of GitHub repository settings under separate authorization
+closure_status: implementation_complete_closure_polish_pending_independent_review
+```
+
+The status above records the merged v1.9 implementation and the evidence available at the start of this closure audit. It does not claim that this closure-polish branch is independently reviewed, approved, merge-authorized, or merged. GitHub repository settings remain a separate administrative evidence boundary.
 
 ## Boundary classification
 
