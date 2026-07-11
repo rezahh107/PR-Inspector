@@ -21,15 +21,17 @@ merged_implementation_exact_head_ci:
   run_id: 29148064601
   conclusion: success
 historical_v1_8_immutable: true
-open_implementation_findings: none_confirmed
-open_code_findings: []
+confirmed_merged_implementation_findings_at_audit_start: none
+closure_pr_review_state: pending_independent_review
+live_review_thread_state: not_asserted_by_static_document
+bot_commented_feedback: not_approval
 remaining_operational_actions:
   - independent review of the closure-polish pull request on its exact final head
   - authoritative verification or application of GitHub repository settings under separate authorization
 closure_status: implementation_complete_closure_polish_pending_independent_review
 ```
 
-The status above records the merged v1.9 implementation and the evidence available at the start of this closure audit. It does not claim that this closure-polish branch is independently reviewed, approved, merge-authorized, or merged. GitHub repository settings remain a separate administrative evidence boundary.
+The status above records the merged v1.9 implementation and the evidence available at the start of this closure audit. No additional runtime implementation defect was confirmed in the already merged boundary during that audit. It does not assert the live review-thread state of PR #15, and it does not claim that this closure-polish branch is independently reviewed, approved, merge-authorized, or merged. Bot feedback with review state `COMMENTED` is not approval. GitHub repository settings remain a separate administrative evidence boundary.
 
 ## Boundary classification
 
