@@ -1,6 +1,7 @@
 name: Independently verify EV4 Decision Kernel PR 43
 
 on:
+  pull_request:
   push:
     branches:
       - trust/coverage-external-gate-v1
