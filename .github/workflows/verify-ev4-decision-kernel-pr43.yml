@@ -1,0 +1,22 @@
+name: Independently verify EV4 Decision Kernel PR 43
+
+on:
+  pull_request:
+  push:
+    branches:
+      - trust/coverage-external-gate-v1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-exact-target-head:
+    name: Independent exact-head Coverage trust verification
+    uses: rezahh107/PR-Inspector/.github/workflows/coverage-trust-gate.yml@73b8e3857dbc1596fe7b04def04b94f2609440b2
+    with:
+      independent_policy_pr_number: 43
+    permissions:
+      contents: read
+      pull-requests: read
+      id-token: write
