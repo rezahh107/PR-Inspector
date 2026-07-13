@@ -2,85 +2,241 @@ name: External Coverage Trust Gate
 
 on:
   workflow_call:
-    inputs:
-      target_repository:
-        required: true
-        type: string
-      target_head_sha:
-        required: true
-        type: string
-      target_base_sha:
-        required: true
-        type: string
-      pull_request_number:
-        required: true
-        type: number
-      issuer_workflow_sha:
-        required: true
-        type: string
-      proof_credit_mode:
-        required: false
-        default: bootstrap_deny
-        type: string
+    outputs:
+      verified_repository:
+        description: Authoritative target repository
+        value: ${{ jobs.verify.outputs.verified_repository }}
+      verified_repository_id:
+        description: Authoritative target repository ID
+        value: ${{ jobs.verify.outputs.verified_repository_id }}
+      verified_pr_number:
+        description: Authoritative pull request number
+        value: ${{ jobs.verify.outputs.verified_pr_number }}
+      verified_base_sha:
+        description: Authoritative pull request base SHA
+        value: ${{ jobs.verify.outputs.verified_base_sha }}
+      verified_head_sha:
+        description: Authoritative pull request head SHA
+        value: ${{ jobs.verify.outputs.verified_head_sha }}
+      verified_issuer_sha:
+        description: OIDC-authenticated immutable reusable workflow SHA
+        value: ${{ jobs.verify.outputs.verified_issuer_sha }}
+      verification_mode:
+        description: Event/API authority mode
+        value: ${{ jobs.verify.outputs.verification_mode }}
+      proof_credit_authorized:
+        description: Always false during bootstrap
+        value: ${{ jobs.verify.outputs.proof_credit_authorized }}
 
 permissions:
   contents: read
 
 jobs:
   verify:
-    name: Verify external Coverage trust root
+    name: Verify authoritative Coverage trust identity
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      id-token: write
+    outputs:
+      verified_repository: ${{ steps.verify.outputs.verified_repository }}
+      verified_repository_id: ${{ steps.verify.outputs.verified_repository_id }}
+      verified_pr_number: ${{ steps.verify.outputs.verified_pr_number }}
+      verified_base_sha: ${{ steps.verify.outputs.verified_base_sha }}
+      verified_head_sha: ${{ steps.verify.outputs.verified_head_sha }}
+      verified_issuer_sha: ${{ steps.verify.outputs.verified_issuer_sha }}
+      verification_mode: ${{ steps.verify.outputs.verification_mode }}
+      proof_credit_authorized: ${{ steps.verify.outputs.proof_credit_authorized }}
     steps:
-      - name: Check out exact target head
+      - name: Discover GitHub-authoritative event, API, and OIDC identity
+        id: discover
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OIDC_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
+          OIDC_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64
+          import json
+          import os
+          import re
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+
+          audience = "ev4-coverage-trust-gate-prf012"
+          issuer_repo = "rezahh107/PR-Inspector"
+          issuer_repo_id = 1288323264
+          issuer_workflow = ".github/workflows/coverage-trust-gate.yml"
+          independent_workflow = ".github/workflows/verify-ev4-decision-kernel-pr43.yml"
+          target_repo = "rezahh107/EV4-Decision-Kernel"
+          target_repo_id = 1292378784
+          target_pr = 43
+          caller_workflow = ".github/workflows/validate-mvk.yml"
+          sha40 = re.compile(r"^[0-9a-f]{40}$")
+
+          request_url = os.environ["OIDC_REQUEST_URL"]
+          separator = "&" if "?" in request_url else "?"
+          request_url += separator + urllib.parse.urlencode({"audience": audience})
+          request = urllib.request.Request(
+              request_url,
+              headers={"Authorization": f"Bearer {os.environ['OIDC_REQUEST_TOKEN']}"},
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              oidc_response = json.load(response)
+          token = oidc_response["value"]
+          parts = token.split(".")
+          if len(parts) != 3:
+              raise SystemExit("COV_EXTERNAL_OIDC_TOKEN_INVALID")
+          payload = parts[1] + "=" * (-len(parts[1]) % 4)
+          claims = json.loads(base64.urlsafe_b64decode(payload.encode("ascii")))
+          issuer_sha = str(claims.get("job_workflow_sha") or "")
+          if not sha40.fullmatch(issuer_sha):
+              raise SystemExit("COV_EXTERNAL_OIDC_ISSUER_SHA_INVALID")
+          if claims.get("iss") != "https://token.actions.githubusercontent.com":
+              raise SystemExit("COV_EXTERNAL_OIDC_AUTHORITY_INVALID")
+          aud = claims.get("aud")
+          if not (aud == audience or isinstance(aud, list) and audience in aud):
+              raise SystemExit("COV_EXTERNAL_OIDC_AUDIENCE_INVALID")
+          expected_job_prefix = f"{issuer_repo}/{issuer_workflow}@"
+          if not str(claims.get("job_workflow_ref") or "").startswith(expected_job_prefix):
+              raise SystemExit("COV_EXTERNAL_OIDC_WORKFLOW_IDENTITY_MISMATCH")
+
+          caller_repo_id = int(claims.get("repository_id"))
+          workflow_ref = str(claims.get("workflow_ref") or "")
+          event_path = Path(os.environ["GITHUB_EVENT_PATH"])
+          event = json.loads(event_path.read_text(encoding="utf-8"))
+
+          if caller_repo_id == target_repo_id:
+              if (
+                  claims.get("repository") != target_repo
+                  or claims.get("event_name") != "pull_request"
+                  or not workflow_ref.startswith(f"{target_repo}/{caller_workflow}@")
+              ):
+                  raise SystemExit("COV_EXTERNAL_EVENT_CALLER_IDENTITY_MISMATCH")
+              pr_number = int((event.get("pull_request") or {}).get("number") or event.get("number"))
+              if pr_number != target_pr:
+                  raise SystemExit("COV_EXTERNAL_EVENT_PR_POLICY_MISMATCH")
+          elif caller_repo_id == issuer_repo_id:
+              if (
+                  claims.get("repository") != issuer_repo
+                  or not workflow_ref.startswith(f"{issuer_repo}/{independent_workflow}@")
+                  or claims.get("event_name") not in {"push", "workflow_dispatch", "pull_request"}
+              ):
+                  raise SystemExit("COV_EXTERNAL_INDEPENDENT_CALLER_IDENTITY_MISMATCH")
+              pr_number = target_pr
+          else:
+              raise SystemExit("COV_EXTERNAL_OIDC_CALLER_REPOSITORY_INVALID")
+
+          api_url = f"https://api.github.com/repos/{target_repo}/pulls/{pr_number}"
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "X-GitHub-Api-Version": "2022-11-28",
+              "User-Agent": "ev4-coverage-trust-gate-prf012",
+          }
+          token_header = os.environ.get("GH_TOKEN", "")
+          if token_header:
+              headers["Authorization"] = f"Bearer {token_header}"
+          api_request = urllib.request.Request(api_url, headers=headers)
+          with urllib.request.urlopen(api_request, timeout=30) as response:
+              api_pr = json.load(response)
+
+          base_repo = (api_pr.get("base") or {}).get("repo") or {}
+          api_head = str((api_pr.get("head") or {}).get("sha") or "")
+          api_base = str((api_pr.get("base") or {}).get("sha") or "")
+          if (
+              int(base_repo.get("id")) != target_repo_id
+              or base_repo.get("full_name") != target_repo
+              or int(api_pr.get("number")) != target_pr
+              or not sha40.fullmatch(api_head)
+              or not sha40.fullmatch(api_base)
+          ):
+              raise SystemExit("COV_EXTERNAL_API_PR_IDENTITY_INVALID")
+
+          Path("oidc-token.txt").write_text(token + "\n", encoding="utf-8")
+          Path("api-pr.json").write_text(
+              json.dumps(api_pr, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          outputs = {
+              "issuer_sha": issuer_sha,
+              "target_repository": target_repo,
+              "target_repository_id": str(target_repo_id),
+              "target_pr_number": str(target_pr),
+              "target_base_sha": api_base,
+              "target_head_sha": api_head,
+          }
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
+              for key, value in outputs.items():
+                  handle.write(f"{key}={value}\n")
+          PY
+
+      - name: Check out authoritative target PR head
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          repository: ${{ inputs.target_repository }}
-          ref: ${{ inputs.target_head_sha }}
+          repository: ${{ steps.discover.outputs.target_repository }}
+          ref: ${{ steps.discover.outputs.target_head_sha }}
           fetch-depth: 0
           path: target
           persist-credentials: false
 
-      - name: Check out immutable issuer implementation
+      - name: Check out OIDC-authenticated issuer implementation
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           repository: rezahh107/PR-Inspector
-          ref: ${{ inputs.issuer_workflow_sha }}
+          ref: ${{ steps.discover.outputs.issuer_sha }}
           fetch-depth: 1
           path: issuer
           persist-credentials: false
 
-      - name: Verify issuer checkout identity
+      - name: Verify immutable issuer and target checkout identities
         shell: bash
         run: |
           set -euo pipefail
-          actual="$(git -C issuer rev-parse HEAD)"
-          test "$actual" = "${{ inputs.issuer_workflow_sha }}"
+          test "$(git -C issuer rev-parse HEAD)" = "${{ steps.discover.outputs.issuer_sha }}"
+          test "$(git -C target rev-parse HEAD)" = "${{ steps.discover.outputs.target_head_sha }}"
 
-      - name: Run immutable gate self-tests
+      - name: Run immutable gate adversarial tests
         run: python -m unittest issuer/tests/test_coverage_trust_gate.py
 
-      - name: Issue externally verified bootstrap attestation
+      - name: Verify authoritative identity and issue bootstrap attestation
+        id: verify
         shell: bash
         run: |
           set -euo pipefail
           validated_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           python issuer/scripts/verify_coverage_trust_gate.py \
             --target-root target \
-            --target-repository '${{ inputs.target_repository }}' \
-            --target-head-sha '${{ inputs.target_head_sha }}' \
-            --target-base-sha '${{ inputs.target_base_sha }}' \
-            --pull-request-number '${{ inputs.pull_request_number }}' \
-            --issuer-workflow-sha '${{ inputs.issuer_workflow_sha }}' \
-            --run-id '${{ github.run_id }}' \
-            --run-attempt '${{ github.run_attempt }}' \
+            --event-path "$GITHUB_EVENT_PATH" \
+            --api-pr-file api-pr.json \
+            --oidc-token-file oidc-token.txt \
             --validated-at "$validated_at" \
-            --proof-credit-mode '${{ inputs.proof_credit_mode }}' \
-            --output coverage-trust-attestation.json
+            --output coverage-trust-attestation.json \
+            --github-output "$GITHUB_OUTPUT"
 
-      - name: Upload immutable trust evidence
+      - name: Publish verified identity to job summary
+        shell: bash
+        run: |
+          {
+            echo "## PRF-012 authoritative Coverage trust"
+            echo
+            echo "- repository: \`${{ steps.verify.outputs.verified_repository }}\`"
+            echo "- repository_id: \`${{ steps.verify.outputs.verified_repository_id }}\`"
+            echo "- pull_request: \`${{ steps.verify.outputs.verified_pr_number }}\`"
+            echo "- base_sha: \`${{ steps.verify.outputs.verified_base_sha }}\`"
+            echo "- head_sha: \`${{ steps.verify.outputs.verified_head_sha }}\`"
+            echo "- issuer_sha: \`${{ steps.verify.outputs.verified_issuer_sha }}\`"
+            echo "- verification_mode: \`${{ steps.verify.outputs.verification_mode }}\`"
+            echo "- proof_credit_authorized: \`false\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload authoritative external trust evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: coverage-trust-attestation-${{ inputs.target_head_sha }}
+          name: coverage-trust-attestation-${{ steps.verify.outputs.verified_head_sha }}
           path: coverage-trust-attestation.json
           if-no-files-found: error
           retention-days: 30
