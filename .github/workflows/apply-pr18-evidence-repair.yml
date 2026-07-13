@@ -1,34 +1,35 @@
 name: Apply bounded PR18 evidence repair
 
 on:
-  push:
-    branches:
-      - governance/personal-minimum-security-profile
+  pull_request:
+    types: [synchronize]
 
 permissions:
   contents: write
 
 concurrency:
-  group: apply-pr18-evidence-repair
+  group: apply-pr18-evidence-repair-${{ github.event.pull_request.head.sha }}
   cancel-in-progress: false
 
 jobs:
   apply:
-    if: github.repository == 'rezahh107/PR-Inspector' && github.ref == 'refs/heads/governance/personal-minimum-security-profile'
+    if: github.repository == 'rezahh107/PR-Inspector' && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'governance/personal-minimum-security-profile'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Check out exact staged head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 1
 
       - name: Verify staged checkout identity
         shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
 
       - name: Reconstruct and verify bounded repair payload
         shell: bash
