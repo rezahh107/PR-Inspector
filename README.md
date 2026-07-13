@@ -14,7 +14,7 @@ Repository code validates artifacts, provenance, identities, lifecycle sequences
 
 ## Current v1.9.1 candidate status
 
-This branch selects the `v1.9.1` candidate for validation. Live `main` at base SHA `65e6b1b46c3e8da7c782c666cd3562947f2b7923` remains authoritative for activation and currently carries `v1.9.0`. The candidate is not independently reviewed, merge-authorized, or merged.
+Repository authority is determined from live `main`. This branch selects the `v1.9.1` candidate for validation. Live `main` at base SHA `65e6b1b46c3e8da7c782c666cd3562947f2b7923` remains authoritative for activation and currently carries `v1.9.0`. The candidate is not independently reviewed, merge-authorized, or merged.
 
 `v1.9.1` adds the default `personal_ai_operated_strong_governance_minimum_security` profile. Valid sequence enforcement can support `GREEN_MERGE_RECOMMENDED` without a dedicated GitHub App, branch protection, rulesets, merge queue, CODEOWNERS approval, or repository-hosted exact-source enforcement. Those controls remain mandatory when a stronger trigger or claim activates them.
 
