@@ -13,13 +13,8 @@ permissions:
 jobs:
   verify-exact-target-head:
     name: Independent exact-head Coverage trust verification
-    uses: rezahh107/PR-Inspector/.github/workflows/coverage-trust-gate.yml@7b9958056e485d5f3bca0040c991a9ff8326cee5
-    with:
-      target_repository: rezahh107/EV4-Decision-Kernel
-      target_head_sha: 8ca020994469f79919ecd1888b31619ceff968eb
-      target_base_sha: 487ffd8fb3b4d64ddf0cd44c4d8d87eb7ab6b5a8
-      pull_request_number: 43
-      issuer_workflow_sha: 7b9958056e485d5f3bca0040c991a9ff8326cee5
-      proof_credit_mode: bootstrap_deny
+    uses: rezahh107/PR-Inspector/.github/workflows/coverage-trust-gate.yml@8b9b803a9f1e916f360d8871e43f5c48a11b5974
     permissions:
       contents: read
+      pull-requests: read
+      id-token: write
