@@ -20,3 +20,7 @@ This policy defines the active security-boundary invariants for PRF-013 external
 12. Proof credit and trusted ingestion remain unauthorized during bootstrap; emitted attestations must keep `proof_credit_authorized=false`.
 13. One-off PR #43 manual verification must not be part of the initial issuer release unless it can pin an already canonical, GitHub-resolvable issuer commit.
 14. Successful integration requires fresh exact-head GitHub Actions evidence bound to the resulting PR head and the same resolvable issuer SHA. Local tests alone do not satisfy integration evidence.
+
+## Release order
+
+This v1.10.0 candidate follows the standalone path: it is limited to the external Coverage bootstrap boundary and does not claim that `personal_ai_operated_strong_governance_minimum_security` or any stronger governance profile is active. Stronger governance/profile work remains separate and unmerged unless introduced by a later independently reviewed release.

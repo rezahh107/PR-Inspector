@@ -24,7 +24,6 @@ INDEPENDENT_WORKFLOW_PATH = ".github/workflows/verify-ev4-decision-kernel-pr43.y
 TARGET_REPOSITORY = "rezahh107/EV4-Decision-Kernel"
 TARGET_REPOSITORY_ID = 1292378784
 CALLER_WORKFLOW_PATH = ".github/workflows/validate-mvk.yml"
-REQUIRED_GUARD_WORKFLOW_PATH = ".github/workflows/coverage-trust-required.yml"
 OIDC_ISSUER = "https://token.actions.githubusercontent.com"
 OIDC_AUDIENCE = "ev4-coverage-trust-gate-prf013"
 PROOF_ROLES = {"runtime_proof", "consumer_proof", "coverage_credit"}
@@ -279,11 +278,7 @@ def derive_authoritative_identity(
                 "COV_EXTERNAL_TARGET_POLICY_INPUT_FORBIDDEN",
                 "Target callers may not select PR identity.",
             ))
-        paths = {
-            "pull_request": CALLER_WORKFLOW_PATH,
-            "pull_request_target": REQUIRED_GUARD_WORKFLOW_PATH,
-        }
-        expected_path = paths.get(event_name)
+        expected_path = CALLER_WORKFLOW_PATH if event_name == "pull_request" else None
         if (
             repository != TARGET_REPOSITORY
             or expected_path is None
@@ -295,11 +290,7 @@ def derive_authoritative_identity(
                 "COV_EXTERNAL_EVENT_CALLER_IDENTITY_MISMATCH",
                 "Target caller identity mismatch.",
             ))
-        mode = (
-            "target_pull_request_event_api"
-            if event_name == "pull_request"
-            else "target_pull_request_target_event_api"
-        )
+        mode = "target_pull_request_event_api"
         event_repository = event.get("repository") or {}
         if (
             int_or_none(event_repository.get("id"))
@@ -411,6 +402,79 @@ def derive_authoritative_identity(
     ), []
 
 
+def validate_integration_evidence(value: dict[str, Any], *, now: datetime) -> list[Diagnostic]:
+    diagnostics: list[Diagnostic] = []
+    required = {
+        "issuer_repository": ISSUER_REPOSITORY,
+        "target_repository": TARGET_REPOSITORY,
+    }
+    for key, expected in required.items():
+        if value.get(key) != expected:
+            diagnostics.append(Diagnostic(
+                "COV_EXTERNAL_INTEGRATION_EVIDENCE_INVALID",
+                f"Integration evidence {key} mismatch.",
+            ))
+    for key in ("issuer_sha", "target_head_sha"):
+        if SHA40.fullmatch(str(value.get(key) or "")) is None:
+            diagnostics.append(Diagnostic(
+                "COV_EXTERNAL_INTEGRATION_EVIDENCE_INVALID",
+                f"Integration evidence {key} must be a SHA-1 commit.",
+            ))
+    for key in ("target_pr_number", "workflow_run_id", "workflow_job_id"):
+        parsed = int_or_none(value.get(key))
+        if parsed is None or parsed < 1:
+            diagnostics.append(Diagnostic(
+                "COV_EXTERNAL_INTEGRATION_EVIDENCE_INVALID",
+                f"Integration evidence {key} must be positive.",
+            ))
+    if value.get("conclusion") != "success":
+        diagnostics.append(Diagnostic(
+            "COV_EXTERNAL_INTEGRATION_EVIDENCE_INVALID",
+            "Integration workflow conclusion must be success.",
+        ))
+    digest = str(value.get("attestation_digest") or "")
+    if re.fullmatch(r"sha256:[0-9a-f]{64}|[0-9a-f]{64}", digest) is None:
+        diagnostics.append(Diagnostic(
+            "COV_EXTERNAL_INTEGRATION_EVIDENCE_INVALID",
+            "Integration attestation digest is invalid.",
+        ))
+    attestation = value.get("attestation") or {}
+    if not isinstance(attestation, dict):
+        diagnostics.append(Diagnostic(
+            "COV_EXTERNAL_INTEGRATION_EVIDENCE_INVALID",
+            "Integration attestation must be an object.",
+        ))
+        attestation = {}
+    issuer = attestation.get("issuer") or {}
+    target = attestation.get("target") or {}
+    if issuer.get("workflow_sha") != value.get("issuer_sha"):
+        diagnostics.append(Diagnostic(
+            "COV_EXTERNAL_INTEGRATION_EVIDENCE_INVALID",
+            "Integration issuer SHA is not bound to attestation.",
+        ))
+    if target.get("evidence_head_sha") != value.get("target_head_sha"):
+        diagnostics.append(Diagnostic(
+            "COV_EXTERNAL_INTEGRATION_EVIDENCE_INVALID",
+            "Integration target head is not bound to attestation.",
+        ))
+    observed = str(value.get("observed_at") or "")
+    try:
+        observed_dt = datetime.strptime(observed, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        diagnostics.append(Diagnostic(
+            "COV_EXTERNAL_INTEGRATION_EVIDENCE_INVALID",
+            "Integration observed_at is invalid.",
+        ))
+    else:
+        age = (now - observed_dt).total_seconds()
+        if age < 0 or age > 3600:
+            diagnostics.append(Diagnostic(
+                "COV_EXTERNAL_INTEGRATION_EVIDENCE_STALE",
+                "Integration evidence is stale, future-dated, or replayed.",
+            ))
+    return diagnostics
+
+
 def require_mapping(value: Any, code: str, message: str) -> tuple[dict[str, Any] | None, Diagnostic | None]:
     if not isinstance(value, dict):
         return None, Diagnostic(code, message, CALLER_WORKFLOW_PATH)
@@ -519,6 +583,12 @@ def workflow_diagnostics(
         diagnostics.append(diagnostic)
     else:
         assert validation is not None
+        if "if" in validation or "continue-on-error" in validation:
+            diagnostics.append(Diagnostic(
+                "COV_EXTERNAL_VALIDATION_EXECUTION_BYPASS",
+                "Validation job must be unconditional and fail normally.",
+                CALLER_WORKFLOW_PATH,
+            ))
         if validation.get("permissions") != {"contents": "read"}:
             diagnostics.append(Diagnostic(
                 "COV_EXTERNAL_WORKFLOW_PERMISSIONS_INVALID",
@@ -553,6 +623,7 @@ def workflow_diagnostics(
                         CALLER_WORKFLOW_PATH,
                     ))
                     continue
+                step_has_bypass = "if" in step or "continue-on-error" in step
                 uses = str(step.get("uses") or "")
                 if uses:
                     if re.fullmatch(r"[^@\s]+@[0-9a-f]{40}", uses) is None:
@@ -562,8 +633,21 @@ def workflow_diagnostics(
                             CALLER_WORKFLOW_PATH,
                         ))
                     if uses.startswith("actions/checkout@"):
+                        if step_has_bypass:
+                            diagnostics.append(Diagnostic(
+                                "COV_EXTERNAL_VALIDATION_EXECUTION_BYPASS",
+                                "Checkout step must be unconditional and fail normally.",
+                                CALLER_WORKFLOW_PATH,
+                            ))
                         checkout_steps.append(step)
-                if step.get("run") == "npm run validate:coverage":
+                run_value = str(step.get("run") or "")
+                if "npm run validate:coverage" in run_value:
+                    if step_has_bypass or run_value.strip() != "npm run validate:coverage" or re.search(r"(^|\s)(nohup|setsid)|&\s*($|#)|\bdisown\b", run_value):
+                        diagnostics.append(Diagnostic(
+                            "COV_EXTERNAL_VALIDATION_EXECUTION_BYPASS",
+                            "Validation command step must be synchronous, unconditional, and fail normally.",
+                            CALLER_WORKFLOW_PATH,
+                        ))
                     validation_steps.append(step)
             expected_ref = "${{ needs.external-coverage-trust.outputs.verified_head_sha }}"
             if len(checkout_steps) != 1:

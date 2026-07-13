@@ -59,6 +59,11 @@ jobs:
       attestation_digest: ${{ steps.verify.outputs.attestation_digest }}
       proof_credit_authorized: ${{ steps.verify.outputs.proof_credit_authorized }}
     steps:
+      - name: Set up deterministic Python runtime
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+
       - name: Discover authenticated event, API, OIDC, and issuer identity
         id: discover
         shell: bash
@@ -85,7 +90,8 @@ jobs:
           target_repo = "rezahh107/EV4-Decision-Kernel"
           target_repo_id = 1292378784
           caller_workflow = ".github/workflows/validate-mvk.yml"
-          protected_workflow = ".github/workflows/coverage-trust-required.yml"
+          # pull_request_target is intentionally unsupported until base-side
+          # caller workflow content and commit identity are evidence-bound.
           sha40 = r"^[0-9a-f]{40}$"
 
           request_url = os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"]
@@ -133,11 +139,7 @@ jobs:
           if caller_repo_id == target_repo_id:
               if independent_policy != 0:
                   raise SystemExit("COV_EXTERNAL_TARGET_POLICY_INPUT_FORBIDDEN")
-              paths = {
-                  "pull_request": caller_workflow,
-                  "pull_request_target": protected_workflow,
-              }
-              expected_path = paths.get(event_name)
+              expected_path = caller_workflow if event_name == "pull_request" else None
               if (
                   claims.get("repository") != target_repo
                   or expected_path is None
@@ -228,6 +230,27 @@ jobs:
           path: issuer
           persist-credentials: false
 
+      - name: Install immutable issuer runtime dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check ./issuer
+          python - <<'PY'
+          import json
+          import platform
+          import yaml
+          from pathlib import Path
+          value = {
+              "python_version": platform.python_version(),
+              "pyyaml_version": yaml.__version__,
+          }
+          Path("coverage-trust-runtime.json").write_text(
+              json.dumps(value, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(value, sort_keys=True))
+          PY
+
       - name: Verify immutable issuer and target checkout identities
         shell: bash
         run: |
@@ -275,7 +298,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: coverage-trust-verification-log-${{ github.run_id }}
-          path: coverage-trust-verification.log
+          path: |
+            coverage-trust-verification.log
+            coverage-trust-runtime.json
           if-no-files-found: error
           retention-days: 14
 

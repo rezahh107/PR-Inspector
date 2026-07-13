@@ -207,6 +207,26 @@ class IdentityTests(unittest.TestCase):
         )
 
 
+
+    def test_pull_request_target_caller_is_not_supported_without_base_evidence(self):
+        bad_claims = claims(HEAD_43)
+        bad_claims["event_name"] = "pull_request_target"
+        bad_claims["workflow_ref"] = (
+            f"{gate.TARGET_REPOSITORY}/.github/workflows/coverage-trust-required.yml"
+            "@refs/heads/main"
+        )
+        identity, diagnostics = gate.derive_authoritative_identity(
+            event=event(43, BASE, HEAD_43),
+            api_pr=api(43, BASE, HEAD_43),
+            oidc_claims=bad_claims,
+            environment={"GITHUB_RUN_ID": "1", "GITHUB_RUN_ATTEMPT": "1"},
+        )
+        self.assertIsNone(identity)
+        self.assertIn(
+            "COV_EXTERNAL_EVENT_CALLER_IDENTITY_MISMATCH",
+            {item.code for item in diagnostics},
+        )
+
     def test_missing_and_invalid_run_identity_fails(self):
         for bad_claims, bad_env in (
             ({**claims(HEAD_43), "run_id": ""}, {"GITHUB_RUN_ID": "1", "GITHUB_RUN_ATTEMPT": "1"}),
@@ -380,8 +400,77 @@ class TopologyTests(unittest.TestCase):
             diagnostics = gate.workflow_diagnostics(text, ISSUER)
             self.assertIn(code, {item.code for item in diagnostics}, text)
 
+
+    def test_reusable_workflow_provisions_python_and_issuer_dependencies(self):
+        workflow_text = (ROOT / ".github/workflows/coverage-trust-gate.yml").read_text(encoding="utf-8")
+        setup_index = workflow_text.index("actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1")
+        install_index = workflow_text.index("python -m pip install --disable-pip-version-check ./issuer")
+        test_index = workflow_text.index("python -m unittest issuer/tests/test_coverage_trust_gate.py")
+        verify_index = workflow_text.index("python issuer/scripts/verify_coverage_trust_gate.py")
+        self.assertLess(setup_index, install_index)
+        self.assertLess(install_index, test_index)
+        self.assertLess(install_index, verify_index)
+        self.assertIn("python-version: '3.12'", workflow_text)
+        self.assertIn("pyyaml_version", workflow_text)
+
     def test_manual_pr43_workflow_is_not_part_of_this_pr(self):
         self.assertFalse((ROOT / ".github/workflows/verify-ev4-decision-kernel-pr43.yml").exists())
+
+
+    def test_validation_execution_bypass_fails_closed(self):
+        cases = (
+            workflow().replace("  validate-mvk:\n", "  validate-mvk:\n    if: false\n", 1),
+            workflow().replace("  validate-mvk:\n", "  validate-mvk:\n    if: always()\n", 1),
+            workflow().replace("  validate-mvk:\n", "  validate-mvk:\n    continue-on-error: true\n", 1),
+            workflow().replace("      - uses: actions/checkout", "      - if: false\n        uses: actions/checkout", 1),
+            workflow().replace("      - run: npm run validate:coverage", "      - if: false\n        run: npm run validate:coverage", 1),
+            workflow().replace("      - run: npm run validate:coverage", "      - continue-on-error: true\n        run: npm run validate:coverage", 1),
+            workflow().replace("      - run: npm run validate:coverage", "      - run: npm run validate:coverage &", 1),
+        )
+        for text in cases:
+            diagnostics = gate.workflow_diagnostics(text, ISSUER)
+            self.assertIn(
+                "COV_EXTERNAL_VALIDATION_EXECUTION_BYPASS",
+                {item.code for item in diagnostics},
+                text,
+            )
+
+    def test_integration_evidence_requires_fresh_matching_success(self):
+        from datetime import datetime, timezone
+
+        value = {
+            "issuer_repository": gate.ISSUER_REPOSITORY,
+            "issuer_sha": ISSUER,
+            "target_repository": gate.TARGET_REPOSITORY,
+            "target_pr_number": 43,
+            "target_head_sha": HEAD_43,
+            "workflow_run_id": 123,
+            "workflow_job_id": 456,
+            "conclusion": "success",
+            "attestation_digest": "e" * 64,
+            "observed_at": "2026-07-13T15:00:00Z",
+            "attestation": {
+                "issuer": {"workflow_sha": ISSUER},
+                "target": {"evidence_head_sha": HEAD_43},
+            },
+        }
+        self.assertEqual(
+            [],
+            gate.validate_integration_evidence(
+                value,
+                now=datetime(2026, 7, 13, 15, 30, tzinfo=timezone.utc),
+            ),
+        )
+        bad = dict(value)
+        bad["conclusion"] = "failure"
+        bad["attestation"] = {"issuer": {"workflow_sha": "f" * 40}, "target": {"evidence_head_sha": HEAD_44}}
+        diagnostics = gate.validate_integration_evidence(
+            bad,
+            now=datetime(2026, 7, 13, 17, 0, tzinfo=timezone.utc),
+        )
+        codes = {item.code for item in diagnostics}
+        self.assertIn("COV_EXTERNAL_INTEGRATION_EVIDENCE_INVALID", codes)
+        self.assertIn("COV_EXTERNAL_INTEGRATION_EVIDENCE_STALE", codes)
 
     def test_valid_bootstrap_keeps_proof_credit_false(self):
         identity, diagnostics = derive(43, HEAD_43)
