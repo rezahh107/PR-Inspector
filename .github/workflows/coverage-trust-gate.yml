@@ -54,10 +54,9 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          OIDC_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
-          OIDC_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
         run: |
           set -euo pipefail
+          umask 077
           python - <<'PY'
           import base64
           import json
@@ -79,22 +78,22 @@ jobs:
           required_guard_workflow = ".github/workflows/coverage-trust-required.yml"
           sha40 = re.compile(r"^[0-9a-f]{40}$")
 
-          request_url = os.environ["OIDC_REQUEST_URL"]
+          request_url = os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"]
           separator = "&" if "?" in request_url else "?"
           request_url += separator + urllib.parse.urlencode({"audience": audience})
           request = urllib.request.Request(
               request_url,
-              headers={"Authorization": f"Bearer {os.environ['OIDC_REQUEST_TOKEN']}"},
+              headers={"Authorization": f"Bearer {os.environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN']}"},
           )
           with urllib.request.urlopen(request, timeout=30) as response:
-              oidc_response = json.load(response)
-          token = oidc_response["value"]
+              token = json.load(response)["value"]
           parts = token.split(".")
           if len(parts) != 3:
               raise SystemExit("COV_EXTERNAL_OIDC_TOKEN_INVALID")
           payload = parts[1] + "=" * (-len(parts[1]) % 4)
           claims = json.loads(base64.urlsafe_b64decode(payload.encode("ascii")))
           issuer_sha = str(claims.get("job_workflow_sha") or "")
+          issuer_ref = str(claims.get("job_workflow_ref") or "")
           if not sha40.fullmatch(issuer_sha):
               raise SystemExit("COV_EXTERNAL_OIDC_ISSUER_SHA_INVALID")
           if claims.get("iss") != "https://token.actions.githubusercontent.com":
@@ -102,15 +101,12 @@ jobs:
           aud = claims.get("aud")
           if not (aud == audience or isinstance(aud, list) and audience in aud):
               raise SystemExit("COV_EXTERNAL_OIDC_AUDIENCE_INVALID")
-          expected_job_prefix = f"{issuer_repo}/{issuer_workflow}@"
-          if not str(claims.get("job_workflow_ref") or "").startswith(expected_job_prefix):
+          if issuer_ref != f"{issuer_repo}/{issuer_workflow}@{issuer_sha}":
               raise SystemExit("COV_EXTERNAL_OIDC_WORKFLOW_IDENTITY_MISMATCH")
 
           caller_repo_id = int(claims.get("repository_id"))
           workflow_ref = str(claims.get("workflow_ref") or "")
-          event_path = Path(os.environ["GITHUB_EVENT_PATH"])
-          event = json.loads(event_path.read_text(encoding="utf-8"))
-
+          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
           if caller_repo_id == target_repo_id:
               caller_modes = {
                   "pull_request": caller_workflow,
@@ -123,8 +119,8 @@ jobs:
                   or not workflow_ref.startswith(f"{target_repo}/{expected_path}@")
               ):
                   raise SystemExit("COV_EXTERNAL_EVENT_CALLER_IDENTITY_MISMATCH")
-              pr_number = int((event.get("pull_request") or {}).get("number") or event.get("number"))
-              if pr_number != target_pr:
+              event_pr = int((event.get("pull_request") or {}).get("number") or event.get("number"))
+              if event_pr != target_pr:
                   raise SystemExit("COV_EXTERNAL_EVENT_PR_POLICY_MISMATCH")
           elif caller_repo_id == issuer_repo_id:
               if (
@@ -133,21 +129,21 @@ jobs:
                   or claims.get("event_name") not in {"push", "workflow_dispatch", "pull_request"}
               ):
                   raise SystemExit("COV_EXTERNAL_INDEPENDENT_CALLER_IDENTITY_MISMATCH")
-              pr_number = target_pr
           else:
               raise SystemExit("COV_EXTERNAL_OIDC_CALLER_REPOSITORY_INVALID")
 
-          api_url = f"https://api.github.com/repos/{target_repo}/pulls/{pr_number}"
           headers = {
               "Accept": "application/vnd.github+json",
               "X-GitHub-Api-Version": "2022-11-28",
               "User-Agent": "ev4-coverage-trust-gate-prf012",
           }
-          token_header = os.environ.get("GH_TOKEN", "")
-          if token_header:
-              headers["Authorization"] = f"Bearer {token_header}"
-          api_request = urllib.request.Request(api_url, headers=headers)
-          with urllib.request.urlopen(api_request, timeout=30) as response:
+          if os.environ.get("GH_TOKEN"):
+              headers["Authorization"] = f"Bearer {os.environ['GH_TOKEN']}"
+          request = urllib.request.Request(
+              f"https://api.github.com/repos/{target_repo}/pulls/{target_pr}",
+              headers=headers,
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
               api_pr = json.load(response)
 
           base_repo = (api_pr.get("base") or {}).get("repo") or {}
@@ -167,24 +163,75 @@ jobs:
               json.dumps(api_pr, indent=2, sort_keys=True) + "\n",
               encoding="utf-8",
           )
-          outputs = {
-              "issuer_sha": issuer_sha,
-              "target_repository": target_repo,
-              "target_repository_id": str(target_repo_id),
-              "target_pr_number": str(target_pr),
-              "target_base_sha": api_base,
-              "target_head_sha": api_head,
-          }
-          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
-              for key, value in outputs.items():
-                  handle.write(f"{key}={value}\n")
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"issuer_sha={issuer_sha}\n")
+              output.write(f"target_repository={target_repo}\n")
+              output.write(f"target_head_sha={api_head}\n")
           PY
 
       - name: Check out authoritative target PR head
-        uses: actions/checkouLX™ÌNLX˜™MXŒMŒÌÙYXMÌÙÍNMÌÍÎXYŽÂˆÚ]‚ˆ™\ÜÚ]ÜžNˆ	ÞÈÝ\Ë™\ØÛÝ™\‹›Ý]]Ë\™Ù]Ü™\ÜÚ]ÜžH_Bˆ™YŽˆ	ÞÈÝ\Ë™\ØÛÝ™\‹›Ý]]Ë\™Ù]ÚXYÜÚH_Bˆ™]ÚY\ˆˆ]ˆ\™Ù]ˆ\œÚ\ÝXÜ™Y[X[Îˆ˜[ÙB‚ˆH˜[YNˆÚXÚÈÝ]ÒQËX]][XØ]Y\ÜÝY\ˆ[\[Y[][Û‚ˆ\Ù\ÎˆXÝ[ÛœËØÚXÚÛÝ]LX™ÌNLX˜™MXŒMŒÌÙYXMÌÙÍNMÌÍÎXYŽÂˆÚ]‚ˆ™\ÜÚ]ÜžNˆ™^˜ZLËÔ‹R[œÜXÝÜ‚ˆ™YŽˆ	ÞÈÝ\Ë™\ØÛÝ™\‹›Ý]]Ëš\ÜÝY\—ÜÚH_Bˆ™]ÚY\ˆBˆ]ˆ\ÜÝY\‚ˆ\œÚ\ÝXÜ™Y[X[Îˆ˜[ÙB‚ˆH˜[YNˆ™\šYžH[[]]X›H\ÜÝY\ˆ[™\™Ù]ÚXÚÛÝ]Y[]Y\ÂˆÚ[ˆ˜\Úˆ[ŽˆˆÙ]Y][È\Y˜Z[ˆ\Ý‰
-Ú]PÈ\ÜÝY\ˆ™]‹\\œÙHPQ
-HˆH‰ÞÈÝ\Ë™\ØÛÝ™\‹›Ý]]Ëš\ÜÝY\—ÜÚH_H‚ˆ\Ý‰
-Ú]PÈ\™Ù]™]‹\\œÙHPQ
-HˆH‰ÞÈÝ\Ë™\ØÛÝ™\‹›Ý]]Ë\™Ù]ÚXYÜÚH_H‚‚ˆH˜[YNˆ[ˆ[[]]X›HØ]HY™\œØ\šX[\ÝÂˆ[Žˆ]Ûˆ[H[š]\Ý\ÜÝY\‹Ý\ÝËÝ\ÝØÛÝ™\˜YÙWÝ\ÝÙØ]KœB‚ˆH˜[YNˆ™\šYžH]]Üš]]]™HY[]H[™\ÜÝYH›ÛÝÝ˜\]\Ý][Û‚ˆYˆ™\šYžBˆÚ[ˆ˜\Úˆ[ŽˆˆÙ]Y][È\Y˜Z[ˆ˜[Y]YØ]H‰
-]H]H
-ÉÉVKI[KIY	R‰SN‰TÖ‰ÊH‚ˆ]Ûˆ\ÜÝY\‹ÜØÜš\ËÝ™\šYžWØÛÝ™\˜YÙWÝ\ÝÙØ]KœHˆK]\™Ù]\›ÛÝ\™Ù]ˆKY]™[\]‰ÒUP—ÑU‘S•ÔUˆˆKX\K\‹Yš[H\K\‹šœÛÛˆˆK[ÚYË]ÚÙ[‹Yš[HÚYË]ÚÙ[‹ˆK]˜[Y]YX]‰˜[Y]YØ]ˆˆK[Ý]]ÛÝ™\˜YÙK]\ÝX]\Ý][Û‹šœÛÛˆˆKYÚ]X‹[Ý]]‰ÒUP—ÓÕUU‚‚ˆH˜[YNˆX›\Ú™\šYšYYY[]HÈ›ØˆÝ[[X\žBˆÚ[ˆ˜\Úˆ[ŽˆˆÂˆXÚÈˆÈÈ‘‹LLˆ]]Üš]]]™HÛÝ™\˜YÙH\Ý‚ˆXÚÂˆXÚÈ‹H™\ÜÚ]ÜžNˆ	ÞÈÝ\Ë™\šYžK›Ý]]Ë™\šYšYYÜ™\ÜÚ]ÜžH_W‚ˆXÚÈ‹H™\ÜÚ]ÜžWÚYˆ	ÞÈÝ\Ë™\šYžK›Ý]]Ë™\šYšYYÜ™\ÜÚ]ÜžWÚY_W‚ˆXÚÈ‹H[Ü™\]Y\Ýˆ	ÞÈÝ\Ë™\šYžK›Ý]]Ë™\šYšYYÜ—Û[X™\ˆ_W‚ˆXÚÈ‹H˜\ÙWÜÚNˆ	ÞÈÝ\Ë™\šYžK›Ý]]Ë™\šYšYYØ˜\ÙWÜÚH_W‚ˆXÚÈ‹HXYÜÚNˆ	ÞÈÝ\Ë™\šYžK›Ý]]Ë™\šYšYYÚXYÜÚH_W‚ˆXÚÈ‹H\ÜÝY\—ÜÚNˆ	ÞÈÝ\Ë™\šYžK›Ý]]Ë™\šYšYYÚ\ÜÝY\—ÜÚH_W‚ˆXÚÈ‹H™\šYšXØ][Û—Û[ÙNˆ	ÞÈÝ\Ë™\šYžK›Ý]]Ë™\šYšXØ][Û—Û[ÙH_W‚ˆXÚÈ‹H›ÛÙ—ØÜ™Y]Ø]]Üš^™Yˆ˜[ÙW‚ˆHˆ‰ÒUP—ÔÕTÔÕSSPT–H‚‚ˆH˜[YNˆ\ØY]]Üš]]]™H^\›˜[\Ý]šY[˜ÙBˆ\Ù\ÎˆXÝ[ÛœËÝ\ØYX\Y˜XÝXLMYŽX™MÍXMYNL˜™ÍŒÙ˜L‚ˆÚ]‚ˆ˜[YNˆÛÝ™\˜YÙK]\ÝX]\Ý][Û‹IÞÈÝ\Ë™\šYžK›Ý]]Ë™\šYšYYÚXYÜÚH_Bˆ]ˆÛÝ™\˜YÙK]\ÝX]\Ý][Û‹šœÛÛ‚ˆY‹[›ËYš[\ËY›Ý[™ˆ\œ›Ü‚ˆ™][[Û‹Y^\ÎˆÌ
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: ${{ steps.discover.outputs.target_repository }}
+          ref: ${{ steps.discover.outputs.target_head_sha }}
+          fetch-depth: 0
+          path: target
+          persist-credentials: false
+
+      - name: Check out OIDC-authenticated issuer implementation
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: rezahh107/PR-Inspector
+          ref: ${{ steps.discover.outputs.issuer_sha }}
+          fetch-depth: 1
+          path: issuer
+          persist-credentials: false
+
+      - name: Verify immutable issuer and target checkout identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C issuer rev-parse HEAD)" = "${{ steps.discover.outputs.issuer_sha }}"
+          test "$(git -C target rev-parse HEAD)" = "${{ steps.discover.outputs.target_head_sha }}"
+
+      - name: Run immutable gate adversarial tests
+        run: python -m unittest issuer/tests/test_coverage_trust_gate.py
+
+      - name: Verify authoritative identity and issue bootstrap attestation
+        id: verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          validated_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          python issuer/scripts/verify_coverage_trust_gate.py \
+            --target-root target \
+            --event-path "$GITHUB_EVENT_PATH" \
+            --api-pr-file api-pr.json \
+            --oidc-token-file oidc-token.txt \
+            --validated-at "$validated_at" \
+            --output coverage-trust-attestation.json \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Publish verified identity to job summary
+        shell: bash
+        run: |
+          {
+            echo "## PRF-012 authoritative Coverage trust"
+            echo
+            echo "- repository: \`${{ steps.verify.outputs.verified_repository }}\`"
+            echo "- repository_id: \`${{ steps.verify.outputs.verified_repository_id }}\`"
+            echo "- pull_request: \`${{ steps.verify.outputs.verified_pr_number }}\`"
+            echo "- base_sha: \`${{ steps.verify.outputs.verified_base_sha }}\`"
+            echo "- head_sha: \`${{ steps.verify.outputs.verified_head_sha }}\`"
+            echo "- issuer_sha: \`${{ steps.verify.outputs.verified_issuer_sha }}\`"
+            echo "- verification_mode: \`${{ steps.verify.outputs.verification_mode }}\`"
+            echo "- proof_credit_authorized: \`false\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload authoritative external trust evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: coverage-trust-attestation-${{ steps.verify.outputs.verified_head_sha }}
+          path: coverage-trust-attestation.json
+          if-no-files-found: error
+          retention-days: 30
