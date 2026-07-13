@@ -38,6 +38,7 @@ jobs:
           ref: ${{ inputs.target_head_sha }}
           fetch-depth: 0
           path: target
+          persist-credentials: false
 
       - name: Check out immutable issuer implementation
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -46,6 +47,7 @@ jobs:
           ref: ${{ inputs.issuer_workflow_sha }}
           fetch-depth: 1
           path: issuer
+          persist-credentials: false
 
       - name: Verify issuer checkout identity
         shell: bash
