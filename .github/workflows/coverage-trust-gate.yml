@@ -76,6 +76,7 @@ jobs:
           target_repo_id = 1292378784
           target_pr = 43
           caller_workflow = ".github/workflows/validate-mvk.yml"
+          required_guard_workflow = ".github/workflows/coverage-trust-required.yml"
           sha40 = re.compile(r"^[0-9a-f]{40}$")
 
           request_url = os.environ["OIDC_REQUEST_URL"]
@@ -111,10 +112,15 @@ jobs:
           event = json.loads(event_path.read_text(encoding="utf-8"))
 
           if caller_repo_id == target_repo_id:
+              caller_modes = {
+                  "pull_request": caller_workflow,
+                  "pull_request_target": required_guard_workflow,
+              }
+              expected_path = caller_modes.get(claims.get("event_name"))
               if (
                   claims.get("repository") != target_repo
-                  or claims.get("event_name") != "pull_request"
-                  or not workflow_ref.startswith(f"{target_repo}/{caller_workflow}@")
+                  or expected_path is None
+                  or not workflow_ref.startswith(f"{target_repo}/{expected_path}@")
               ):
                   raise SystemExit("COV_EXTERNAL_EVENT_CALLER_IDENTITY_MISMATCH")
               pr_number = int((event.get("pull_request") or {}).get("number") or event.get("number"))
@@ -175,68 +181,10 @@ jobs:
           PY
 
       - name: Check out authoritative target PR head
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          repository: ${{ steps.discover.outputs.target_repository }}
-          ref: ${{ steps.discover.outputs.target_head_sha }}
-          fetch-depth: 0
-          path: target
-          persist-credentials: false
-
-      - name: Check out OIDC-authenticated issuer implementation
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          repository: rezahh107/PR-Inspector
-          ref: ${{ steps.discover.outputs.issuer_sha }}
-          fetch-depth: 1
-          path: issuer
-          persist-credentials: false
-
-      - name: Verify immutable issuer and target checkout identities
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(git -C issuer rev-parse HEAD)" = "${{ steps.discover.outputs.issuer_sha }}"
-          test "$(git -C target rev-parse HEAD)" = "${{ steps.discover.outputs.target_head_sha }}"
-
-      - name: Run immutable gate adversarial tests
-        run: python -m unittest issuer/tests/test_coverage_trust_gate.py
-
-      - name: Verify authoritative identity and issue bootstrap attestation
-        id: verify
-        shell: bash
-        run: |
-          set -euo pipefail
-          validated_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          python issuer/scripts/verify_coverage_trust_gate.py \
-            --target-root target \
-            --event-path "$GITHUB_EVENT_PATH" \
-            --api-pr-file api-pr.json \
-            --oidc-token-file oidc-token.txt \
-            --validated-at "$validated_at" \
-            --output coverage-trust-attestation.json \
-            --github-output "$GITHUB_OUTPUT"
-
-      - name: Publish verified identity to job summary
-        shell: bash
-        run: |
-          {
-            echo "## PRF-012 authoritative Coverage trust"
-            echo
-            echo "- repository: \`${{ steps.verify.outputs.verified_repository }}\`"
-            echo "- repository_id: \`${{ steps.verify.outputs.verified_repository_id }}\`"
-            echo "- pull_request: \`${{ steps.verify.outputs.verified_pr_number }}\`"
-            echo "- base_sha: \`${{ steps.verify.outputs.verified_base_sha }}\`"
-            echo "- head_sha: \`${{ steps.verify.outputs.verified_head_sha }}\`"
-            echo "- issuer_sha: \`${{ steps.verify.outputs.verified_issuer_sha }}\`"
-            echo "- verification_mode: \`${{ steps.verify.outputs.verification_mode }}\`"
-            echo "- proof_credit_authorized: \`false\`"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload authoritative external trust evidence
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: coverage-trust-attestation-${{ steps.verify.outputs.verified_head_sha }}
-          path: coverage-trust-attestation.json
-          if-no-files-found: error
-          retention-days: 30
+        uses: actions/checkouLX™ÌNLX˜™MXŒMŒÌÙYXMÌÙÍNMÌÍÎXYÂˆÚ]‚ˆ™\ÜÚ]ÜNˆ	ŞÈİ\Ë™\ØÛİ™\‹›İ]]Ë\™Ù]Ü™\ÜÚ]ÜH_Bˆ™Yˆ	ŞÈİ\Ë™\ØÛİ™\‹›İ]]Ë\™Ù]ÚXYÜÚH_Bˆ™]ÚY\ˆˆ]ˆ\™Ù]ˆ\œÚ\İXÜ™Y[X[Îˆ˜[ÙB‚ˆH˜[YNˆÚXÚÈİ]ÒQËX]][XØ]Y\ÜİY\ˆ[\[Y[][Û‚ˆ\Ù\ÎˆXİ[ÛœËØÚXÚÛİ]LX™ÌNLX˜™MXŒMŒÌÙYXMÌÙÍNMÌÍÎXYÂˆÚ]‚ˆ™\ÜÚ]ÜNˆ™^˜ZLËÔ‹R[œÜXİÜ‚ˆ™Yˆ	ŞÈİ\Ë™\ØÛİ™\‹›İ]]Ëš\ÜİY\—ÜÚH_Bˆ™]ÚY\ˆBˆ]ˆ\ÜİY\‚ˆ\œÚ\İXÜ™Y[X[Îˆ˜[ÙB‚ˆH˜[YNˆ™\šYH[[]]X›H\ÜİY\ˆ[™\™Ù]ÚXÚÛİ]Y[]Y\ÂˆÚ[ˆ˜\Úˆ[ˆˆÙ]Y][È\Y˜Z[ˆ\İ‰
+Ú]PÈ\ÜİY\ˆ™]‹\\œÙHPQ
+HˆH‰ŞÈİ\Ë™\ØÛİ™\‹›İ]]Ëš\ÜİY\—ÜÚH_H‚ˆ\İ‰
+Ú]PÈ\™Ù]™]‹\\œÙHPQ
+HˆH‰ŞÈİ\Ë™\ØÛİ™\‹›İ]]Ë\™Ù]ÚXYÜÚH_H‚‚ˆH˜[YNˆ[ˆ[[]]X›HØ]HY™\œØ\šX[\İÂˆ[ˆ]Ûˆ[H[š]\İ\ÜİY\‹İ\İËİ\İØÛİ™\˜YÙWİ\İÙØ]KœB‚ˆH˜[YNˆ™\šYH]]Üš]]]™HY[]H[™\ÜİYH›Ûİİ˜\]\İ][Û‚ˆYˆ™\šYBˆÚ[ˆ˜\Úˆ[ˆˆÙ]Y][È\Y˜Z[ˆ˜[Y]YØ]H‰
+]H]H
+ÉÉVKI[KIY	R‰SN‰TÖ‰ÊH‚ˆ]Ûˆ\ÜİY\‹ÜØÜš\Ëİ™\šYWØÛİ™\˜YÙWİ\İÙØ]KœHˆK]\™Ù]\›Ûİ\™Ù]ˆKY]™[\]‰ÒUP—ÑU‘S•ÔUˆˆKX\K\‹Yš[H\K\‹šœÛÛˆˆK[ÚYË]ÚÙ[‹Yš[HÚYË]ÚÙ[‹ˆK]˜[Y]YX]‰˜[Y]YØ]ˆˆK[İ]]Ûİ™\˜YÙK]\İX]\İ][Û‹šœÛÛˆˆKYÚ]X‹[İ]]‰ÒUP—ÓÕUU‚‚ˆH˜[YNˆX›\Ú™\šYšYYY[]HÈ›Øˆİ[[X\BˆÚ[ˆ˜\Úˆ[ˆˆÂˆXÚÈˆÈÈ‘‹LLˆ]]Üš]]]™HÛİ™\˜YÙH\İ‚ˆXÚÂˆXÚÈ‹H™\ÜÚ]ÜNˆ	ŞÈİ\Ë™\šYK›İ]]Ë™\šYšYYÜ™\ÜÚ]ÜH_W‚ˆXÚÈ‹H™\ÜÚ]ÜWÚYˆ	ŞÈİ\Ë™\šYK›İ]]Ë™\šYšYYÜ™\ÜÚ]ÜWÚY_W‚ˆXÚÈ‹H[Ü™\]Y\İˆ	ŞÈİ\Ë™\šYK›İ]]Ë™\šYšYYÜ—Û[X™\ˆ_W‚ˆXÚÈ‹H˜\ÙWÜÚNˆ	ŞÈİ\Ë™\šYK›İ]]Ë™\šYšYYØ˜\ÙWÜÚH_W‚ˆXÚÈ‹HXYÜÚNˆ	ŞÈİ\Ë™\šYK›İ]]Ë™\šYšYYÚXYÜÚH_W‚ˆXÚÈ‹H\ÜİY\—ÜÚNˆ	ŞÈİ\Ë™\šYK›İ]]Ë™\šYšYYÚ\ÜİY\—ÜÚH_W‚ˆXÚÈ‹H™\šYšXØ][Û—Û[ÙNˆ	ŞÈİ\Ë™\šYK›İ]]Ë™\šYšXØ][Û—Û[ÙH_W‚ˆXÚÈ‹H›ÛÙ—ØÜ™Y]Ø]]Üš^™Yˆ˜[ÙW‚ˆHˆ‰ÒUP—ÔÕTÔÕSSPT–H‚‚ˆH˜[YNˆ\ØY]]Üš]]]™H^\›˜[\İ]šY[˜ÙBˆ\Ù\ÎˆXİ[ÛœËİ\ØYX\Y˜XİXLMYX™MÍXMYNL˜™ÍŒÙ˜L‚ˆÚ]‚ˆ˜[YNˆÛİ™\˜YÙK]\İX]\İ][Û‹IŞÈİ\Ë™\šYK›İ]]Ë™\šYšYYÚXYÜÚH_Bˆ]ˆÛİ™\˜YÙK]\İX]\İ][Û‹šœÛÛ‚ˆY‹[›ËYš[\ËY›İ[™ˆ\œ›Ü‚ˆ™][[Û‹Y^\ÎˆÌ
