@@ -55,6 +55,18 @@
     {
       "case_id": "activated_requirement_treated_optional",
       "rule_id": "PRR-GOV-PROFILE-TRIGGER-001"
+    },
+    {
+      "case_id": "forged_or_mismatched_sequence_capability",
+      "expected": "verification reason blocks GREEN_MERGE_RECOMMENDED",
+      "mutation": "replace verifier-created exact-target sequence capability with a bool, dict, forged object, stale evidence, replay, or mismatched identity",
+      "rule_id": "PRR-GOV-SEQUENCE-EVIDENCE-001"
+    },
+    {
+      "case_id": "v191_package_downgraded_to_v190",
+      "expected": "schema or semantic protocol validation rejects before official artifact generation",
+      "mutation": "change protocol_version from v1.9.1 to v1.9.0",
+      "rule_id": "PRR-GOV-PROTOCOL-IDENTITY-001"
     }
   ],
   "schema_version": 2

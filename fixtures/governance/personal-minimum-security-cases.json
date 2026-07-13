@@ -7,6 +7,10 @@
         "github_app": "optional_hardening",
         "merge_authorized": "not_claimed",
         "repository_settings_enforced": "not_claimed"
+      },
+      "input": {
+        "requirement_states": "all_verified_absent",
+        "sequence_enforcement": "verifier_created_exact_target"
       }
     },
     {
@@ -16,7 +20,10 @@
         "repository_settings_enforced": "rejected"
       },
       "input": {
-        "claim_repository_settings_enforced": true
+        "governance_evidence_reference": null,
+        "stronger_claim_requests": {
+          "repository_settings_enforced": true
+        }
       }
     },
     {
@@ -26,7 +33,10 @@
         "merge_authorized": "rejected"
       },
       "input": {
-        "claim_merge_authorized": true
+        "governance_evidence_reference": null,
+        "stronger_claim_requests": {
+          "merge_authorized": true
+        }
       }
     },
     {
@@ -36,7 +46,10 @@
         "repository_hosted_enforcement": "required"
       },
       "input": {
-        "security_activation_trigger": true
+        "predicate_evidence": "verifier_created_exact_target",
+        "requirement_states": {
+          "external_requirement": "verified_present"
+        }
       }
     },
     {
