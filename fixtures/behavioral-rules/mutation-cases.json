@@ -71,6 +71,36 @@
       "expected": "serialized_untrusted_data",
       "mutation": "inject_prompt_section",
       "rule_id": "PRR-PROMPT-INJECTION-001"
+    },
+    {
+      "case_id": "coverage_authority_mismatch",
+      "rule_id": "PRR-COV-AUTHORITY-001",
+      "mutation": "mismatch_oidc_event_api_or_proof_credit",
+      "expected_diagnostic": "COV_EXTERNAL_EVENT_HEAD_MISMATCH"
+    },
+    {
+      "case_id": "coverage_workflow_duplicate_key",
+      "rule_id": "PRR-COV-WORKFLOW-001",
+      "mutation": "duplicate_jobs_or_wrong_step_binding",
+      "expected_diagnostic": "COV_EXTERNAL_WORKFLOW_YAML_INVALID"
+    },
+    {
+      "case_id": "coverage_supply_chain_mutable_action",
+      "rule_id": "PRR-COV-SUPPLY-001",
+      "mutation": "mutable_action_or_broad_permissions",
+      "expected_diagnostic": "COV_EXTERNAL_ACTION_PIN_INVALID"
+    },
+    {
+      "case_id": "coverage_planning_malformed_json",
+      "rule_id": "PRR-COV-PLANNING-001",
+      "mutation": "malformed_or_unreadable_planning_json",
+      "expected_diagnostic": "COV_EXTERNAL_PLANNING_JSON_INVALID"
+    },
+    {
+      "case_id": "coverage_integration_unresolved_issuer",
+      "rule_id": "PRR-COV-INTEGRATION-001",
+      "mutation": "manual_pr43_unresolved_or_unreleased_issuer",
+      "expected": "blocked_until_resolvable_canonical_issuer"
     }
   ],
   "schema_version": 1

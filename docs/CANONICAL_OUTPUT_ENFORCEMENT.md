@@ -1,12 +1,12 @@
 # Canonical Artifact and Official-Output Boundary
 
-Status: implemented on live `main` for active protocol `v1.9.0`. PR #14 was integrated into PR #13, and PR #13 was then merged to `main`; those pull requests are historical provenance rather than pending activation or repair gates.
+Status: v1.10.0 branch snapshot preserves the canonical-output implementation merged on live `main` for v1.9.0. PR #14 was integrated into PR #13, and PR #13 was then merged to `main`; those pull requests are historical provenance rather than pending activation or repair gates.
 
 ## Current closure status
 
 ```yaml
-active_protocol: v1.9.0
-implementation_state: merged_on_main
+active_protocol: v1.10.0
+implementation_state: v1.10_branch_snapshot_preserves_v1.9_main_implementation
 live_main_head_at_audit_start: 35e3b398d8e8d6823007540f0a156ff2a3feece6
 source_prs:
   - 13

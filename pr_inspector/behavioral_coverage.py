@@ -13,6 +13,7 @@ MATRIX_PATH = ROOT / f"protocols/{CURRENT_VERSION}/policies/BEHAVIORAL_RULE_COVE
 MUTATION_PATH = ROOT / "fixtures/behavioral-rules/mutation-cases.json"
 WORKFLOW_PATH = ROOT / ".github/workflows/validate-repository.yml"
 FOCUSED_COMMAND = "python -m pytest -q tests/test_behavioral_rule_coverage.py"
+EXTERNAL_COVERAGE_COMMAND = "python -m pytest -q tests/test_coverage_trust_gate.py"
 
 COLUMNS = (
     "rule_id",
@@ -43,6 +44,11 @@ REQUIRED_RULE_IDS = {
     "PRR-EXACT-HEAD-CLAIM-001",
     "PRR-PENDING-REREVIEW-001",
     "PRR-PROMPT-INJECTION-001",
+    "PRR-COV-AUTHORITY-001",
+    "PRR-COV-WORKFLOW-001",
+    "PRR-COV-SUPPLY-001",
+    "PRR-COV-PLANNING-001",
+    "PRR-COV-INTEGRATION-001",
 }
 
 STATUS_RANK = {
@@ -190,8 +196,13 @@ def validate_behavioral_coverage(root: Path = ROOT) -> list[Diagnostic]:
             elif case.get("rule_id") != rule_id:
                 diagnostics.append(Diagnostic("PRI-BRC-009", path, f"mutation case {case_id} belongs to {case.get('rule_id')}"))
 
-        if row["CI_step"] != FOCUSED_COMMAND:
-            diagnostics.append(Diagnostic("PRI-BRC-010", path, f"CI_step must be exactly {FOCUSED_COMMAND}"))
+        expected_command = (
+            EXTERNAL_COVERAGE_COMMAND
+            if rule_id.startswith("PRR-COV-")
+            else FOCUSED_COMMAND
+        )
+        if row["CI_step"] != expected_command:
+            diagnostics.append(Diagnostic("PRI-BRC-010", path, f"CI_step must be exactly {expected_command}"))
 
         for field in ("prose_source", "schema_carrier", "validator_rule", "valid_fixture"):
             if row[field] in {"", "None"}:
@@ -222,13 +233,14 @@ def validate_behavioral_coverage(root: Path = ROOT) -> list[Diagnostic]:
     except (OSError, yaml.YAMLError) as exc:
         diagnostics.append(Diagnostic("PRI-BRC-014", f"/{workflow_path.relative_to(root)}", str(exc)))
     else:
-        if FOCUSED_COMMAND not in workflow:
-            diagnostics.append(
-                Diagnostic(
-                    "PRI-BRC-015",
-                    f"/{workflow_path.relative_to(root)}",
-                    "focused Behavioral Rule Coverage command is not wired into CI",
+        for command in (FOCUSED_COMMAND, EXTERNAL_COVERAGE_COMMAND):
+            if command not in workflow:
+                diagnostics.append(
+                    Diagnostic(
+                        "PRI-BRC-015",
+                        f"/{workflow_path.relative_to(root)}",
+                        f"focused command is not wired into CI: {command}",
+                    )
                 )
-            )
 
     return sorted(set(diagnostics))

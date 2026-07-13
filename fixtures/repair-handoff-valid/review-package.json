@@ -109,7 +109,7 @@
     "summary": "این تغییر قالب جدیدی را به پردازشگر اضافه می‌کند و سازگاری قبلی را حفظ می‌کند.",
     "unknown": "مورد مهمی در دامنهٔ بررسی باقی نمانده است."
   },
-  "protocol_version": "v1.9.0",
+  "protocol_version": "v1.10.0",
   "red_gate_flags": [],
   "repair_handoff": {
     "affected_findings": [
