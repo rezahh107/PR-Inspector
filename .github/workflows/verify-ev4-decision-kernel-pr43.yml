@@ -13,7 +13,7 @@ permissions:
 jobs:
   verify-exact-target-head:
     name: Independent exact-head Coverage trust verification
-    uses: rezahh107/PR-Inspector/.github/workflows/coverage-trust-gate.yml@73b8e3857dbc1596fe7b04def04b94f2609440b2
+    uses: rezahh107/PR-Inspector/.github/workflows/coverage-trust-gate.yml@adb91ee82f56e8592d8a852179a84eb5b654116f
     with:
       independent_policy_pr_number: 43
     permissions:
