@@ -25,7 +25,7 @@ on:
         description: Authoritative pull request head SHA
         value: ${{ jobs.verify.outputs.verified_head_sha }}
       verified_issuer_sha:
-        description: Authenticated immutable issuer SHA
+        description: OIDC-authenticated immutable reusable workflow SHA
         value: ${{ jobs.verify.outputs.verified_issuer_sha }}
       verification_mode:
         description: Event/API authority mode
@@ -59,7 +59,7 @@ jobs:
       attestation_digest: ${{ steps.verify.outputs.attestation_digest }}
       proof_credit_authorized: ${{ steps.verify.outputs.proof_credit_authorized }}
     steps:
-      - name: Discover authenticated event, API, and OIDC identity
+      - name: Discover authenticated event, API, OIDC, and issuer identity
         id: discover
         shell: bash
         env:
@@ -111,13 +111,24 @@ jobs:
           if not (aud == audience or isinstance(aud, list) and audience in aud):
               raise SystemExit("COV_EXTERNAL_OIDC_AUDIENCE_INVALID")
 
+          issuer_sha = str(claims.get("job_workflow_sha") or "")
+          issuer_ref = str(claims.get("job_workflow_ref") or "")
+          if (
+              re.fullmatch(sha40, issuer_sha) is None
+              or issuer_ref
+              != f"{issuer_repo}/{issuer_workflow}@{issuer_sha}"
+          ):
+              raise SystemExit("COV_EXTERNAL_OIDC_WORKFLOW_IDENTITY_MISMATCH")
+
           caller_repo_id = int(claims.get("repository_id") or 0)
           workflow_ref = str(claims.get("workflow_ref") or "")
           event_name = str(claims.get("event_name") or "")
           event = json.loads(
               Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8")
           )
-          independent_policy = int(os.environ.get("INDEPENDENT_POLICY_PR_NUMBER") or 0)
+          independent_policy = int(
+              os.environ.get("INDEPENDENT_POLICY_PR_NUMBER") or 0
+          )
 
           if caller_repo_id == target_repo_id:
               if independent_policy != 0:
@@ -130,7 +141,9 @@ jobs:
               if (
                   claims.get("repository") != target_repo
                   or expected_path is None
-                  or not workflow_ref.startswith(f"{target_repo}/{expected_path}@")
+                  or not workflow_ref.startswith(
+                      f"{target_repo}/{expected_path}@"
+                  )
               ):
                   raise SystemExit("COV_EXTERNAL_EVENT_CALLER_IDENTITY_MISMATCH")
               pr_number = int(
@@ -140,14 +153,6 @@ jobs:
               )
               if pr_number < 1:
                   raise SystemExit("COV_EXTERNAL_EVENT_PR_INVALID")
-              issuer_sha = str(claims.get("job_workflow_sha") or "")
-              issuer_ref = str(claims.get("job_workflow_ref") or "")
-              if (
-                  re.fullmatch(sha40, issuer_sha) is None
-                  or issuer_ref
-                  != f"{issuer_repo}/{issuer_workflow}@{issuer_sha}"
-              ):
-                  raise SystemExit("COV_EXTERNAL_OIDC_WORKFLOW_IDENTITY_MISMATCH")
           elif caller_repo_id == issuer_repo_id:
               if (
                   claims.get("repository") != issuer_repo
@@ -162,11 +167,6 @@ jobs:
                       "COV_EXTERNAL_INDEPENDENT_CALLER_IDENTITY_MISMATCH"
                   )
               pr_number = independent_policy
-              issuer_sha = str(claims.get("workflow_sha") or "")
-              if re.fullmatch(sha40, issuer_sha) is None:
-                  raise SystemExit(
-                      "COV_EXTERNAL_INDEPENDENT_WORKFLOW_SHA_INVALID"
-                  )
           else:
               raise SystemExit("COV_EXTERNAL_OIDC_CALLER_REPOSITORY_INVALID")
 
@@ -219,7 +219,7 @@ jobs:
           path: target
           persist-credentials: false
 
-      - name: Check out authenticated issuer implementation
+      - name: Check out immutable issuer implementation
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           repository: rezahh107/PR-Inspector
