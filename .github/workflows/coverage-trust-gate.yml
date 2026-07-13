@@ -76,7 +76,7 @@ jobs:
           target_pr = 43
           caller_workflow = ".github/workflows/validate-mvk.yml"
           required_guard_workflow = ".github/workflows/coverage-trust-required.yml"
-          sha40 = re.compile(r"^[0-9a-f]{40}$")
+          sha40_pattern = r"^[0-9a-f]{40}$"
 
           request_url = os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"]
           separator = "&" if "?" in request_url else "?"
@@ -94,7 +94,7 @@ jobs:
           claims = json.loads(base64.urlsafe_b64decode(payload.encode("ascii")))
           issuer_sha = str(claims.get("job_workflow_sha") or "")
           issuer_ref = str(claims.get("job_workflow_ref") or "")
-          if not sha40.fullmatch(issuer_sha):
+          if re.fullmatch(sha40_pattern, issuer_sha) is None:
               raise SystemExit("COV_EXTERNAL_OIDC_ISSUER_SHA_INVALID")
           if claims.get("iss") != "https://token.actions.githubusercontent.com":
               raise SystemExit("COV_EXTERNAL_OIDC_AUTHORITY_INVALID")
@@ -153,8 +153,8 @@ jobs:
               int(base_repo.get("id")) != target_repo_id
               or base_repo.get("full_name") != target_repo
               or int(api_pr.get("number")) != target_pr
-              or not sha40.fullmatch(api_head)
-              or not sha40.fullmatch(api_base)
+              or re.fullmatch(sha40_pattern, api_head) is None
+              or re.fullmatch(sha40_pattern, api_base) is None
           ):
               raise SystemExit("COV_EXTERNAL_API_PR_IDENTITY_INVALID")
 
