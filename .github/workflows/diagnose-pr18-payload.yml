@@ -1,0 +1,84 @@
+name: Diagnose PR18 repair payload
+
+on:
+  pull_request:
+    types: [synchronize]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: diagnose-pr18-payload
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    if: github.repository == 'rezahh107/PR-Inspector' && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'governance/personal-minimum-security-profile'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out exact staged head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+
+      - name: Record payload identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -f .pr18-repair/diagnostic.txt; then
+            exit 0
+          fi
+          {
+            echo "head=$(git rev-parse HEAD)"
+            for file in \
+              chunk00.b64 chunk01.b64 chunk02a.b64 chunk02b.b64 chunk02.b64 chunk03.b64 \
+              chunk04a.b64 chunk04b.b64 chunk04c.b64 chunk04d.b64 chunk05a.b64 chunk05b.b64; do
+              printf '%s size=' "$file"
+              wc -c < ".pr18-repair/$file" | tr -d ' '
+              printf '%s sha256=' "$file"
+              sha256sum ".pr18-repair/$file" | cut -d' ' -f1
+              printf '%s git_blob=' "$file"
+              git hash-object ".pr18-repair/$file"
+            done
+            cat \
+              .pr18-repair/chunk00.b64 \
+              .pr18-repair/chunk01.b64 \
+              .pr18-repair/chunk02a.b64 \
+              .pr18-repair/chunk02b.b64 \
+              .pr18-repair/chunk02.b64 \
+              .pr18-repair/chunk03.b64 \
+              .pr18-repair/chunk04a.b64 \
+              .pr18-repair/chunk04b.b64 \
+              .pr18-repair/chunk04c.b64 \
+              .pr18-repair/chunk04d.b64 \
+              .pr18-repair/chunk05a.b64 \
+              .pr18-repair/chunk05b.b64 \
+              > /tmp/payload.b64
+            echo "combined_size=$(wc -c < /tmp/payload.b64 | tr -d ' ')"
+            echo "combined_text_sha256=$(sha256sum /tmp/payload.b64 | cut -d' ' -f1)"
+            if base64 --decode /tmp/payload.b64 > /tmp/payload.tgz; then
+              echo "decode=success"
+              echo "archive_size=$(wc -c < /tmp/payload.tgz | tr -d ' ')"
+              echo "archive_sha256=$(sha256sum /tmp/payload.tgz | cut -d' ' -f1)"
+              echo "archive_paths_begin"
+              tar -tzf /tmp/payload.tgz || true
+              echo "archive_paths_end"
+            else
+              echo "decode=failure"
+            fi
+          } > .pr18-repair/diagnostic.txt
+
+      - name: Commit diagnostic only
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- .pr18-repair/diagnostic.txt; then
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .pr18-repair/diagnostic.txt
+          git commit -m 'Record PR18 payload diagnostics'
+          git push origin HEAD:governance/personal-minimum-security-profile
