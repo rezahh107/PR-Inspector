@@ -497,17 +497,31 @@ def derive_authoritative_identity(
 
     mode: str
     if caller_repository_id == TARGET_REPOSITORY_ID:
-        mode = "target_pull_request_event_api"
-        expected_workflow_prefix = f"{TARGET_REPOSITORY}/{CALLER_WORKFLOW_PATH}@"
-        if (
-            caller_repository != TARGET_REPOSITORY
-            or event_name != "pull_request"
-            or not workflow_ref.startswith(expected_workflow_prefix)
-        ):
+        caller_modes = {
+            "pull_request": (CALLER_WORKFLOW_PATH, "target_pull_request_event_api"),
+            "pull_request_target": (
+                REQUIRED_GUARD_WORKFLOW_PATH,
+                "target_pull_request_target_event_api",
+            ),
+        }
+        expected = caller_modes.get(event_name)
+        if expected is None:
+            mode = "invalid"
             diagnostics.append(Diagnostic(
                 "COV_EXTERNAL_EVENT_CALLER_IDENTITY_MISMATCH",
-                "The target caller must be the canonical pull_request workflow in the expected repository.",
+                "The target caller event is not an approved pull-request enforcement mode.",
             ))
+        else:
+            expected_path, mode = expected
+            expected_workflow_prefix = f"{TARGET_REPOSITORY}/{expected_path}@"
+            if (
+                caller_repository != TARGET_REPOSITORY
+                or not workflow_ref.startswith(expected_workflow_prefix)
+            ):
+                diagnostics.append(Diagnostic(
+                    "COV_EXTERNAL_EVENT_CALLER_IDENTITY_MISMATCH",
+                    "The target caller workflow does not match the approved event-specific path.",
+                ))
         repository = event.get("repository") or {}
         pr = event.get("pull_request") or {}
         event_number = _int(pr.get("number") or event.get("number"))
