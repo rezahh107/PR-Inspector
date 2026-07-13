@@ -45,6 +45,28 @@ FORBIDDEN_TRUST = (
     "/bin/date",
 )
 
+VALIDATION_RUN_COMMAND = """set -euo pipefail
+git reset --hard "${COVERAGE_HEAD_SHA}"
+git clean -ffdx
+test "$(git rev-parse HEAD)" = "${COVERAGE_HEAD_SHA}"
+test -z "$(git status --porcelain=v1 --untracked-files=all)"
+npm ci
+npm run validate:coverage"""
+EXPECTED_VALIDATION_ENV = {
+    "COVERAGE_REPOSITORY": "${{ needs.external-coverage-trust.outputs.verified_repository }}",
+    "COVERAGE_PR_NUMBER": "${{ needs.external-coverage-trust.outputs.verified_pr_number }}",
+    "COVERAGE_BASE_SHA": "${{ needs.external-coverage-trust.outputs.verified_base_sha }}",
+    "COVERAGE_HEAD_SHA": "${{ needs.external-coverage-trust.outputs.verified_head_sha }}",
+}
+FORBIDDEN_EXECUTION_ENV = {
+    "PATH",
+    "NODE_OPTIONS",
+    "GITHUB_ENV",
+    "BASH_ENV",
+    "ENV",
+    "NPM_CONFIG_PREFIX",
+}
+
 
 @dataclass(frozen=True)
 class Diagnostic:
@@ -518,6 +540,13 @@ def workflow_diagnostics(
             "Workflow permissions must be exactly contents: read.",
             CALLER_WORKFLOW_PATH,
         ))
+    for forbidden_key in ("env", "defaults"):
+        if forbidden_key in workflow:
+            diagnostics.append(Diagnostic(
+                "COV_EXTERNAL_VALIDATION_EXECUTION_CONTEXT_INVALID",
+                "Workflow may not define mutable execution context for Coverage validation.",
+                CALLER_WORKFLOW_PATH,
+            ))
     jobs, diagnostic = require_mapping(
         workflow.get("jobs"),
         "COV_EXTERNAL_WORKFLOW_JOBS_INVALID",
@@ -595,6 +624,13 @@ def workflow_diagnostics(
                 "Validation job permissions must be exactly contents: read.",
                 CALLER_WORKFLOW_PATH,
             ))
+        for forbidden_key in ("env", "defaults", "container", "services"):
+            if forbidden_key in validation:
+                diagnostics.append(Diagnostic(
+                    "COV_EXTERNAL_VALIDATION_EXECUTION_CONTEXT_INVALID",
+                    "Validation job may not define mutable execution context.",
+                    CALLER_WORKFLOW_PATH,
+                ))
         needs = validation.get("needs")
         needs_ok = needs == "external-coverage-trust" or (
             isinstance(needs, list) and needs == ["external-coverage-trust"]
@@ -641,8 +677,8 @@ def workflow_diagnostics(
                             ))
                         checkout_steps.append(step)
                 run_value = str(step.get("run") or "")
-                if "npm run validate:coverage" in run_value:
-                    if step_has_bypass or run_value.strip() != "npm run validate:coverage" or re.search(r"(^|\s)(nohup|setsid)|&\s*($|#)|\bdisown\b", run_value):
+                if run_value:
+                    if step_has_bypass or run_value.strip() != VALIDATION_RUN_COMMAND or re.search(r"(^|\s)(nohup|setsid)|&\s*($|#)|\bdisown\b", run_value):
                         diagnostics.append(Diagnostic(
                             "COV_EXTERNAL_VALIDATION_EXECUTION_BYPASS",
                             "Validation command step must be synchronous, unconditional, and fail normally.",
@@ -650,6 +686,28 @@ def workflow_diagnostics(
                         ))
                     validation_steps.append(step)
             expected_ref = "${{ needs.external-coverage-trust.outputs.verified_head_sha }}"
+            if len(steps) != 2 or len(checkout_steps) != 1 or len(validation_steps) != 1:
+                diagnostics.append(Diagnostic(
+                    "COV_EXTERNAL_VALIDATION_EXECUTION_BYPASS",
+                    "Validation topology must contain exactly checkout and validation steps.",
+                    CALLER_WORKFLOW_PATH,
+                ))
+            for step in steps:
+                if isinstance(step, dict):
+                    if "env" in step:
+                        env_value = step.get("env")
+                        if not isinstance(env_value, dict) or any(key in FORBIDDEN_EXECUTION_ENV for key in env_value):
+                            diagnostics.append(Diagnostic(
+                                "COV_EXTERNAL_VALIDATION_EXECUTION_CONTEXT_INVALID",
+                                "Validation steps may not inject PATH, NODE_OPTIONS, GITHUB_ENV, BASH_ENV, or equivalent environment.",
+                                CALLER_WORKFLOW_PATH,
+                            ))
+                    if step not in checkout_steps and step not in validation_steps:
+                        diagnostics.append(Diagnostic(
+                            "COV_EXTERNAL_VALIDATION_EXECUTION_BYPASS",
+                            "Unapproved validation job steps are forbidden before attestation.",
+                            CALLER_WORKFLOW_PATH,
+                        ))
             if len(checkout_steps) != 1:
                 diagnostics.append(Diagnostic(
                     "COV_EXTERNAL_VALIDATION_CHECKOUT_MISMATCH",
@@ -657,7 +715,14 @@ def workflow_diagnostics(
                     CALLER_WORKFLOW_PATH,
                 ))
             else:
-                checkout_with = checkout_steps[0].get("with")
+                checkout_step = checkout_steps[0]
+                checkout_with = checkout_step.get("with")
+                if any(key in checkout_step for key in ("env", "shell", "working-directory")):
+                    diagnostics.append(Diagnostic(
+                        "COV_EXTERNAL_VALIDATION_EXECUTION_CONTEXT_INVALID",
+                        "Checkout step may not override execution context.",
+                        CALLER_WORKFLOW_PATH,
+                    ))
                 if not isinstance(checkout_with, dict):
                     diagnostics.append(Diagnostic(
                         "COV_EXTERNAL_VALIDATION_CHECKOUT_MISMATCH",
@@ -665,7 +730,7 @@ def workflow_diagnostics(
                         CALLER_WORKFLOW_PATH,
                     ))
                 else:
-                    if checkout_steps[0].get("uses") != APPROVED_CHECKOUT_ACTION:
+                    if checkout_step.get("uses") != APPROVED_CHECKOUT_ACTION:
                         diagnostics.append(Diagnostic(
                             "COV_EXTERNAL_ACTION_PIN_INVALID",
                             "Checkout action must use the approved immutable SHA.",
@@ -683,12 +748,6 @@ def workflow_diagnostics(
                             "Validation checkout must set persist-credentials: false.",
                             CALLER_WORKFLOW_PATH,
                         ))
-            expected_env = {
-                "COVERAGE_REPOSITORY": "${{ needs.external-coverage-trust.outputs.verified_repository }}",
-                "COVERAGE_PR_NUMBER": "${{ needs.external-coverage-trust.outputs.verified_pr_number }}",
-                "COVERAGE_BASE_SHA": "${{ needs.external-coverage-trust.outputs.verified_base_sha }}",
-                "COVERAGE_HEAD_SHA": "${{ needs.external-coverage-trust.outputs.verified_head_sha }}",
-            }
             if len(validation_steps) != 1:
                 diagnostics.append(Diagnostic(
                     "COV_EXTERNAL_VALIDATION_IDENTITY_BINDING_MISSING",
@@ -696,13 +755,30 @@ def workflow_diagnostics(
                     CALLER_WORKFLOW_PATH,
                 ))
             else:
-                env = validation_steps[0].get("env")
-                if not isinstance(env, dict) or any(
-                    env.get(key) != expected for key, expected in expected_env.items()
-                ):
+                validation_step = validation_steps[0]
+                if validation_step.get("run", "").strip() != VALIDATION_RUN_COMMAND:
+                    diagnostics.append(Diagnostic(
+                        "COV_EXTERNAL_VALIDATION_EXECUTION_BYPASS",
+                        "Validation command must reset, clean, verify status, install dependencies, and run Coverage validation exactly.",
+                        CALLER_WORKFLOW_PATH,
+                    ))
+                if validation_step.get("shell") != "bash":
+                    diagnostics.append(Diagnostic(
+                        "COV_EXTERNAL_VALIDATION_EXECUTION_CONTEXT_INVALID",
+                        "Validation step shell must be exactly bash.",
+                        CALLER_WORKFLOW_PATH,
+                    ))
+                if "working-directory" in validation_step:
+                    diagnostics.append(Diagnostic(
+                        "COV_EXTERNAL_VALIDATION_EXECUTION_CONTEXT_INVALID",
+                        "Validation step may not override working-directory.",
+                        CALLER_WORKFLOW_PATH,
+                    ))
+                env = validation_step.get("env")
+                if not isinstance(env, dict) or env != EXPECTED_VALIDATION_ENV:
                     diagnostics.append(Diagnostic(
                         "COV_EXTERNAL_VALIDATION_IDENTITY_BINDING_MISSING",
-                        "Validation identity binding is missing from the validation step.",
+                        "Validation identity binding must be exact and contain no extra environment keys.",
                         CALLER_WORKFLOW_PATH,
                     ))
 
@@ -741,6 +817,19 @@ def evaluate_target(
         diagnostics.append(Diagnostic(
             "COV_EXTERNAL_TRUST_HEAD_MISMATCH",
             "Checkout does not match API head.",
+        ))
+    try:
+        status = subprocess.check_output(
+            ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+            cwd=target_root,
+            text=True,
+        ).strip()
+    except subprocess.CalledProcessError:
+        status = "<unavailable>"
+    if status:
+        diagnostics.append(Diagnostic(
+            "COV_EXTERNAL_TRUST_WORKTREE_DIRTY",
+            "Checkout worktree must be clean before attestation.",
         ))
     try:
         subprocess.check_call(

@@ -314,6 +314,32 @@ def test_current_status_statement_is_explicit_and_truthful():
     assert "No additional runtime implementation defect was confirmed" in status
 
 
+def test_candidate_release_text_does_not_claim_unmerged_profile_or_stale_pr_identity():
+    current = (ROOT / "CURRENT_VERSION").read_text(encoding="utf-8").strip()
+    paths = (
+        ROOT / "README.md",
+        ROOT / "CHANGELOG.md",
+        ROOT / "docs/CANONICAL_OUTPUT_ENFORCEMENT.md",
+        ROOT / f"protocols/{current}/PR_REVIEW_CONTRACT.md",
+        ROOT / f"protocols/{current}/policies/EXTERNAL_COVERAGE_TRUST.md",
+        ROOT / f"protocols/{current}/policies/BEHAVIORAL_RULE_COVERAGE.md",
+        ROOT / f"protocols/{current}/policies/SECURITY_AND_TRUST.md",
+    )
+    forbidden = (
+        "active_security_profile",
+        "personal_ai_operated_strong_governance_minimum_security is active",
+        "active profile: personal_ai_operated_strong_governance_minimum_security",
+        "pr #16 push failure",
+        "0a28a16d8cc7c6ca11a4be98189eee84cab39ca9",
+        "15 tests passed",
+        "227 passed",
+    )
+    for path in paths:
+        text = path.read_text(encoding="utf-8").lower()
+        for phrase in forbidden:
+            assert phrase not in text, f"{path.relative_to(ROOT)}: {phrase}"
+
+
 def test_active_lifecycle_documents_have_no_branch_era_status_claims():
     current = (ROOT / "CURRENT_VERSION").read_text(encoding="utf-8").strip()
     paths = (

@@ -146,7 +146,15 @@ jobs:
         with:
           ref: {ref}
           persist-credentials: false
-      - run: npm run validate:coverage
+      - run: |
+          set -euo pipefail
+          git reset --hard "${{COVERAGE_HEAD_SHA}}"
+          git clean -ffdx
+          test "$(git rev-parse HEAD)" = "${{COVERAGE_HEAD_SHA}}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          npm ci
+          npm run validate:coverage
+        shell: bash
         env:
           COVERAGE_REPOSITORY: ${{{{ needs.external-coverage-trust.outputs.verified_repository }}}}
           COVERAGE_PR_NUMBER: ${{{{ needs.external-coverage-trust.outputs.verified_pr_number }}}}
@@ -418,20 +426,54 @@ class TopologyTests(unittest.TestCase):
 
 
     def test_validation_execution_bypass_fails_closed(self):
+        valid = workflow()
+        command = """      - run: |
+          set -euo pipefail
+          git reset --hard "${COVERAGE_HEAD_SHA}"
+          git clean -ffdx
+          test "$(git rev-parse HEAD)" = "${COVERAGE_HEAD_SHA}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          npm ci
+          npm run validate:coverage"""
         cases = (
-            workflow().replace("  validate-mvk:\n", "  validate-mvk:\n    if: false\n", 1),
-            workflow().replace("  validate-mvk:\n", "  validate-mvk:\n    if: always()\n", 1),
-            workflow().replace("  validate-mvk:\n", "  validate-mvk:\n    continue-on-error: true\n", 1),
-            workflow().replace("      - uses: actions/checkout", "      - if: false\n        uses: actions/checkout", 1),
-            workflow().replace("      - run: npm run validate:coverage", "      - if: false\n        run: npm run validate:coverage", 1),
-            workflow().replace("      - run: npm run validate:coverage", "      - continue-on-error: true\n        run: npm run validate:coverage", 1),
-            workflow().replace("      - run: npm run validate:coverage", "      - run: npm run validate:coverage &", 1),
+            valid.replace("  validate-mvk:\n", "  validate-mvk:\n    if: false\n", 1),
+            valid.replace("  validate-mvk:\n", "  validate-mvk:\n    if: always()\n", 1),
+            valid.replace("  validate-mvk:\n", "  validate-mvk:\n    continue-on-error: true\n", 1),
+            valid.replace("      - uses: actions/checkout", "      - if: false\n        uses: actions/checkout", 1),
+            valid.replace(command, "      - if: false\n        run: npm run validate:coverage", 1),
+            valid.replace(command, "      - continue-on-error: true\n        run: npm run validate:coverage", 1),
+            valid.replace(command, "      - run: npm run validate:coverage &", 1),
         )
         for text in cases:
+            self.assertNotEqual(valid, text)
             diagnostics = gate.workflow_diagnostics(text, ISSUER)
             self.assertIn(
                 "COV_EXTERNAL_VALIDATION_EXECUTION_BYPASS",
                 {item.code for item in diagnostics},
+                text,
+            )
+
+    def test_validation_execution_context_drift_fails_closed(self):
+        valid = workflow()
+        cases = (
+            # tracked package.json/validator/dependency changes require an extra mutating step
+            valid.replace("      - run: |", "      - run: python - <<'PY'\n          import pathlib; pathlib.Path('package.json').write_text('{}')\n          PY\n      - run: |", 1),
+            valid.replace("      - run: |", "      - run: mkdir -p scripts && echo evil > scripts/validate.js\n      - run: |", 1),
+            valid.replace("      - run: |", "      - run: mkdir -p node_modules/pkg && echo evil > node_modules/pkg/index.js\n      - run: |", 1),
+            valid.replace("      - run: |", "      - run: mkdir -p node_modules/.bin && echo fake > node_modules/.bin/npm\n      - run: |", 1),
+            # PATH/NODE_OPTIONS/GITHUB_ENV/BASH_ENV and working-directory drift are forbidden
+            valid.replace("        env:\n", "        env:\n          PATH: ./fake:$PATH\n", 1),
+            valid.replace("        env:\n", "        env:\n          NODE_OPTIONS: --require ./evil.js\n", 1),
+            valid.replace("      - run: |", "      - run: echo PATH=./fake >> $GITHUB_ENV\n      - run: |", 1),
+            valid.replace("      - run: |", "      - run: echo 'echo evil' > .bashenv\n        env:\n          BASH_ENV: .bashenv\n      - run: |", 1),
+            valid.replace("        shell: bash\n", "        working-directory: subdir\n        shell: bash\n", 1),
+        )
+        for text in cases:
+            self.assertNotEqual(valid, text)
+            diagnostics = gate.workflow_diagnostics(text, ISSUER)
+            self.assertTrue(
+                {"COV_EXTERNAL_VALIDATION_EXECUTION_BYPASS", "COV_EXTERNAL_VALIDATION_EXECUTION_CONTEXT_INVALID", "COV_EXTERNAL_VALIDATION_IDENTITY_BINDING_MISSING"}
+                & {item.code for item in diagnostics},
                 text,
             )
 
@@ -596,6 +638,43 @@ class NegativeIdentityTests(unittest.TestCase):
                 )
             }
         self.assertIn("COV_EXTERNAL_TRUST_HEAD_MISMATCH", stale_codes)
+
+    def test_dirty_tracked_and_untracked_worktree_blocks_attestation(self):
+        from dataclasses import replace
+        import subprocess
+        import tempfile
+
+        identity, diagnostics = derive(43, HEAD_43)
+        self.assertEqual([], diagnostics)
+        assert identity is not None
+
+        for dirty_kind in ("tracked", "untracked"):
+            with tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                subprocess.check_call(["git", "init", "-q"], cwd=root)
+                subprocess.check_call(["git", "config", "user.email", "t@example.com"], cwd=root)
+                subprocess.check_call(["git", "config", "user.name", "Test"], cwd=root)
+                (root / "file.txt").write_text("x\n", encoding="utf-8")
+                subprocess.check_call(["git", "add", "file.txt"], cwd=root)
+                subprocess.check_call(["git", "commit", "-q", "-m", "init"], cwd=root)
+                head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
+                if dirty_kind == "tracked":
+                    (root / "file.txt").write_text("changed\n", encoding="utf-8")
+                else:
+                    (root / "untracked.js").write_text("evil\n", encoding="utf-8")
+                checked_identity = replace(
+                    identity,
+                    target_base_sha=head,
+                    target_head_sha=head,
+                )
+                codes = {
+                    item.code
+                    for item in gate.evaluate_target(
+                        target_root=root,
+                        identity=checked_identity,
+                    )
+                }
+                self.assertIn("COV_EXTERNAL_TRUST_WORKTREE_DIRTY", codes)
 
     def test_invalid_attestation_identity_fails(self):
         identity, diagnostics = derive(43, HEAD_43)
