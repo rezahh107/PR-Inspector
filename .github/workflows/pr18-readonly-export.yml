@@ -33,12 +33,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tar --exclude=.git --exclude=pr-inspector-source.tar.gz -czf pr-inspector-source.tar.gz .
+          tar --exclude=.git -czf /tmp/pr-inspector-source.tar.gz .
 
       - name: Upload source snapshot
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: pr18-readonly-source-${{ github.event.pull_request.head.sha }}
-          path: pr-inspector-source.tar.gz
+          path: /tmp/pr-inspector-source.tar.gz
           if-no-files-found: error
           retention-days: 1
