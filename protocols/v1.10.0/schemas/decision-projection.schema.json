@@ -1,0 +1,113 @@
+{
+  "$defs": {
+    "actionKind": {
+      "enum": [
+        "merge_now",
+        "owner_confirmation",
+        "human_technical_review",
+        "specialist_review",
+        "repair",
+        "verify",
+        "repair_and_verify",
+        "rerun_review",
+        "blocked_internal_error"
+      ]
+    },
+    "promptKind": {
+      "enum": [
+        null,
+        "implementer_repair_prompt",
+        "verification_prompt",
+        "fresh_review_prompt",
+        "human_review_handoff",
+        "specialist_review_handoff"
+      ],
+      "type": ["string", "null"]
+    },
+    "reasonCode": {
+      "pattern": "^RSN-[A-Z0-9-]+$",
+      "type": "string"
+    },
+    "reasonCodeList": {
+      "items": {"$ref": "#/$defs/reasonCode"},
+      "type": "array",
+      "uniqueItems": true
+    },
+    "recipient": {
+      "enum": [
+        "none",
+        "project_owner",
+        "implementer_model",
+        "reviewer_model",
+        "human_technical_reviewer",
+        "security_or_domain_specialist"
+      ]
+    }
+  },
+  "$id": "https://github.com/rezahh107/PR-Inspector/protocols/v1.10.0/schemas/decision-projection.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "approval_requirement": {
+      "enum": [
+        "NO_ADDITIONAL_TECHNICAL_APPROVAL",
+        "PROJECT_OWNER_CONFIRMATION",
+        "HUMAN_TECHNICAL_REVIEW_REQUIRED",
+        "SECURITY_OR_DOMAIN_SPECIALIST_REQUIRED"
+      ]
+    },
+    "next_action": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"$ref": "#/$defs/actionKind"},
+        "may_modify_code": {"type": "boolean"},
+        "prompt_kind": {"$ref": "#/$defs/promptKind"},
+        "prompt_required": {"type": "boolean"},
+        "reason_codes": {"$ref": "#/$defs/reasonCodeList"},
+        "recipient": {"$ref": "#/$defs/recipient"}
+      },
+      "required": ["kind", "recipient", "may_modify_code", "prompt_required", "prompt_kind", "reason_codes"],
+      "type": "object"
+    },
+    "owner_readiness": {
+      "additionalProperties": false,
+      "properties": {
+        "action_kind": {"$ref": "#/$defs/actionKind"},
+        "color": {"enum": ["GREEN", "YELLOW", "RED", "BLOCKED"]},
+        "message_key": {"pattern": "^[a-z_]+$", "type": "string"},
+        "reason_codes": {"$ref": "#/$defs/reasonCodeList"}
+      },
+      "required": ["color", "action_kind", "message_key", "reason_codes"],
+      "type": "object"
+    },
+    "protocol_version": {"const": "v1.10.0"},
+    "reason_details": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "reason_code": {"$ref": "#/$defs/reasonCode"},
+          "subjects": {"items": {"type": "string"}, "minItems": 1, "type": "array", "uniqueItems": true}
+        },
+        "required": ["reason_code", "subjects"],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "required_actions": {"items": {"type": "string"}, "type": "array", "uniqueItems": true},
+    "review_identity": {
+      "additionalProperties": false,
+      "properties": {
+        "reviewed_head_sha": {"pattern": "^(UNKNOWN|[0-9a-f]{40})$", "type": "string"},
+        "validity": {"enum": ["CURRENT", "STALE", "UNKNOWN"]}
+      },
+      "required": ["validity", "reviewed_head_sha"],
+      "type": "object"
+    },
+    "schema_version": {"const": 1},
+    "technical_status": {"enum": ["GREEN_TECHNICALLY_READY", "YELLOW_CHANGES_OR_VERIFICATION_REQUIRED", "RED_DO_NOT_MERGE"]},
+    "technical_status_reason_codes": {"$ref": "#/$defs/reasonCodeList"}
+  },
+  "required": ["schema_version", "protocol_version", "technical_status", "technical_status_reason_codes", "approval_requirement", "owner_readiness", "next_action", "review_identity", "reason_details", "required_actions"],
+  "title": "PR Inspector Canonical Decision Projection v1.10.0",
+  "type": "object"
+}

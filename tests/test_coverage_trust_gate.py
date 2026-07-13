@@ -203,6 +203,26 @@ class IdentityTests(unittest.TestCase):
             {item.code for item in diagnostics},
         )
 
+
+    def test_missing_and_invalid_run_identity_fails(self):
+        for bad_claims, bad_env in (
+            ({**claims(HEAD_43), "run_id": ""}, {"GITHUB_RUN_ID": "1", "GITHUB_RUN_ATTEMPT": "1"}),
+            ({**claims(HEAD_43), "run_attempt": "0"}, {"GITHUB_RUN_ID": "1", "GITHUB_RUN_ATTEMPT": "1"}),
+            (claims(HEAD_43), {"GITHUB_RUN_ID": "", "GITHUB_RUN_ATTEMPT": "1"}),
+            (claims(HEAD_43), {"GITHUB_RUN_ID": "1", "GITHUB_RUN_ATTEMPT": "nope"}),
+        ):
+            identity, diagnostics = gate.derive_authoritative_identity(
+                event=event(43, BASE, HEAD_43),
+                api_pr=api(43, BASE, HEAD_43),
+                oidc_claims=bad_claims,
+                environment=bad_env,
+            )
+            self.assertIsNone(identity)
+            self.assertIn(
+                "COV_EXTERNAL_OIDC_RUN_IDENTITY_MISMATCH",
+                {item.code for item in diagnostics},
+            )
+
     def test_one_off_pr43_policy_is_separate_but_issuer_is_reusable(self):
         identity, diagnostics = gate.derive_authoritative_identity(
             event={},
@@ -260,6 +280,70 @@ class TopologyTests(unittest.TestCase):
             {item.code for item in diagnostics},
         )
 
+
+    def test_empty_comment_only_and_malformed_yaml_fail_closed(self):
+        cases = (
+            "",
+            "# uses: rezahh107/PR-Inspector/.github/workflows/coverage-trust-gate.yml@" + ISSUER + "\n",
+            "jobs: [",
+            "- just\n- a\n- list\n",
+        )
+        for text in cases:
+            diagnostics = gate.workflow_diagnostics(text, ISSUER)
+            self.assertTrue(diagnostics, text)
+
+    def test_non_mapping_jobs_job_steps_and_env_fail_closed(self):
+        cases = (
+            "jobs: []\n",
+            workflow().replace("external-coverage-trust:\n", "external-coverage-trust: []\n", 1),
+            workflow().replace("steps:\n", "steps: {}\n", 1),
+            workflow().replace("env:\n", "env: []\n", 1),
+        )
+        for text in cases:
+            diagnostics = gate.workflow_diagnostics(text, ISSUER)
+            self.assertTrue(diagnostics, text)
+
+    def test_comments_and_wrong_step_bindings_do_not_satisfy_gate(self):
+        comment_only = workflow().replace(
+            "          COVERAGE_REPOSITORY: ${{ needs.external-coverage-trust.outputs.verified_repository }}",
+            "          # COVERAGE_REPOSITORY: ${{ needs.external-coverage-trust.outputs.verified_repository }}",
+        )
+        wrong_step = workflow().replace(
+            "        env:\n          COVERAGE_REPOSITORY:",
+            "      - run: echo misplaced\n        env:\n          COVERAGE_REPOSITORY:",
+        )
+        for text in (comment_only, wrong_step):
+            diagnostics = gate.workflow_diagnostics(text, ISSUER)
+            self.assertIn(
+                "COV_EXTERNAL_VALIDATION_IDENTITY_BINDING_MISSING",
+                {item.code for item in diagnostics},
+            )
+
+    def test_stale_and_mismatched_issuer_pins_fail(self):
+        diagnostics = gate.workflow_diagnostics(workflow(issuer="e" * 40), ISSUER)
+        self.assertIn(
+            "COV_EXTERNAL_TRUST_ROOT_PIN_TOPOLOGY_INVALID",
+            {item.code for item in diagnostics},
+        )
+        diagnostics = gate.workflow_diagnostics(
+            workflow().replace(gate.ISSUER_WORKFLOW_PATH, ".github/workflows/other.yml"),
+            ISSUER,
+        )
+        self.assertIn(
+            "COV_EXTERNAL_TRUST_ROOT_PIN_TOPOLOGY_INVALID",
+            {item.code for item in diagnostics},
+        )
+
+    def test_yaml_anchors_are_rejected(self):
+        diagnostics = gate.workflow_diagnostics(
+            workflow().replace("contents: read", "contents: &read read", 1),
+            ISSUER,
+        )
+        self.assertIn(
+            "COV_EXTERNAL_WORKFLOW_YAML_UNSUPPORTED",
+            {item.code for item in diagnostics},
+        )
+
     def test_valid_bootstrap_keeps_proof_credit_false(self):
         identity, diagnostics = derive(43, HEAD_43)
         self.assertEqual([], diagnostics)
@@ -273,6 +357,41 @@ class TopologyTests(unittest.TestCase):
         )
         self.assertEqual([], gate.verify_attestation(value, identity))
         self.assertFalse(value["proof_credit_authorized"])
+
+
+class PlanningCoverageTests(unittest.TestCase):
+    def test_malformed_invalid_utf8_and_unreadable_json_fail_closed(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            folder = root / "planning" / "coverage"
+            folder.mkdir(parents=True)
+            (folder / "malformed.json").write_text("{", encoding="utf-8")
+            (folder / "invalid-utf8.json").write_bytes(b"\xff")
+            (folder / "missing.json").symlink_to(folder / "does-not-exist.json")
+            diagnostics = gate.planning_coverage_diagnostics(root)
+        codes = {item.code for item in diagnostics}
+        self.assertIn("COV_EXTERNAL_PLANNING_JSON_INVALID", codes)
+        self.assertIn("COV_EXTERNAL_PLANNING_JSON_UNREADABLE", codes)
+        self.assertTrue(all(item.path and item.path.startswith("planning/coverage") for item in diagnostics))
+
+    def test_planning_proof_request_blocks_bootstrap(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            folder = root / "planning" / "coverage"
+            folder.mkdir(parents=True)
+            (folder / "proof.json").write_text(
+                '{"artifact_role":"coverage_credit"}\n',
+                encoding="utf-8",
+            )
+            diagnostics = gate.planning_coverage_diagnostics(root)
+        self.assertEqual(
+            ["COV_EXTERNAL_TRUST_BOOTSTRAP_PROOF_CREDIT_FORBIDDEN"],
+            [item.code for item in diagnostics],
+        )
 
 
 class NegativeIdentityTests(unittest.TestCase):

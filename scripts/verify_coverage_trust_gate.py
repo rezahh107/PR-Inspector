@@ -10,6 +10,8 @@ import os
 import re
 import subprocess
 import sys
+
+import yaml
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -115,16 +117,43 @@ def event_pr(
     )
 
 
-def proof_requested(root: Path) -> bool:
+def bounded_path(root: Path, path: Path) -> str:
+    try:
+        return str(path.relative_to(root))
+    except ValueError:
+        return path.name
+
+
+def planning_coverage_diagnostics(root: Path) -> list[Diagnostic]:
     folder = root / "planning" / "coverage"
     if not folder.exists():
-        return False
+        return []
+    diagnostics: list[Diagnostic] = []
     stack: list[Any] = []
-    for path in folder.rglob("*.json"):
+    for path in sorted(folder.rglob("*.json")):
+        rel = bounded_path(root, path)
         try:
             stack.append(json.loads(path.read_text(encoding="utf-8")))
-        except (OSError, json.JSONDecodeError):
-            continue
+        except UnicodeDecodeError as exc:
+            diagnostics.append(Diagnostic(
+                "COV_EXTERNAL_PLANNING_JSON_INVALID",
+                f"Planning coverage JSON is not valid UTF-8: {exc.reason}.",
+                rel,
+            ))
+        except json.JSONDecodeError as exc:
+            diagnostics.append(Diagnostic(
+                "COV_EXTERNAL_PLANNING_JSON_INVALID",
+                f"Planning coverage JSON is malformed at line {exc.lineno} column {exc.colno}.",
+                rel,
+            ))
+        except OSError as exc:
+            diagnostics.append(Diagnostic(
+                "COV_EXTERNAL_PLANNING_JSON_UNREADABLE",
+                f"Planning coverage JSON cannot be read: {exc.strerror or exc}.",
+                rel,
+            ))
+    if diagnostics:
+        return diagnostics
     while stack:
         value = stack.pop()
         if isinstance(value, dict):
@@ -132,11 +161,16 @@ def proof_requested(root: Path) -> bool:
                 value.get("artifact_role") in PROOF_ROLES
                 or value.get("coverage_granted") is True
             ):
-                return True
+                diagnostics.append(Diagnostic(
+                    "COV_EXTERNAL_TRUST_BOOTSTRAP_PROOF_CREDIT_FORBIDDEN",
+                    "Proof credit remains disabled.",
+                    "planning/coverage",
+                ))
+                return diagnostics
             stack.extend(value.values())
         elif isinstance(value, list):
             stack.extend(value)
-    return False
+    return []
 
 
 def derive_authoritative_identity(
@@ -167,10 +201,21 @@ def derive_authoritative_identity(
             "COV_EXTERNAL_OIDC_AUTHORITY_INVALID",
             "OIDC issuer or audience is invalid.",
         ))
+    environment_run_id = str(environment.get("GITHUB_RUN_ID") or "")
+    environment_run_attempt = int_or_none(
+        environment.get("GITHUB_RUN_ATTEMPT")
+    )
     if (
-        run_id != str(environment.get("GITHUB_RUN_ID") or "")
-        or run_attempt
-        != int_or_none(environment.get("GITHUB_RUN_ATTEMPT"))
+        not run_id.isdecimal()
+        or int(run_id) < 1
+        or run_attempt is None
+        or run_attempt < 1
+        or not environment_run_id.isdecimal()
+        or int(environment_run_id) < 1
+        or environment_run_attempt is None
+        or environment_run_attempt < 1
+        or run_id != environment_run_id
+        or run_attempt != environment_run_attempt
     ):
         diagnostics.append(Diagnostic(
             "COV_EXTERNAL_OIDC_RUN_IDENTITY_MISMATCH",
@@ -310,9 +355,12 @@ def derive_authoritative_identity(
 
     if diagnostics:
         return None, diagnostics
-    assert repository_id is not None
-    assert run_attempt is not None
-    assert api_number is not None
+    if repository_id is None or run_attempt is None or api_number is None:
+        diagnostics.append(Diagnostic(
+            "COV_EXTERNAL_AUTHORITY_IDENTITY_INCOMPLETE",
+            "Authority identity is incomplete after validation.",
+        ))
+        return None, diagnostics
     return VerifiedIdentity(
         verification_mode=mode,
         target_repository=TARGET_REPOSITORY,
@@ -333,110 +381,188 @@ def derive_authoritative_identity(
     ), []
 
 
+def require_mapping(value: Any, code: str, message: str) -> tuple[dict[str, Any] | None, Diagnostic | None]:
+    if not isinstance(value, dict):
+        return None, Diagnostic(code, message, CALLER_WORKFLOW_PATH)
+    return value, None
+
+
 def workflow_diagnostics(
     text: str,
     issuer_sha: str,
 ) -> list[Diagnostic]:
     diagnostics: list[Diagnostic] = []
-    expected = (
-        "uses: "
-        f"{ISSUER_REPOSITORY}/{ISSUER_WORKFLOW_PATH}@{issuer_sha}"
+    if re.search(r"(?m)(^|[\s\[{,])([&*])[A-Za-z0-9_-]+", text):
+        diagnostics.append(Diagnostic(
+            "COV_EXTERNAL_WORKFLOW_YAML_UNSUPPORTED",
+            "YAML anchors and aliases are not allowed in trust topology.",
+            CALLER_WORKFLOW_PATH,
+        ))
+        return diagnostics
+    try:
+        workflow = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        problem = getattr(exc, "problem", None) or exc.__class__.__name__
+        diagnostics.append(Diagnostic(
+            "COV_EXTERNAL_WORKFLOW_YAML_INVALID",
+            f"Workflow YAML is malformed: {problem}.",
+            CALLER_WORKFLOW_PATH,
+        ))
+        return diagnostics
+
+    workflow, diagnostic = require_mapping(
+        workflow,
+        "COV_EXTERNAL_WORKFLOW_YAML_INVALID",
+        "Workflow top-level YAML value must be a mapping.",
     )
-    if text.count(expected) != 1:
-        diagnostics.append(Diagnostic(
-            "COV_EXTERNAL_TRUST_ROOT_PIN_TOPOLOGY_INVALID",
-            "Issuer pin must appear once in the active job.",
-            CALLER_WORKFLOW_PATH,
-        ))
-    if not re.search(
-        r"(?ms)^  external-coverage-trust:\n"
-        r"(?:(?!^  \S).)*?" + re.escape(expected),
-        text,
-    ):
-        diagnostics.append(Diagnostic(
-            "COV_EXTERNAL_REQUIRED_JOB_MISSING",
-            "Active external job is missing.",
-            CALLER_WORKFLOW_PATH,
-        ))
-    if re.search(
-        r"(?ms)^  external-coverage-trust:\n"
-        r"(?:(?!^  \S).)*?^    if:",
-        text,
-    ):
-        diagnostics.append(Diagnostic(
-            "COV_EXTERNAL_REQUIRED_JOB_DEAD",
-            "External job may not be disabled.",
-            CALLER_WORKFLOW_PATH,
-        ))
-    external = re.search(
-        r"(?ms)^  external-coverage-trust:\n"
-        r"(?P<body>(?:(?!^  \S).)*)",
-        text,
+    if diagnostic:
+        return [diagnostic]
+    assert workflow is not None
+    jobs, diagnostic = require_mapping(
+        workflow.get("jobs"),
+        "COV_EXTERNAL_WORKFLOW_JOBS_INVALID",
+        "Workflow jobs must be a mapping.",
     )
-    if external and any(
-        re.search(
-            rf"(?m)^\s+{re.escape(key)}\s*:",
-            external.group("body"),
-        )
-        for key in FORBIDDEN_INPUTS
-    ):
-        diagnostics.append(Diagnostic(
-            "COV_EXTERNAL_CALLER_IDENTITY_INPUT_FORBIDDEN",
-            "Caller identity inputs are forbidden.",
-            CALLER_WORKFLOW_PATH,
-        ))
-    validation = re.search(
-        r"(?ms)^  validate-mvk:\n(?P<body>(?:(?!^  \S).)*)",
-        text,
+    if diagnostic:
+        diagnostics.append(diagnostic)
+        return diagnostics
+    assert jobs is not None
+
+    expected_uses = f"{ISSUER_REPOSITORY}/{ISSUER_WORKFLOW_PATH}@{issuer_sha}"
+    external, diagnostic = require_mapping(
+        jobs.get("external-coverage-trust"),
+        "COV_EXTERNAL_REQUIRED_JOB_MISSING",
+        "Active external job is missing or not a mapping.",
     )
-    if not validation:
-        diagnostics.append(Diagnostic(
-            "COV_EXTERNAL_VALIDATION_JOB_MISSING",
-            "Validation job is missing.",
-            CALLER_WORKFLOW_PATH,
-        ))
+    if diagnostic:
+        diagnostics.append(diagnostic)
     else:
-        body = validation.group("body")
-        if "needs: external-coverage-trust" not in body:
+        assert external is not None
+        if "if" in external:
+            diagnostics.append(Diagnostic(
+                "COV_EXTERNAL_REQUIRED_JOB_DEAD",
+                "External job may not be disabled.",
+                CALLER_WORKFLOW_PATH,
+            ))
+        if external.get("uses") != expected_uses:
+            diagnostics.append(Diagnostic(
+                "COV_EXTERNAL_TRUST_ROOT_PIN_TOPOLOGY_INVALID",
+                "Issuer pin must be the exact reusable workflow on the active job.",
+                CALLER_WORKFLOW_PATH,
+            ))
+        external_with = external.get("with") or {}
+        if not isinstance(external_with, dict):
+            diagnostics.append(Diagnostic(
+                "COV_EXTERNAL_CALLER_IDENTITY_INPUT_FORBIDDEN",
+                "External job inputs must be a mapping when present.",
+                CALLER_WORKFLOW_PATH,
+            ))
+        elif any(key in external_with for key in FORBIDDEN_INPUTS):
+            diagnostics.append(Diagnostic(
+                "COV_EXTERNAL_CALLER_IDENTITY_INPUT_FORBIDDEN",
+                "Caller identity inputs are forbidden.",
+                CALLER_WORKFLOW_PATH,
+            ))
+
+    validation, diagnostic = require_mapping(
+        jobs.get("validate-mvk"),
+        "COV_EXTERNAL_VALIDATION_JOB_MISSING",
+        "Validation job is missing or not a mapping.",
+    )
+    if diagnostic:
+        diagnostics.append(diagnostic)
+    else:
+        assert validation is not None
+        needs = validation.get("needs")
+        needs_ok = needs == "external-coverage-trust" or (
+            isinstance(needs, list) and needs == ["external-coverage-trust"]
+        )
+        if not needs_ok:
             diagnostics.append(Diagnostic(
                 "COV_EXTERNAL_VALIDATION_NEEDS_MISSING",
                 "Validation dependency is missing.",
                 CALLER_WORKFLOW_PATH,
             ))
-        refs = re.findall(r"(?m)^\s+ref:\s*(.*?)\s*$", body)
-        if refs != [
-            "${{ needs.external-coverage-trust.outputs.verified_head_sha }}"
-        ]:
+        steps = validation.get("steps")
+        if not isinstance(steps, list) or not steps:
             diagnostics.append(Diagnostic(
-                "COV_EXTERNAL_VALIDATION_CHECKOUT_MISMATCH",
-                "Validation checkout is not externally bound.",
+                "COV_EXTERNAL_VALIDATION_STEPS_INVALID",
+                "Validation steps must be a non-empty list.",
                 CALLER_WORKFLOW_PATH,
             ))
-        for binding in (
-            "COVERAGE_REPOSITORY: "
-            "${{ needs.external-coverage-trust.outputs.verified_repository }}",
-            "COVERAGE_PR_NUMBER: "
-            "${{ needs.external-coverage-trust.outputs.verified_pr_number }}",
-            "COVERAGE_BASE_SHA: "
-            "${{ needs.external-coverage-trust.outputs.verified_base_sha }}",
-            "COVERAGE_HEAD_SHA: "
-            "${{ needs.external-coverage-trust.outputs.verified_head_sha }}",
-        ):
-            if binding not in body:
+        else:
+            checkout_steps = []
+            validation_steps = []
+            for step in steps:
+                if not isinstance(step, dict):
+                    diagnostics.append(Diagnostic(
+                        "COV_EXTERNAL_VALIDATION_STEPS_INVALID",
+                        "Each validation step must be a mapping.",
+                        CALLER_WORKFLOW_PATH,
+                    ))
+                    continue
+                uses = str(step.get("uses") or "")
+                if uses.startswith("actions/checkout@"):
+                    checkout_steps.append(step)
+                if step.get("run") == "npm run validate:coverage":
+                    validation_steps.append(step)
+            expected_ref = "${{ needs.external-coverage-trust.outputs.verified_head_sha }}"
+            if len(checkout_steps) != 1:
                 diagnostics.append(Diagnostic(
-                    "COV_EXTERNAL_VALIDATION_IDENTITY_BINDING_MISSING",
-                    "Validation identity binding is missing.",
+                    "COV_EXTERNAL_VALIDATION_CHECKOUT_MISMATCH",
+                    "Validation must have exactly one checkout step.",
                     CALLER_WORKFLOW_PATH,
                 ))
-                break
-    if any(token in text for token in FORBIDDEN_TRUST):
+            else:
+                checkout_with = checkout_steps[0].get("with")
+                if (
+                    not isinstance(checkout_with, dict)
+                    or checkout_with.get("ref") != expected_ref
+                ):
+                    diagnostics.append(Diagnostic(
+                        "COV_EXTERNAL_VALIDATION_CHECKOUT_MISMATCH",
+                        "Validation checkout is not externally bound.",
+                        CALLER_WORKFLOW_PATH,
+                    ))
+            expected_env = {
+                "COVERAGE_REPOSITORY": "${{ needs.external-coverage-trust.outputs.verified_repository }}",
+                "COVERAGE_PR_NUMBER": "${{ needs.external-coverage-trust.outputs.verified_pr_number }}",
+                "COVERAGE_BASE_SHA": "${{ needs.external-coverage-trust.outputs.verified_base_sha }}",
+                "COVERAGE_HEAD_SHA": "${{ needs.external-coverage-trust.outputs.verified_head_sha }}",
+            }
+            if len(validation_steps) != 1:
+                diagnostics.append(Diagnostic(
+                    "COV_EXTERNAL_VALIDATION_IDENTITY_BINDING_MISSING",
+                    "Exactly one validation command step is required.",
+                    CALLER_WORKFLOW_PATH,
+                ))
+            else:
+                env = validation_steps[0].get("env")
+                if not isinstance(env, dict) or any(
+                    env.get(key) != expected for key, expected in expected_env.items()
+                ):
+                    diagnostics.append(Diagnostic(
+                        "COV_EXTERNAL_VALIDATION_IDENTITY_BINDING_MISSING",
+                        "Validation identity binding is missing from the validation step.",
+                        CALLER_WORKFLOW_PATH,
+                    ))
+
+    def scan_forbidden(value: Any) -> bool:
+        if isinstance(value, dict):
+            return any(scan_forbidden(k) or scan_forbidden(v) for k, v in value.items())
+        if isinstance(value, list):
+            return any(scan_forbidden(item) for item in value)
+        if isinstance(value, str):
+            return any(token in value for token in FORBIDDEN_TRUST)
+        return False
+
+    if scan_forbidden(workflow):
         diagnostics.append(Diagnostic(
             "COV_EXTERNAL_TRUST_ROOT_TARGET_MINT_FORBIDDEN",
             "Target may not mint trust evidence.",
             CALLER_WORKFLOW_PATH,
         ))
     return diagnostics
-
 
 def evaluate_target(
     *,
@@ -491,12 +617,7 @@ def evaluate_target(
                 workflow,
                 identity.issuer_workflow_sha,
             ))
-    if proof_requested(target_root):
-        diagnostics.append(Diagnostic(
-            "COV_EXTERNAL_TRUST_BOOTSTRAP_PROOF_CREDIT_FORBIDDEN",
-            "Proof credit remains disabled.",
-            "planning/coverage",
-        ))
+    diagnostics.extend(planning_coverage_diagnostics(target_root))
     return diagnostics
 
 

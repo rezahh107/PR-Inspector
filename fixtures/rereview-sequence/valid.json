@@ -19,7 +19,7 @@
       "inspector_repository": "rezahh107/PR-Inspector",
       "inspector_repository_id": 1288323264,
       "pr_number": 42,
-      "protocol_version": "v1.9.0",
+      "protocol_version": "v1.10.0",
       "resulting_head_sha": "1111111111111111111111111111111111111111",
       "review_evidence_id": "0000000000000000000000000000000000000000000000000000000000000000",
       "review_package_canonical_sha256": "0000000000000000000000000000000000000000000000000000000000000000",

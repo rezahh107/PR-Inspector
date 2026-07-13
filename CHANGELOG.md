@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.10.0
+
+- Added the v1.10.0 protocol snapshot for the external Coverage trust gate security-boundary repair.
+- Replaced raw-substring external workflow topology checks with fail-closed YAML structural validation for jobs, steps, reusable-workflow pins, dependencies, checkout refs, and validation-step environment bindings.
+- Made malformed, unreadable, or invalid-UTF-8 coverage planning JSON block bootstrap attestation instead of being skipped.
+- Tightened OIDC run identity validation and preserved proof-credit-disabled bootstrap behavior.
+- Scoped the one-off EV4 Decision Kernel PR #43 independent verifier to manual dispatch so it cannot become an unbounded pull-request check.
+
 ## 1.9.0
 
 - Corrected post-merge lifecycle documentation and preserved PR #12 as historical provenance without inventing approvals.

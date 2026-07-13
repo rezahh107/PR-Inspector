@@ -541,7 +541,7 @@ def test_canonical_output_behavioral_coverage_has_dedicated_mutations_and_ci():
     assert all(len(values) == 1 for values in by_rule.values())
     policy = (
         ROOT
-        / "protocols/v1.9.0/policies/"
+        / "protocols/v1.10.0/policies/"
         "CANONICAL_OUTPUT_BEHAVIORAL_RULE_COVERAGE.md"
     ).read_text(encoding="utf-8")
     assert all(f"`{rule}`" in policy for rule in CANONICAL_OUTPUT_RULE_IDS)

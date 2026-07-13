@@ -1,0 +1,348 @@
+{
+  "$defs": {
+    "evidenceUrls": {
+      "items": {
+        "pattern": "^https://api\\.github\\.com/",
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "nullableBooleanEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "$ref": "#/$defs/evidenceUrls"
+        },
+        "value": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "value",
+        "evidence"
+      ],
+      "type": "object"
+    },
+    "nullableIntegerEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "$ref": "#/$defs/evidenceUrls"
+        },
+        "value": {
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "value",
+        "evidence"
+      ],
+      "type": "object"
+    },
+    "requiredCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "app_id": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "context": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "context",
+        "app_id"
+      ],
+      "type": "object"
+    },
+    "requiredCheckListEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "$ref": "#/$defs/evidenceUrls"
+        },
+        "value": {
+          "items": {
+            "$ref": "#/$defs/requiredCheck"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "value",
+        "evidence"
+      ],
+      "type": "object"
+    },
+    "stringListEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "$ref": "#/$defs/evidenceUrls"
+        },
+        "value": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ],
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "value",
+        "evidence"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/rezahh107/PR-Inspector/protocols/v1.10.0/schemas/governance-evidence.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "bypass_actors": {
+      "$ref": "#/$defs/stringListEvidence"
+    },
+    "checks": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "app_id": {
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "completed_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "conclusion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "head_sha": {
+            "pattern": "^[0-9a-f]{40}$",
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "in_progress",
+              "completed"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "app_id",
+          "head_sha",
+          "status",
+          "conclusion",
+          "completed_at"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "code_owner_review_required": {
+      "$ref": "#/$defs/nullableBooleanEvidence"
+    },
+    "default_branch": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "dismiss_stale_approvals": {
+      "$ref": "#/$defs/nullableBooleanEvidence"
+    },
+    "exact_head_sha": {
+      "pattern": "^[0-9a-f]{40}$",
+      "type": "string"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "merge_queue_required": {
+      "$ref": "#/$defs/nullableBooleanEvidence"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "pull_request_number": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "pull_request_required": {
+      "$ref": "#/$defs/nullableBooleanEvidence"
+    },
+    "repository": {
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+      "type": "string"
+    },
+    "repository_id": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "required_approvals": {
+      "$ref": "#/$defs/nullableIntegerEvidence"
+    },
+    "required_status_checks": {
+      "$ref": "#/$defs/requiredCheckListEvidence"
+    },
+    "reviews": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "commit_id": {
+            "pattern": "^[0-9a-f]{40}$",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_author": {
+            "type": "boolean"
+          },
+          "is_bot": {
+            "type": "boolean"
+          },
+          "reviewer": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "APPROVED",
+              "COMMENTED",
+              "CHANGES_REQUESTED",
+              "DISMISSED",
+              "PENDING"
+            ]
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reviewer",
+          "state",
+          "commit_id",
+          "is_bot",
+          "is_author",
+          "submitted_at"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 2
+    },
+    "source": {
+      "const": "github_rest_api_https"
+    },
+    "specialist_review": {
+      "additionalProperties": false,
+      "properties": {
+        "enforcement_status": {
+          "enum": [
+            "not_required",
+            "human_governance_required",
+            "repository_team_enforced"
+          ]
+        },
+        "qualification_evidence": {
+          "$ref": "#/$defs/evidenceUrls"
+        },
+        "qualification_status": {
+          "enum": [
+            "not_required",
+            "verified",
+            "unverified"
+          ]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "reviewer": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "required",
+        "reviewer",
+        "qualification_status",
+        "qualification_evidence",
+        "enforcement_status"
+      ],
+      "type": "object"
+    },
+    "status": {
+      "enum": [
+        "verified_enforced",
+        "verified_not_enforced",
+        "partially_enforced",
+        "insufficient_evidence"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "repository",
+    "repository_id",
+    "default_branch",
+    "pull_request_number",
+    "exact_head_sha",
+    "observed_at",
+    "source",
+    "pull_request_required",
+    "required_status_checks",
+    "required_approvals",
+    "dismiss_stale_approvals",
+    "code_owner_review_required",
+    "bypass_actors",
+    "merge_queue_required",
+    "reviews",
+    "checks",
+    "specialist_review",
+    "status",
+    "limitations"
+  ],
+  "title": "PR Inspector Payload-Derived GitHub Governance Evidence v1.10.0",
+  "type": "object"
+}

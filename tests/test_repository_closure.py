@@ -112,12 +112,12 @@ def test_parse_lock_accepts_valid_entries(tmp_path):
     lock = tmp_path / "valid.sha256"
     lock.write_text(
         "# test lock\n"
-        f"{'a' * 64}  protocols/v1.9.0/example.md\n",
+        f"{'a' * 64}  protocols/v1.10.0/example.md\n",
         encoding="utf-8",
     )
 
     assert _parse_lock(lock) == {
-        "protocols/v1.9.0/example.md": "a" * 64,
+        "protocols/v1.10.0/example.md": "a" * 64,
     }
 
 
@@ -132,7 +132,7 @@ def _assert_lock_failure(lock: Path, expected_line: int, expected_reason: str) -
 
 def test_parse_lock_rejects_missing_separator(tmp_path):
     lock = tmp_path / "missing-separator.sha256"
-    lock.write_text(f"{'a' * 64} protocols/v1.9.0/example.md\n", encoding="utf-8")
+    lock.write_text(f"{'a' * 64} protocols/v1.10.0/example.md\n", encoding="utf-8")
 
     _assert_lock_failure(lock, 1, "missing exact double-space separator")
 
@@ -140,7 +140,7 @@ def test_parse_lock_rejects_missing_separator(tmp_path):
 @pytest.mark.parametrize("digest", ["a" * 63, "A" * 64, "g" * 64])
 def test_parse_lock_rejects_invalid_digest(tmp_path, digest):
     lock = tmp_path / "invalid-digest.sha256"
-    lock.write_text(f"{digest}  protocols/v1.9.0/example.md\n", encoding="utf-8")
+    lock.write_text(f"{digest}  protocols/v1.10.0/example.md\n", encoding="utf-8")
 
     _assert_lock_failure(
         lock,
@@ -159,15 +159,15 @@ def test_parse_lock_rejects_empty_relative_path(tmp_path):
 def test_parse_lock_rejects_duplicate_relative_path(tmp_path):
     lock = tmp_path / "duplicate-path.sha256"
     lock.write_text(
-        f"{'a' * 64}  protocols/v1.9.0/example.md\n"
-        f"{'b' * 64}  protocols/v1.9.0/example.md\n",
+        f"{'a' * 64}  protocols/v1.10.0/example.md\n"
+        f"{'b' * 64}  protocols/v1.10.0/example.md\n",
         encoding="utf-8",
     )
 
     _assert_lock_failure(
         lock,
         2,
-        "duplicate relative path: protocols/v1.9.0/example.md",
+        "duplicate relative path: protocols/v1.10.0/example.md",
     )
 
 
@@ -275,7 +275,7 @@ def test_active_version_declarations_and_paths_are_aligned():
     assert project_version_match is not None
     project_version = project_version_match.group(1)
 
-    assert current == "v1.9.0"
+    assert current == "v1.10.0"
     assert manifest["active_version"] == current
     assert manifest["status"] == "active"
     assert manifest["release_lock"] == f"release-locks/{current}.sha256"
@@ -293,8 +293,8 @@ def test_current_status_statement_is_explicit_and_truthful():
         encoding="utf-8"
     )
     required = (
-        "active_protocol: v1.9.0",
-        "implementation_state: merged_on_main",
+        "active_protocol: v1.10.0",
+        "implementation_state: v1.10_branch_snapshot_preserves_v1.9_main_implementation",
         "canonical_output_boundary: implemented",
         "publication_commit_point: implemented",
         "verified_byte_snapshot_accessors: implemented",
@@ -332,7 +332,7 @@ def test_active_lifecycle_documents_have_no_branch_era_status_claims():
         "active v1.8 implementation",
         "pr #13 and this stacked pr remain open and unmerged",
         "active protocol is pending activation",
-        "v1.9.0 exists only on a feature branch",
+        "v1.10.0 exists only on a feature branch",
         "default branch is not yet authoritative",
         "implementation_state: implementation_pending",
     )
