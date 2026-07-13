@@ -244,7 +244,7 @@ jobs:
         env:
           INDEPENDENT_POLICY_PR_NUMBER: ${{ inputs.independent_policy_pr_number }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           validated_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           args=(
             --target-root target
@@ -261,9 +261,33 @@ jobs:
               "${INDEPENDENT_POLICY_PR_NUMBER}"
             )
           fi
-          python issuer/scripts/verify_coverage_trust_gate.py "${args[@]}"
+          set +e
+          python issuer/scripts/verify_coverage_trust_gate.py "${args[@]}" \
+            > >(tee coverage-trust-verification.log) \
+            2> >(tee -a coverage-trust-verification.log >&2)
+          status=$?
+          set -e
+          echo "exit_code=${status}" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Upload verifier diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: coverage-trust-verification-log-${{ github.run_id }}
+          path: coverage-trust-verification.log
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Fail closed when authoritative verification failed
+        if: ${{ steps.verify.outputs.exit_code != '0' }}
+        shell: bash
+        run: |
+          echo "COV_EXTERNAL_AUTHORITATIVE_VERIFICATION_FAILED" >&2
+          exit 1
 
       - name: Publish verified identity to job summary
+        if: ${{ steps.verify.outputs.exit_code == '0' }}
         shell: bash
         run: |
           {
@@ -280,6 +304,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload authoritative external trust evidence
+        if: ${{ steps.verify.outputs.exit_code == '0' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: coverage-trust-attestation-${{ steps.verify.outputs.verified_head_sha }}
