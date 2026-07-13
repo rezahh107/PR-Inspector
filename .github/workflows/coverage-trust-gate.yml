@@ -1,0 +1,84 @@
+name: External Coverage Trust Gate
+
+on:
+  workflow_call:
+    inputs:
+      target_repository:
+        required: true
+        type: string
+      target_head_sha:
+        required: true
+        type: string
+      target_base_sha:
+        required: true
+        type: string
+      pull_request_number:
+        required: true
+        type: number
+      issuer_workflow_sha:
+        required: true
+        type: string
+      proof_credit_mode:
+        required: false
+        default: bootstrap_deny
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify external Coverage trust root
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact target head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: ${{ inputs.target_repository }}
+          ref: ${{ inputs.target_head_sha }}
+          fetch-depth: 0
+          path: target
+
+      - name: Check out immutable issuer implementation
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: rezahh107/PR-Inspector
+          ref: ${{ inputs.issuer_workflow_sha }}
+          fetch-depth: 1
+          path: issuer
+
+      - name: Verify issuer checkout identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git -C issuer rev-parse HEAD)"
+          test "$actual" = "${{ inputs.issuer_workflow_sha }}"
+
+      - name: Run immutable gate self-tests
+        run: python -m unittest issuer/tests/test_coverage_trust_gate.py
+
+      - name: Issue externally verified bootstrap attestation
+        shell: bash
+        run: |
+          set -euo pipefail
+          validated_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          python issuer/scripts/verify_coverage_trust_gate.py \
+            --target-root target \
+            --target-repository '${{ inputs.target_repository }}' \
+            --target-head-sha '${{ inputs.target_head_sha }}' \
+            --target-base-sha '${{ inputs.target_base_sha }}' \
+            --pull-request-number '${{ inputs.pull_request_number }}' \
+            --issuer-workflow-sha '${{ inputs.issuer_workflow_sha }}' \
+            --run-id '${{ github.run_id }}' \
+            --run-attempt '${{ github.run_attempt }}' \
+            --validated-at "$validated_at" \
+            --proof-credit-mode '${{ inputs.proof_credit_mode }}' \
+            --output coverage-trust-attestation.json
+
+      - name: Upload immutable trust evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: coverage-trust-attestation-${{ inputs.target_head_sha }}
+          path: coverage-trust-attestation.json
+          if-no-files-found: error
+          retention-days: 30
