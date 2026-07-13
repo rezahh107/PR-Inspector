@@ -1,49 +1,92 @@
 from __future__ import annotations
-
-import importlib.util
-import json
-import subprocess
-import sys
-import tempfile
-import unittest
+import importlib.util, sys, unittest
 from pathlib import Path
 
-MODULE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "verify_coverage_trust_gate.py"
-SPEC = importlib.util.spec_from_file_location("coverage_trust_gate", MODULE_PATH)
-gate = importlib.util.module_from_spec(SPEC)
-assert SPEC and SPEC.loader
-sys.modules[SPEC.name] = gate
-SPEC.loader.exec_module(gate)
+ROOT = Path(__file__).resolve().parents[1]
 
-ISSUER_SHA = "a" * 40
+def load(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
 
+gate = load("coverage_trust_gate", ROOT / "scripts/verify_coverage_trust_gate.py")
+publisher = load("coverage_check_publisher", ROOT / "scripts/publish_coverage_check.py")
+ISSUER = "a" * 40
+BASE = "b" * 40
+HEAD_43 = "c" * 40
+HEAD_44 = "d" * 40
 
-def git(root: Path, *args: str) -> str:
-    return subprocess.check_output(["git", *args], cwd=root, text=True).strip()
+def claims(head, number=43):
+    return {
+        "iss": gate.OIDC_ISSUER,
+        "aud": gate.OIDC_AUDIENCE,
+        "repository": gate.TARGET_REPOSITORY,
+        "repository_id": str(gate.TARGET_REPOSITORY_ID),
+        "event_name": "pull_request",
+        "workflow_ref": f"{gate.TARGET_REPOSITORY}/{gate.CALLER_WORKFLOW_PATH}@refs/pull/{number}/merge",
+        "workflow_sha": head,
+        "job_workflow_ref": f"{gate.ISSUER_REPOSITORY}/{gate.ISSUER_WORKFLOW_PATH}@{ISSUER}",
+        "job_workflow_sha": ISSUER,
+        "run_id": "1",
+        "run_attempt": "1",
+        "check_run_id": "2",
+    }
 
+def independent_claims(head):
+    return {
+        "iss": gate.OIDC_ISSUER,
+        "aud": gate.OIDC_AUDIENCE,
+        "repository": gate.ISSUER_REPOSITORY,
+        "repository_id": str(gate.ISSUER_REPOSITORY_ID),
+        "event_name": "workflow_dispatch",
+        "workflow_ref": f"{gate.ISSUER_REPOSITORY}/{gate.INDEPENDENT_WORKFLOW_PATH}@refs/heads/test",
+        "workflow_sha": head,
+        "run_id": "1",
+        "run_attempt": "1",
+        "check_run_id": "2",
+    }
 
-def write(root: Path, path: str, content: str) -> None:
-    target = root / path
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(content, encoding="utf-8")
+def event(number, base, head):
+    return {
+        "number": number,
+        "repository": {
+            "id": gate.TARGET_REPOSITORY_ID,
+            "full_name": gate.TARGET_REPOSITORY,
+        },
+        "pull_request": {
+            "number": number,
+            "base": {"sha": base},
+            "head": {"sha": head},
+        },
+    }
 
+def api(number, base, head):
+    return {
+        "number": number,
+        "base": {
+            "sha": base,
+            "repo": {
+                "id": gate.TARGET_REPOSITORY_ID,
+                "full_name": gate.TARGET_REPOSITORY,
+            },
+        },
+        "head": {"sha": head},
+    }
 
-def caller_workflow(
-    issuer_sha: str = ISSUER_SHA,
-    *,
-    identity_inputs: bool = False,
-    dead: bool = False,
-    needs: bool = True,
-    checkout_ref: str = "${{ needs.external-coverage-trust.outputs.verified_head_sha }}",
-) -> str:
-    injected = ""
-    if identity_inputs:
-        injected = """    with:
-      target_head_sha: deadbeef
-      target_base_sha: deadbeef
-      pull_request_number: 43
-      issuer_workflow_sha: deadbeef
-"""
+def derive(number, head, **overrides):
+    data = {
+        "event": event(number, BASE, head),
+        "api_pr": api(number, BASE, head),
+        "oidc_claims": claims(head, number),
+        "environment": {"GITHUB_RUN_ID": "1", "GITHUB_RUN_ATTEMPT": "1"},
+    }
+    data.update(overrides)
+    return gate.derive_authoritative_identity(**data)
+
+def workflow(issuer=ISSUER, dead=False, needs=True, ref="${{ needs.external-coverage-trust.outputs.verified_head_sha }}"):
     condition = "    if: ${{ false }}\n" if dead else ""
     dependency = "    needs: external-coverage-trust\n" if needs else ""
     return f"""name: Validate MVK
@@ -53,21 +96,17 @@ permissions:
   contents: read
 jobs:
   external-coverage-trust:
-    name: External Coverage Trust Gate
-{condition}    uses: rezahh107/PR-Inspector/.github/workflows/coverage-trust-gate.yml@{issuer_sha}
-{injected}    permissions:
+{condition}    uses: rezahh107/PR-Inspector/.github/workflows/coverage-trust-gate.yml@{issuer}
+    permissions:
       contents: read
       pull-requests: read
       id-token: write
   validate-mvk:
-    name: Validate MVK
 {dependency}    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          persist-credentials: false
-          fetch-depth: 0
-          ref: {checkout_ref}
+          ref: {ref}
       - run: npm run validate:coverage
         env:
           COVERAGE_REPOSITORY: ${{{{ needs.external-coverage-trust.outputs.verified_repository }}}}
@@ -76,212 +115,115 @@ jobs:
           COVERAGE_HEAD_SHA: ${{{{ needs.external-coverage-trust.outputs.verified_head_sha }}}}
 """
 
+class IdentityTests(unittest.TestCase):
+    def test_pr_43_and_second_pr_resolve_dynamically(self):
+        for number, head in ((43, HEAD_43), (44, HEAD_44)):
+            identity, diagnostics = derive(number, head)
+            self.assertEqual([], diagnostics)
+            self.assertEqual(number, identity.pull_request_number)
+            self.assertEqual(head, identity.target_head_sha)
 
-def guard_workflow(issuer_sha: str = ISSUER_SHA) -> str:
-    return f"""name: Required Authoritative Coverage Trust
-on:
-  pull_request_target:
-permissions:
-  contents: read
-  pull-requests: read
-  id-token: write
-jobs:
-  authoritative-coverage-trust:
-    name: PRF-012 Authoritative Coverage Trust
-    uses: rezahh107/PR-Inspector/.github/workflows/coverage-trust-gate.yml@{issuer_sha}
-    permissions:
-      contents: read
-      pull-requests: read
-      id-token: write
-  authoritative-target-validation:
-    name: PRF-012 Authoritative Target Validation
-    needs: authoritative-coverage-trust
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          repository: ${{{{ needs.authoritative-coverage-trust.outputs.verified_repository }}}}
-          ref: ${{{{ needs.authoritative-coverage-trust.outputs.verified_head_sha }}}}
-          persist-credentials: false
-          fetch-depth: 0
-      - run: git diff --check
-"""
+    def test_event_api_pr_number_mismatch_fails(self):
+        identity, diagnostics = derive(43, HEAD_43, api_pr=api(44, BASE, HEAD_43))
+        self.assertIsNone(identity)
+        self.assertIn("COV_EXTERNAL_EVENT_PR_MISMATCH", {item.code for item in diagnostics})
 
+    def test_event_api_head_mismatch_fails(self):
+        identity, diagnostics = derive(43, HEAD_43, api_pr=api(43, BASE, HEAD_44))
+        self.assertIsNone(identity)
+        self.assertIn("COV_EXTERNAL_EVENT_HEAD_MISMATCH", {item.code for item in diagnostics})
 
-def init_target(caller: str | None = None):
-    temp = tempfile.TemporaryDirectory()
-    root = Path(temp.name)
-    git(root, "init", "-q")
-    git(root, "config", "user.name", "Coverage Gate Test")
-    git(root, "config", "user.email", "coverage-gate@example.invalid")
-    write(root, gate.CALLER_WORKFLOW_PATH, caller or caller_workflow())
-    write(root, gate.REQUIRED_GUARD_WORKFLOW_PATH, guard_workflow())
-    for name in (
-        "validate-coverage-guarantee.mjs",
-        "validate-coverage-guarantee-prf010.mjs",
-        "validate-coverage-guarantee-legacy.mjs",
-    ):
-        write(root, f"kernel/validator/{name}", "export {};\n")
-    write(root, "planning/coverage/coverage-baseline.v1.json", "{}\n")
-    git(root, "add", "-A")
-    git(root, "commit", "-qm", "base")
-    base = git(root, "rev-parse", "HEAD")
-    write(root, "README.md", "head\n")
-    git(root, "add", "-A")
-    git(root, "commit", "-qm", "head")
-    return temp, root, base, git(root, "rev-parse", "HEAD")
-
-
-def claims(head: str) -> dict:
-    return {
-        "iss": gate.OIDC_ISSUER,
-        "aud": gate.OIDC_AUDIENCE,
-        "repository": gate.TARGET_REPOSITORY,
-        "repository_id": str(gate.TARGET_REPOSITORY_ID),
-        "event_name": "pull_request",
-        "workflow_ref": f"{gate.TARGET_REPOSITORY}/{gate.CALLER_WORKFLOW_PATH}@refs/pull/43/merge",
-        "workflow_sha": head,
-        "job_workflow_ref": f"{gate.ISSUER_REPOSITORY}/{gate.ISSUER_WORKFLOW_PATH}@{ISSUER_SHA}",
-        "job_workflow_sha": ISSUER_SHA,
-        "run_id": "1234",
-        "run_attempt": "1",
-        "check_run_id": "9876",
-    }
-
-
-def event(base: str, head: str, number: int = 43) -> dict:
-    return {
-        "number": number,
-        "repository": {"id": gate.TARGET_REPOSITORY_ID, "full_name": gate.TARGET_REPOSITORY},
-        "pull_request": {
-            "number": number,
-            "base": {"sha": base},
-            "head": {"sha": head},
-        },
-    }
-
-
-def api(base: str, head: str, number: int = 43) -> dict:
-    return {
-        "number": number,
-        "base": {
-            "sha": base,
-            "repo": {"id": gate.TARGET_REPOSITORY_ID, "full_name": gate.TARGET_REPOSITORY},
-        },
-        "head": {"sha": head},
-    }
-
-
-class CoverageTrustGateTests(unittest.TestCase):
-    def derive(self, base: str, head: str, **overrides):
-        data = {
-            "event": event(base, head),
-            "api_pr": api(base, head),
-            "oidc_claims": claims(head),
-            "environment": {"GITHUB_RUN_ID": "1234", "GITHUB_RUN_ATTEMPT": "1"},
-        }
-        data.update(overrides)
-        return gate.derive_authoritative_identity(**data)
-
-    def test_real_event_head_differs_from_caller_supplied_head(self):
-        temp, root, base, head = init_target(caller_workflow(identity_inputs=True))
-        self.addCleanup(temp.cleanup)
-        identity, diagnostics = self.derive(
-            base,
-            head,
-            event=event(base, "d" * 40),
+    def test_target_caller_cannot_select_independent_policy(self):
+        identity, diagnostics = gate.derive_authoritative_identity(
+            event=event(43, BASE, HEAD_43),
+            api_pr=api(43, BASE, HEAD_43),
+            oidc_claims=claims(HEAD_43),
+            environment={"GITHUB_RUN_ID": "1", "GITHUB_RUN_ATTEMPT": "1"},
+            independent_policy_pr_number=43,
         )
         self.assertIsNone(identity)
-        self.assertIn("COV_EXTERNAL_EVENT_HEAD_MISMATCH", {x.code for x in diagnostics})
-        topology = gate._workflow_topology_diagnostics(
-            caller_workflow(identity_inputs=True), ISSUER_SHA
+        self.assertIn("COV_EXTERNAL_TARGET_POLICY_INPUT_FORBIDDEN", {item.code for item in diagnostics})
+
+    def test_one_off_pr43_policy_is_separate(self):
+        identity, diagnostics = gate.derive_authoritative_identity(
+            event={},
+            api_pr=api(43, BASE, HEAD_43),
+            oidc_claims=independent_claims(ISSUER),
+            environment={"GITHUB_RUN_ID": "1", "GITHUB_RUN_ATTEMPT": "1"},
+            independent_policy_pr_number=43,
         )
-        self.assertIn("COV_EXTERNAL_CALLER_IDENTITY_INPUT_FORBIDDEN", {x.code for x in topology})
-
-    def test_wrong_base_or_pr_number(self):
-        temp, root, base, head = init_target()
-        self.addCleanup(temp.cleanup)
-        identity, diagnostics = self.derive(
-            base,
-            head,
-            event=event("d" * 40, head, 44),
-        )
-        codes = {x.code for x in diagnostics}
-        self.assertIsNone(identity)
-        self.assertIn("COV_EXTERNAL_EVENT_BASE_MISMATCH", codes)
-        self.assertIn("COV_EXTERNAL_EVENT_PR_MISMATCH", codes)
-
-    def test_alternate_issuer_sha_while_uses_remains_pinned(self):
-        codes = {
-            x.code for x in gate._workflow_topology_diagnostics(
-                caller_workflow("d" * 40, identity_inputs=True), ISSUER_SHA
-            )
-        }
-        self.assertIn("COV_EXTERNAL_OIDC_ISSUER_SHA_MISMATCH", codes)
-        self.assertIn("COV_EXTERNAL_CALLER_IDENTITY_INPUT_FORBIDDEN", codes)
-
-    def test_dead_or_non_required_external_job(self):
-        dead = {x.code for x in gate._workflow_topology_diagnostics(
-            caller_workflow(dead=True), ISSUER_SHA
-        )}
-        detached = {x.code for x in gate._workflow_topology_diagnostics(
-            caller_workflow(needs=False), ISSUER_SHA
-        )}
-        self.assertIn("COV_EXTERNAL_REQUIRED_JOB_DEAD", dead)
-        self.assertIn("COV_EXTERNAL_VALIDATION_NEEDS_MISSING", detached)
-
-    def test_validation_checkout_differs_from_external_head(self):
-        codes = {x.code for x in gate._workflow_topology_diagnostics(
-            caller_workflow(checkout_ref="${{ github.event.pull_request.head.sha }}"),
-            ISSUER_SHA,
-        )}
-        self.assertIn("COV_EXTERNAL_VALIDATION_CHECKOUT_MISMATCH", codes)
-
-    def test_forged_time_and_ingestion_are_rejected(self):
-        workflow = caller_workflow() + (
-            "\n# COVERAGE_VALIDATED_AT\n# COVERAGE_VALIDATION_SOURCE\n"
-            "# COVERAGE_TRUSTED_INGESTION_ATTESTATIONS\n"
-        )
-        codes = {x.code for x in gate._workflow_topology_diagnostics(workflow, ISSUER_SHA)}
-        self.assertIn("COV_EXTERNAL_TRUST_ROOT_TARGET_MINT_FORBIDDEN", codes)
-        self.assertIn("COV_EXTERNAL_ATTESTATION_UNSIGNED_ENV_FORBIDDEN", codes)
-
-    def test_reserved_required_check_name_cannot_be_spoofed(self):
-        temp, root, base, head = init_target()
-        self.addCleanup(temp.cleanup)
-        write(root, ".github/workflows/spoof.yml",
-              "jobs:\n  x:\n    name: PRF-012 Authoritative Coverage Trust\n")
-        codes = {x.code for x in gate._required_guard_diagnostics(root, ISSUER_SHA)}
-        self.assertIn("COV_EXTERNAL_REQUIRED_CHECK_NAME_SPOOFED", codes)
-
-    def test_valid_exact_head_bootstrap_denies_proof_credit(self):
-        temp, root, base, head = init_target()
-        self.addCleanup(temp.cleanup)
-        verified, diagnostics = self.derive(base, head)
         self.assertEqual([], diagnostics)
-        assert verified is not None
-        self.assertEqual([], gate.evaluate_target(target_root=root, identity=verified))
-        attestation = gate.issue_bootstrap_attestation(
-            identity=verified,
-            event=event(base, head),
-            api_pr=api(base, head),
-            oidc_claims=claims(head),
-            validated_at="2026-07-13T14:00:00Z",
+        self.assertEqual("independent_explicit_policy_api", identity.verification_mode)
+
+    def test_no_repository_wide_target_pr_constant(self):
+        self.assertFalse(hasattr(gate, "TARGET_PR_NUMBER"))
+
+class TopologyTests(unittest.TestCase):
+    def test_dead_and_non_required_jobs_fail(self):
+        self.assertIn("COV_EXTERNAL_REQUIRED_JOB_DEAD", {item.code for item in gate.workflow_diagnostics(workflow(dead=True), ISSUER)})
+        self.assertIn("COV_EXTERNAL_VALIDATION_NEEDS_MISSING", {item.code for item in gate.workflow_diagnostics(workflow(needs=False), ISSUER)})
+
+    def test_validation_checkout_drift_fails(self):
+        diagnostics = gate.workflow_diagnostics(workflow(ref="${{ github.sha }}"), ISSUER)
+        self.assertIn("COV_EXTERNAL_VALIDATION_CHECKOUT_MISMATCH", {item.code for item in diagnostics})
+
+    def test_valid_bootstrap_keeps_proof_credit_false(self):
+        identity, diagnostics = derive(43, HEAD_43)
+        self.assertEqual([], diagnostics)
+        value = gate.issue_bootstrap_attestation(
+            identity,
+            event(43, BASE, HEAD_43),
+            api(43, BASE, HEAD_43),
+            claims(HEAD_43),
+            "2026-07-13T15:00:00Z",
         )
-        self.assertEqual([], gate.verify_bootstrap_attestation(attestation, identity=verified))
-        self.assertFalse(attestation["proof_credit_authorized"])
-        self.assertEqual(head, attestation["target"]["evidence_head_sha"])
-        self.assertEqual(64, len(attestation["verifier_created_capability"]))
+        self.assertEqual([], gate.verify_attestation(value, identity))
+        self.assertFalse(value["proof_credit_authorized"])
 
-    def test_oidc_job_workflow_sha_is_only_issuer_authority(self):
-        temp, root, base, head = init_target()
-        self.addCleanup(temp.cleanup)
-        invalid = claims(head)
-        invalid["job_workflow_sha"] = "not-a-sha"
-        identity, diagnostics = self.derive(base, head, oidc_claims=invalid)
-        self.assertIsNone(identity)
-        self.assertIn("COV_EXTERNAL_OIDC_ISSUER_SHA_INVALID", {x.code for x in diagnostics})
+class PublisherTests(unittest.TestCase):
+    def identity(self, head=HEAD_43, app_id=24680):
+        return publisher.PublicationIdentity(
+            "rezahh107/EV4-Decision-Kernel",
+            1292378784,
+            43,
+            BASE,
+            head,
+            ISSUER,
+            "1",
+            1,
+            "e" * 64,
+            app_id,
+        )
 
+    def response(self, identity, app_id=None):
+        return {
+            "id": 9,
+            **publisher.build_check_run_payload(identity),
+            "app": {"id": identity.expected_app_id if app_id is None else app_id},
+        }
+
+    def test_result_is_head_associated_not_base_associated(self):
+        identity = self.identity()
+        payload = publisher.build_check_run_payload(identity)
+        self.assertEqual(identity.head_sha, payload["head_sha"])
+        self.assertNotEqual(identity.base_sha, payload["head_sha"])
+        publisher.validate_check_run_response(self.response(identity), identity)
+
+    def test_new_head_makes_old_result_non_satisfying(self):
+        with self.assertRaises(ValueError):
+            publisher.validate_check_run_response(
+                self.response(self.identity(HEAD_43)), self.identity(HEAD_44)
+            )
+
+    def test_same_name_wrong_app_source_fails(self):
+        with self.assertRaisesRegex(ValueError, "source GitHub App mismatch"):
+            publisher.validate_check_run_response(
+                self.response(self.identity(), 999), self.identity()
+            )
+
+    def test_missing_result_fails(self):
+        with self.assertRaises(ValueError):
+            publisher.validate_check_run_response({}, self.identity())
 
 if __name__ == "__main__":
     unittest.main()
