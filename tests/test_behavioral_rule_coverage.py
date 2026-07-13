@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from pr_inspector.behavioral_coverage import FOCUSED_COMMAND, REQUIRED_RULE_IDS, load_mutation_cases, parse_coverage_matrix, validate_behavioral_coverage
+from pr_inspector.behavioral_coverage import EXTERNAL_COVERAGE_COMMAND, FOCUSED_COMMAND, MATRIX_PATH, REQUIRED_RULE_IDS, load_mutation_cases, parse_coverage_matrix, validate_behavioral_coverage
 from pr_inspector.ci_identity import build_ci_identity, validate_ci_identity
 from pr_inspector.decision_projection import owner_result_text, project_decision
 from pr_inspector.governance import verify_github_governance_source, verify_governance_record
@@ -51,11 +51,17 @@ def rewrite_json(path: Path, value: dict) -> None:
 
 def test_behavioral_coverage_matrix_is_complete_and_repository_validated():
     assert validate_behavioral_coverage() == []
-    text = (ROOT / "protocols/v1.8.0/policies/BEHAVIORAL_RULE_COVERAGE.md").read_text(encoding="utf-8")
+    text = MATRIX_PATH.read_text(encoding="utf-8")
     rows = parse_coverage_matrix(text)
     assert {row["rule_id"] for row in rows} == REQUIRED_RULE_IDS
-    assert all(row["CI_step"] == FOCUSED_COMMAND for row in rows)
-    assert all(row["risk"] == "Critical" for row in rows)
+    for row in rows:
+        expected = (
+            EXTERNAL_COVERAGE_COMMAND
+            if row["rule_id"].startswith("PRR-COV-")
+            else FOCUSED_COMMAND
+        )
+        assert row["CI_step"] == expected
+    assert all(row["risk"] in {"Critical", "High"} for row in rows)
 
 
 def test_every_behavioral_rule_has_one_dedicated_mutation_case():

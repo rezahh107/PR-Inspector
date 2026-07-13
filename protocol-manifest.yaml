@@ -13,6 +13,7 @@ release_lock: release-locks/v1.10.0.sha256
 load_order:
 - protocols/v1.10.0/PR_REVIEW_CONTRACT.md
 - protocols/v1.10.0/policies/SECURITY_AND_TRUST.md
+- protocols/v1.10.0/policies/EXTERNAL_COVERAGE_TRUST.md
 - protocols/v1.10.0/trust/INSPECTOR_TRUST_POLICY.json
 - protocols/v1.10.0/policies/DECISION_GATES.md
 - protocols/v1.10.0/registries/DECISION_REASON_REGISTRY.yaml
@@ -63,6 +64,7 @@ validation_commands:
     python scripts/validate_rereview_sequence.py SEQUENCE.json
     --review EVENT_ID=REVIEW_DIRECTORY
   behavioral_coverage: python -m pytest -q tests/test_behavioral_rule_coverage.py
+  external_coverage_trust: python -m pytest -q tests/test_coverage_trust_gate.py
   canonical_output_enforcement: python -m pytest -q tests/test_canonical_output_enforcement.py
   canonical_output_atomicity: python -m pytest -q tests/test_canonical_output_atomicity.py
   publication_commit_point: >-

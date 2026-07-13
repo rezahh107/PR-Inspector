@@ -29,6 +29,7 @@ OIDC_ISSUER = "https://token.actions.githubusercontent.com"
 OIDC_AUDIENCE = "ev4-coverage-trust-gate-prf013"
 PROOF_ROLES = {"runtime_proof", "consumer_proof", "coverage_credit"}
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
+APPROVED_CHECKOUT_ACTION = "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683"
 RFC3339 = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 FORBIDDEN_INPUTS = (
     "target_repository",
@@ -80,6 +81,35 @@ def canonical(value: Any) -> bytes:
         separators=(",", ":"),
         ensure_ascii=False,
     ).encode("utf-8")
+
+
+class UniqueKeySafeLoader(yaml.SafeLoader):
+    pass
+
+
+def construct_unique_mapping(loader: UniqueKeySafeLoader, node: yaml.nodes.MappingNode, deep: bool = False) -> dict[Any, Any]:
+    mapping: dict[Any, Any] = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        if key in mapping:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping",
+                node.start_mark,
+                f"found duplicate key {key!r}",
+                key_node.start_mark,
+            )
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+UniqueKeySafeLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    construct_unique_mapping,
+)
+
+
+def load_workflow_yaml(text: str) -> Any:
+    return yaml.load(text, Loader=UniqueKeySafeLoader)
 
 
 def int_or_none(value: Any) -> int | None:
@@ -400,7 +430,7 @@ def workflow_diagnostics(
         ))
         return diagnostics
     try:
-        workflow = yaml.safe_load(text)
+        workflow = load_workflow_yaml(text)
     except yaml.YAMLError as exc:
         problem = getattr(exc, "problem", None) or exc.__class__.__name__
         diagnostics.append(Diagnostic(
@@ -418,6 +448,12 @@ def workflow_diagnostics(
     if diagnostic:
         return [diagnostic]
     assert workflow is not None
+    if workflow.get("permissions") != {"contents": "read"}:
+        diagnostics.append(Diagnostic(
+            "COV_EXTERNAL_WORKFLOW_PERMISSIONS_INVALID",
+            "Workflow permissions must be exactly contents: read.",
+            CALLER_WORKFLOW_PATH,
+        ))
     jobs, diagnostic = require_mapping(
         workflow.get("jobs"),
         "COV_EXTERNAL_WORKFLOW_JOBS_INVALID",
@@ -438,6 +474,16 @@ def workflow_diagnostics(
         diagnostics.append(diagnostic)
     else:
         assert external is not None
+        if external.get("permissions") != {
+            "contents": "read",
+            "pull-requests": "read",
+            "id-token": "write",
+        }:
+            diagnostics.append(Diagnostic(
+                "COV_EXTERNAL_WORKFLOW_PERMISSIONS_INVALID",
+                "External trust job permissions must be exact read-only plus OIDC.",
+                CALLER_WORKFLOW_PATH,
+            ))
         if "if" in external:
             diagnostics.append(Diagnostic(
                 "COV_EXTERNAL_REQUIRED_JOB_DEAD",
@@ -473,6 +519,12 @@ def workflow_diagnostics(
         diagnostics.append(diagnostic)
     else:
         assert validation is not None
+        if validation.get("permissions") != {"contents": "read"}:
+            diagnostics.append(Diagnostic(
+                "COV_EXTERNAL_WORKFLOW_PERMISSIONS_INVALID",
+                "Validation job permissions must be exactly contents: read.",
+                CALLER_WORKFLOW_PATH,
+            ))
         needs = validation.get("needs")
         needs_ok = needs == "external-coverage-trust" or (
             isinstance(needs, list) and needs == ["external-coverage-trust"]
@@ -502,8 +554,15 @@ def workflow_diagnostics(
                     ))
                     continue
                 uses = str(step.get("uses") or "")
-                if uses.startswith("actions/checkout@"):
-                    checkout_steps.append(step)
+                if uses:
+                    if re.fullmatch(r"[^@\s]+@[0-9a-f]{40}", uses) is None:
+                        diagnostics.append(Diagnostic(
+                            "COV_EXTERNAL_ACTION_PIN_INVALID",
+                            "Security-relevant action uses must be pinned to a full commit SHA.",
+                            CALLER_WORKFLOW_PATH,
+                        ))
+                    if uses.startswith("actions/checkout@"):
+                        checkout_steps.append(step)
                 if step.get("run") == "npm run validate:coverage":
                     validation_steps.append(step)
             expected_ref = "${{ needs.external-coverage-trust.outputs.verified_head_sha }}"
@@ -515,15 +574,31 @@ def workflow_diagnostics(
                 ))
             else:
                 checkout_with = checkout_steps[0].get("with")
-                if (
-                    not isinstance(checkout_with, dict)
-                    or checkout_with.get("ref") != expected_ref
-                ):
+                if not isinstance(checkout_with, dict):
                     diagnostics.append(Diagnostic(
                         "COV_EXTERNAL_VALIDATION_CHECKOUT_MISMATCH",
-                        "Validation checkout is not externally bound.",
+                        "Validation checkout with mapping is malformed.",
                         CALLER_WORKFLOW_PATH,
                     ))
+                else:
+                    if checkout_steps[0].get("uses") != APPROVED_CHECKOUT_ACTION:
+                        diagnostics.append(Diagnostic(
+                            "COV_EXTERNAL_ACTION_PIN_INVALID",
+                            "Checkout action must use the approved immutable SHA.",
+                            CALLER_WORKFLOW_PATH,
+                        ))
+                    if checkout_with.get("ref") != expected_ref:
+                        diagnostics.append(Diagnostic(
+                            "COV_EXTERNAL_VALIDATION_CHECKOUT_MISMATCH",
+                            "Validation checkout is not externally bound.",
+                            CALLER_WORKFLOW_PATH,
+                        ))
+                    if checkout_with.get("persist-credentials") is not False:
+                        diagnostics.append(Diagnostic(
+                            "COV_EXTERNAL_CHECKOUT_CREDENTIALS_INVALID",
+                            "Validation checkout must set persist-credentials: false.",
+                            CALLER_WORKFLOW_PATH,
+                        ))
             expected_env = {
                 "COVERAGE_REPOSITORY": "${{ needs.external-coverage-trust.outputs.verified_repository }}",
                 "COVERAGE_PR_NUMBER": "${{ needs.external-coverage-trust.outputs.verified_pr_number }}",

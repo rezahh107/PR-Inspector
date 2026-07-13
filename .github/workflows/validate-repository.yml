@@ -79,6 +79,9 @@ jobs:
       - name: Run focused Behavioral Rule Coverage mutations
         run: python -m pytest -q tests/test_behavioral_rule_coverage.py
 
+      - name: Run focused external Coverage trust gate tests
+        run: python -m pytest -q tests/test_coverage_trust_gate.py
+
       - name: Run focused governance enforcement tests
         run: python -m pytest -q tests/test_governance_enforcement.py
 

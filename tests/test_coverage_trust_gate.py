@@ -139,10 +139,13 @@ jobs:
       id-token: write
   validate-mvk:
 {dependency}    runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: {ref}
+          persist-credentials: false
       - run: npm run validate:coverage
         env:
           COVERAGE_REPOSITORY: ${{{{ needs.external-coverage-trust.outputs.verified_repository }}}}
@@ -343,6 +346,42 @@ class TopologyTests(unittest.TestCase):
             "COV_EXTERNAL_WORKFLOW_YAML_UNSUPPORTED",
             {item.code for item in diagnostics},
         )
+
+
+    def test_duplicate_yaml_keys_fail_closed(self):
+        cases = (
+            workflow() + "jobs: {}\n",
+            workflow().replace("  validate-mvk:\n", "  validate-mvk:\n    name: first\n  validate-mvk:\n", 1),
+            workflow().replace("    uses: rezahh107", "    uses: first\n    uses: rezahh107", 1),
+            workflow().replace("        with:\n", "        with:\n          ref: wrong\n        with:\n", 1),
+            workflow().replace("          ref: ", "          ref: wrong\n          ref: ", 1),
+            workflow().replace("        env:\n", "        env:\n          COVERAGE_REPOSITORY: wrong\n        env:\n", 1),
+            workflow().replace("      contents: read\n", "      contents: write\n      contents: read\n", 1),
+        )
+        for text in cases:
+            diagnostics = gate.workflow_diagnostics(text, ISSUER)
+            self.assertIn(
+                "COV_EXTERNAL_WORKFLOW_YAML_INVALID",
+                {item.code for item in diagnostics},
+                text,
+            )
+
+    def test_workflow_permissions_action_pin_and_checkout_credentials_fail(self):
+        cases = (
+            (workflow().replace("permissions:\n  contents: read", "permissions:\n  contents: write", 1), "COV_EXTERNAL_WORKFLOW_PERMISSIONS_INVALID"),
+            (workflow().replace("      pull-requests: read", "      pull-requests: write", 1), "COV_EXTERNAL_WORKFLOW_PERMISSIONS_INVALID"),
+            (workflow().replace("    permissions:\n      contents: read\n    steps:", "    permissions:\n      contents: write\n    steps:", 1), "COV_EXTERNAL_WORKFLOW_PERMISSIONS_INVALID"),
+            (workflow().replace("actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683", "actions/checkout@v4", 1), "COV_EXTERNAL_ACTION_PIN_INVALID"),
+            (workflow().replace("          persist-credentials: false\n", "", 1), "COV_EXTERNAL_CHECKOUT_CREDENTIALS_INVALID"),
+            (workflow().replace("          persist-credentials: false", "          persist-credentials: true", 1), "COV_EXTERNAL_CHECKOUT_CREDENTIALS_INVALID"),
+            (workflow().replace("        with:\n          ref: {ref}\n          persist-credentials: false".format(ref="${{ needs.external-coverage-trust.outputs.verified_head_sha }}"), "        with: []", 1), "COV_EXTERNAL_VALIDATION_CHECKOUT_MISMATCH"),
+        )
+        for text, code in cases:
+            diagnostics = gate.workflow_diagnostics(text, ISSUER)
+            self.assertIn(code, {item.code for item in diagnostics}, text)
+
+    def test_manual_pr43_workflow_is_not_part_of_this_pr(self):
+        self.assertFalse((ROOT / ".github/workflows/verify-ev4-decision-kernel-pr43.yml").exists())
 
     def test_valid_bootstrap_keeps_proof_credit_false(self):
         identity, diagnostics = derive(43, HEAD_43)
