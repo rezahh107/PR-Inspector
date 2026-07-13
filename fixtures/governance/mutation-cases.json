@@ -43,6 +43,18 @@
     {
       "case_id": "fabricated_pr12_approval",
       "rule_id": "PRR-HISTORY-NOFABRICATION-001"
+    },
+    {
+      "case_id": "personal_profile_app_absence_blocks_green",
+      "rule_id": "PRR-GOV-PERSONAL-PROFILE-001"
+    },
+    {
+      "case_id": "self_asserted_stronger_claim_accepted",
+      "rule_id": "PRR-GOV-CLAIM-SEPARATION-001"
+    },
+    {
+      "case_id": "activated_requirement_treated_optional",
+      "rule_id": "PRR-GOV-PROFILE-TRIGGER-001"
     }
   ],
   "schema_version": 2

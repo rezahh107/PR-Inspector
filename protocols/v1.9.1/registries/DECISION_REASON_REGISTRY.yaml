@@ -1,0 +1,296 @@
+schema_version: 1
+registry_version: v1.9.1
+reasons:
+- reason_code: RSN-REVIEW-NOT-CURRENT
+  concept: Review identity is stale or unknown.
+  trigger: canonical decision projection
+  predicate: review_identity.review_validity != CURRENT
+  technical_status_effect: YELLOW
+  action_effect: rerun_review
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: fresh_review_prompt
+  recovery_action: block
+- reason_code: RSN-RED-GATE-FLAG
+  concept: An explicit red-gate flag is present.
+  trigger: canonical decision projection
+  predicate: red_gate_flags is non-empty
+  technical_status_effect: RED
+  action_effect: repair
+  recipient: implementer_model
+  may_modify_code: true
+  prompt_kind: implementer_repair_prompt
+  recovery_action: block
+- reason_code: RSN-REQUIRED-CHECK-FAILED
+  concept: A required check failed.
+  trigger: canonical decision projection
+  predicate: any required check has result FAIL
+  technical_status_effect: RED
+  action_effect: repair
+  recipient: implementer_model
+  may_modify_code: true
+  prompt_kind: implementer_repair_prompt
+  recovery_action: repair_request
+- reason_code: RSN-CRITICAL-SUPPORTED-FINDING
+  concept: A Critical finding is reproduced or code-supported.
+  trigger: canonical decision projection
+  predicate: any Critical finding has evidence_label REPRODUCED or CODE_SUPPORTED
+  technical_status_effect: RED
+  action_effect: repair
+  recipient: implementer_model
+  may_modify_code: true
+  prompt_kind: implementer_repair_prompt
+  recovery_action: repair_request
+- reason_code: RSN-HIGH-REPRODUCED-FINDING
+  concept: A High finding is reproduced.
+  trigger: canonical decision projection
+  predicate: any High finding has evidence_label REPRODUCED
+  technical_status_effect: RED
+  action_effect: repair
+  recipient: implementer_model
+  may_modify_code: true
+  prompt_kind: implementer_repair_prompt
+  recovery_action: repair_request
+- reason_code: RSN-REQUIRED-CHECK-UNRESOLVED
+  concept: A required check is unknown or not run.
+  trigger: canonical decision projection
+  predicate: any required check has result UNKNOWN or NOT_RUN
+  technical_status_effect: YELLOW
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-HIGH-CODE-SUPPORTED-FINDING
+  concept: A High code-supported finding requires repair.
+  trigger: canonical decision projection
+  predicate: any High finding has evidence_label CODE_SUPPORTED
+  technical_status_effect: YELLOW
+  action_effect: repair
+  recipient: implementer_model
+  may_modify_code: true
+  prompt_kind: implementer_repair_prompt
+  recovery_action: repair_request
+- reason_code: RSN-HIGH-HYPOTHESIS-FINDING
+  concept: A High hypothesis requires verification.
+  trigger: canonical decision projection
+  predicate: any High finding has evidence_label HYPOTHESIS
+  technical_status_effect: YELLOW
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-BLOCKING-MEDIUM-SUPPORTED
+  concept: A blocking Medium supported finding requires repair.
+  trigger: canonical decision projection
+  predicate: any blocking Medium finding is REPRODUCED or CODE_SUPPORTED
+  technical_status_effect: YELLOW
+  action_effect: repair
+  recipient: implementer_model
+  may_modify_code: true
+  prompt_kind: implementer_repair_prompt
+  recovery_action: repair_request
+- reason_code: RSN-BLOCKING-MEDIUM-UNVERIFIED
+  concept: A blocking Medium unsupported finding requires verification.
+  trigger: canonical decision projection
+  predicate: any blocking Medium finding is HYPOTHESIS or NOT_ASSESSABLE
+  technical_status_effect: YELLOW
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-BLOCKING-HYPOTHESIS
+  concept: A blocking hypothesis remains unresolved.
+  trigger: canonical decision projection
+  predicate: any blocking finding has evidence_label HYPOTHESIS
+  technical_status_effect: YELLOW
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-NOT-ASSESSABLE-FINDING
+  concept: A finding is not assessable.
+  trigger: canonical decision projection
+  predicate: any finding has evidence_label NOT_ASSESSABLE
+  technical_status_effect: YELLOW
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-PARTIAL-REVIEW
+  concept: Review mode is partial.
+  trigger: canonical decision projection
+  predicate: review_identity.review_mode == PARTIAL
+  technical_status_effect: YELLOW
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-HIGH-RISK-AREA-UNREVIEWED
+  concept: A high-risk area was not reviewed.
+  trigger: canonical decision projection
+  predicate: scope.high_risk_areas_not_reviewed is non-empty
+  technical_status_effect: YELLOW
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-COVERAGE-INCOMPLETE
+  concept: Review coverage is incomplete.
+  trigger: canonical decision projection
+  predicate: scope.coverage_complete == false
+  technical_status_effect: YELLOW
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-UNVERIFIED-AREA
+  concept: An explicitly unverified area remains.
+  trigger: canonical decision projection
+  predicate: unverified_areas is non-empty
+  technical_status_effect: NONE
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-INTENT-MISSING
+  concept: Structured intent fit is missing.
+  trigger: canonical decision projection
+  predicate: intent_fit is absent
+  technical_status_effect: YELLOW
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-INTENT-UNSATISFIED
+  concept: Intent fit is not satisfied.
+  trigger: canonical decision projection
+  predicate: intent_fit.intent_fit_result != satisfied
+  technical_status_effect: YELLOW
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-INTENT-UNSUPPORTED-CLAIM
+  concept: Unsupported intent-satisfaction claims remain.
+  trigger: canonical decision projection
+  predicate: intent_fit.unsupported_claims is non-empty
+  technical_status_effect: YELLOW
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-REPAIR-HANDOFF-PRESENT
+  concept: A validated same-PR repair handoff is present.
+  trigger: canonical decision projection
+  predicate: repair_handoff.affected_findings is non-empty
+  technical_status_effect: YELLOW
+  action_effect: repair
+  recipient: implementer_model
+  may_modify_code: true
+  prompt_kind: implementer_repair_prompt
+  recovery_action: repair_request
+- reason_code: RSN-EXTERNAL-REPAIR-ACCEPTED
+  concept: An accepted external suggestion carries validated repair guidance.
+  trigger: canonical decision projection
+  predicate: external_review_intake contains an accepted suggestion with repair_handoff
+  technical_status_effect: YELLOW
+  action_effect: repair
+  recipient: implementer_model
+  may_modify_code: true
+  prompt_kind: implementer_repair_prompt
+  recovery_action: repair_request
+- reason_code: RSN-REQUIRED-ACTION-PENDING
+  concept: A mandatory required action remains recorded.
+  trigger: canonical decision projection
+  predicate: required_actions is non-empty
+  technical_status_effect: NONE
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-OWNER-CONFIRMATION-REQUIRED
+  concept: Project-owner confirmation remains required.
+  trigger: canonical decision projection
+  predicate: decision.approval_requirement == PROJECT_OWNER_CONFIRMATION
+  technical_status_effect: NONE
+  action_effect: owner_confirmation
+  recipient: project_owner
+  may_modify_code: false
+  prompt_kind: null
+  recovery_action: block
+- reason_code: RSN-HUMAN-TECHNICAL-REVIEW-REQUIRED
+  concept: Human technical review remains required.
+  trigger: canonical decision projection
+  predicate: decision.approval_requirement == HUMAN_TECHNICAL_REVIEW_REQUIRED
+  technical_status_effect: NONE
+  action_effect: human_technical_review
+  recipient: human_technical_reviewer
+  may_modify_code: false
+  prompt_kind: human_review_handoff
+  recovery_action: block
+- reason_code: RSN-SPECIALIST-REVIEW-REQUIRED
+  concept: Security or domain-specialist review remains required.
+  trigger: canonical decision projection
+  predicate: decision.approval_requirement == SECURITY_OR_DOMAIN_SPECIALIST_REQUIRED
+  technical_status_effect: NONE
+  action_effect: specialist_review
+  recipient: security_or_domain_specialist
+  may_modify_code: false
+  prompt_kind: specialist_review_handoff
+  recovery_action: block
+- reason_code: RSN-MERGE-ENFORCEMENT-MINIMUM-MISSING
+  concept: Neither valid sequence enforcement nor repository-hosted enforcement is
+    available.
+  trigger: security profile projection
+  predicate: not sequence_ci_enforced and repository-hosted enforcement is not verified
+  technical_status_effect: NONE
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-REPOSITORY-HOSTED-ENFORCEMENT-REQUIRED
+  concept: An explicit requirement or security trigger requires repository-hosted
+    enforcement.
+  trigger: security profile projection
+  predicate: repository-hosted enforcement is required but not verified
+  technical_status_effect: NONE
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-REPOSITORY-SETTINGS-CLAIM-UNVERIFIED
+  concept: A repository_settings_enforced claim lacks authoritative GitHub settings
+    evidence.
+  trigger: security profile projection
+  predicate: repository_settings_enforced is claimed without VerifiedGovernanceEvidence
+  technical_status_effect: NONE
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-MERGE-AUTHORIZATION-CLAIM-UNVERIFIED
+  concept: A merge_authorized claim lacks all authoritative stronger evidence.
+  trigger: security profile projection
+  predicate: merge_authorized is claimed without VerifiedGovernanceEvidence.merge_authorized
+  technical_status_effect: NONE
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block

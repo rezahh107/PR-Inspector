@@ -1,0 +1,68 @@
+{
+  "cases": [
+    {
+      "case_id": "personal_without_github_app",
+      "expected": {
+        "blocks_green": false,
+        "github_app": "optional_hardening",
+        "merge_authorized": "not_claimed",
+        "repository_settings_enforced": "not_claimed"
+      }
+    },
+    {
+      "case_id": "false_repository_settings_claim",
+      "expected": {
+        "blocks_green": true,
+        "repository_settings_enforced": "rejected"
+      },
+      "input": {
+        "claim_repository_settings_enforced": true
+      }
+    },
+    {
+      "case_id": "false_merge_authorization_claim",
+      "expected": {
+        "blocks_green": true,
+        "merge_authorized": "rejected"
+      },
+      "input": {
+        "claim_merge_authorized": true
+      }
+    },
+    {
+      "case_id": "explicit_higher_security_activation",
+      "expected": {
+        "blocks_green": true,
+        "repository_hosted_enforcement": "required"
+      },
+      "input": {
+        "security_activation_trigger": true
+      }
+    },
+    {
+      "case_id": "optional_hardening",
+      "expected": {
+        "github_app_exact_source_enforcement": "optional_hardening",
+        "repository_hosted_enforcement": "optional_hardening"
+      }
+    },
+    {
+      "case_id": "prior_guarantees_preserved",
+      "expected": {
+        "preserved": [
+          "exact_head",
+          "stale_on_change",
+          "independent_review",
+          "evidence_provenance",
+          "scope_gate",
+          "progress_gate",
+          "post_merge_verification",
+          "secret_boundary",
+          "destructive_action_boundary"
+        ]
+      }
+    }
+  ],
+  "profile": "personal_ai_operated_strong_governance_minimum_security",
+  "schema_version": 1
+}
