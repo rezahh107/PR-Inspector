@@ -9,6 +9,7 @@ permissions:
 
 jobs:
   export:
+    # Temporary read-only tooling; removed before the final repaired head.
     if: github.repository == 'rezahh107/PR-Inspector' && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'governance/personal-minimum-security-profile'
     runs-on: ubuntu-latest
     timeout-minutes: 5
