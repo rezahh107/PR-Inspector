@@ -4,8 +4,10 @@ import json
 from typing import Any
 
 from . import decision_projection_core as _core
+from .evidence_context import current_evidence
 from .governance import VerifiedGovernanceEvidence
 from .security_profile import SecurityProfileAssessment, assess_security_profile
+from .sequence_enforcement import VerifiedSequenceEnforcement
 
 ProjectionError = _core.ProjectionError
 ACTION_ROUTING = _core.ACTION_ROUTING
@@ -35,13 +37,41 @@ def _canonical_reason_instances(
     return sorted(instances, key=lambda item: order[item["reason_code"]])
 
 
+def _resolved_evidence(
+    governance_evidence: VerifiedGovernanceEvidence | None,
+    sequence_enforcement: VerifiedSequenceEnforcement | None,
+) -> tuple[
+    VerifiedGovernanceEvidence | None,
+    VerifiedSequenceEnforcement | None,
+]:
+    current_governance, current_sequence = current_evidence()
+    if governance_evidence is None and isinstance(
+        current_governance, VerifiedGovernanceEvidence
+    ):
+        governance_evidence = current_governance
+    if sequence_enforcement is None and isinstance(
+        current_sequence, VerifiedSequenceEnforcement
+    ):
+        sequence_enforcement = current_sequence
+    return governance_evidence, sequence_enforcement
+
+
 def project_decision(
     pkg: dict[str, Any],
     governance_evidence: VerifiedGovernanceEvidence | None = None,
+    sequence_enforcement: VerifiedSequenceEnforcement | None = None,
 ) -> dict[str, Any]:
     """Produce the sole official v1.10.1 decision projection."""
 
-    assessment = assess_security_profile(pkg, governance_evidence)
+    governance_evidence, sequence_enforcement = _resolved_evidence(
+        governance_evidence,
+        sequence_enforcement,
+    )
+    assessment = assess_security_profile(
+        pkg,
+        governance_evidence,
+        sequence_enforcement,
+    )
     reason_instances = _canonical_reason_instances(pkg, assessment)
     all_codes = [item["reason_code"] for item in reason_instances]
     technical_status, technical_codes = _core._technical_status(all_codes)
@@ -151,8 +181,13 @@ def owner_action_text(projection: dict[str, Any]) -> str:
 def expected_technical_status(
     pkg: dict[str, Any],
     governance_evidence: VerifiedGovernanceEvidence | None = None,
+    sequence_enforcement: VerifiedSequenceEnforcement | None = None,
 ) -> tuple[str, list[str]]:
-    projection = project_decision(pkg, governance_evidence)
+    projection = project_decision(
+        pkg,
+        governance_evidence,
+        sequence_enforcement,
+    )
     return (
         projection["technical_status"],
         projection["technical_status_reason_codes"],
