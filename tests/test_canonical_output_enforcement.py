@@ -408,7 +408,13 @@ def test_head_change_before_publication_preserves_existing_output(
     output.mkdir()
     sentinel = output / "existing.txt"
     sentinel.write_text("preserve\n", encoding="utf-8", newline="\n")
-    result = complete_review(package_path, output, head_source=source())
+    capability = profile_sequence_capability()
+    result = complete_review(
+        package_path,
+        output,
+        head_source=source(),
+        sequence_enforcement=capability,
+    )
     assert isinstance(result, IncompleteReview)
     assert {item.code for item in result.diagnostics} == {"PRI-COMPLETE-008"}
     assert sentinel.read_text(encoding="utf-8") == "preserve\n"
@@ -430,7 +436,13 @@ def test_head_change_after_publication_rolls_back_existing_output(
     output.mkdir()
     sentinel = output / "existing.txt"
     sentinel.write_text("preserve\n", encoding="utf-8", newline="\n")
-    result = complete_review(package_path, output, head_source=source())
+    capability = profile_sequence_capability()
+    result = complete_review(
+        package_path,
+        output,
+        head_source=source(),
+        sequence_enforcement=capability,
+    )
     assert isinstance(result, IncompleteReview)
     assert {item.code for item in result.diagnostics} == {"PRI-COMPLETE-008"}
     assert sentinel.read_text(encoding="utf-8") == "preserve\n"
