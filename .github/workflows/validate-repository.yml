@@ -76,17 +76,21 @@ jobs:
       - name: Validate versioned repository
         run: python scripts/validate_repository_v2.py
 
-      - name: Diagnose owner two-line mutation
+      - name: Diagnose verify no-modify mutation
         continue-on-error: true
-        run: python -m pytest -q tests/test_behavioral_rule_coverage.py::test_owner_two_line_mutation_is_rejected
+        run: python -m pytest -q tests/test_behavioral_rule_coverage.py::test_verify_repair_authority_mutation_is_rejected
 
-      - name: Diagnose projection drift mutation
+      - name: Diagnose stale repair mutation
         continue-on-error: true
-        run: python -m pytest -q tests/test_behavioral_rule_coverage.py::test_projection_action_drift_mutation_is_rejected
+        run: python -m pytest -q tests/test_behavioral_rule_coverage.py::test_stale_repair_route_mutation_is_rejected
 
-      - name: Diagnose unregistered reason mutation
+      - name: Diagnose specialist recipient mutation
         continue-on-error: true
-        run: python -m pytest -q tests/test_behavioral_rule_coverage.py::test_unregistered_reason_mutation_is_rejected
+        run: python -m pytest -q tests/test_behavioral_rule_coverage.py::test_specialist_recipient_mutation_is_rejected
+
+      - name: Diagnose artifact byte mutation
+        continue-on-error: true
+        run: python -m pytest -q tests/test_behavioral_rule_coverage.py::test_artifact_byte_mutation_is_rejected
 
       - name: Run focused Behavioral Rule Coverage mutations
         run: python -m pytest -q tests/test_behavioral_rule_coverage.py
