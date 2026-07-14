@@ -1,12 +1,12 @@
 # Canonical Artifact and Official-Output Boundary
 
-Status: v1.10.0 branch snapshot preserves the canonical-output implementation merged on live `main` for v1.9.0. PR #14 was integrated into PR #13, and PR #13 was then merged to `main`; those pull requests are historical provenance rather than pending activation or repair gates.
+Status: v1.10.1 forward profile integration preserves the canonical-output implementation merged on live `main` for v1.9.0. PR #14 was integrated into PR #13, and PR #13 was then merged to `main`; those pull requests are historical provenance rather than pending activation or repair gates.
 
 ## Current closure status
 
 ```yaml
-active_protocol: v1.10.0
-implementation_state: v1.10_branch_snapshot_preserves_v1.9_main_implementation
+active_protocol: v1.10.1
+implementation_state: v1.10.1_forward_profile_integration_pending_independent_review
 live_main_head_at_audit_start: 35e3b398d8e8d6823007540f0a156ff2a3feece6
 source_prs:
   - 13
@@ -28,10 +28,14 @@ bot_commented_feedback: not_approval
 remaining_operational_actions:
   - independent review of the closure-polish pull request on its exact final head
   - authoritative verification or application of GitHub repository settings under separate authorization
-closure_status: implementation_complete_closure_polish_pending_independent_review
+closure_status: profile_implementation_complete_pending_independent_review
 ```
 
 The status above records the merged v1.9 implementation and the evidence available at the start of this closure audit. No additional runtime implementation defect was confirmed in the already merged boundary during that audit. It does not assert the live review-thread state of PR #15, and it does not claim that this closure-polish branch is independently reviewed, approved, merge-authorized, or merged. Bot feedback with review state `COMMENTED` is not approval. GitHub repository settings remain a separate administrative evidence boundary.
+
+## Personal minimum-security profile boundary
+
+The v1.10.1 carrier is implemented in the canonical package, projection, reason registry, semantic validation, owner/action routing, renderers, fixtures, and CI. Repository-settings enforcement and merge authorization remain separate evidence claims and are not asserted by this document. Independent review of the final exact PR head remains pending.
 
 ## Boundary classification
 

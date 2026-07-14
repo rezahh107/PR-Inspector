@@ -14,6 +14,7 @@ from pr_inspector.official_review import (
     is_verified_review_completion,
 )
 from pr_inspector.review_provenance import trust_policy
+from pr_inspector.evidence_adapter import mint_evidence_from_governance_fixture
 
 
 def main() -> int:
@@ -27,6 +28,12 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--target-repository", required=True)
     parser.add_argument("--pr-number", type=int, required=True)
+    parser.add_argument("--governance-fixture", type=Path)
+    parser.add_argument("--reviewed-head-sha")
+    parser.add_argument("--sequence-app-id", type=int, default=15368)
+    parser.add_argument("--sequence-workflow-path", default=".github/workflows/validate-rereview-sequence.yml")
+    parser.add_argument("--sequence-workflow-sha")
+    parser.add_argument("--sequence-validator-command", default="python scripts/validate_rereview_sequence.py SEQUENCE.json --review EVENT=REVIEW_DIRECTORY")
     parser.add_argument(
         "--github-token-env",
         default="GITHUB_TOKEN",
@@ -51,10 +58,29 @@ def main() -> int:
         print(f"ERROR: PRI-COMPLETE-008 /live-target-head: {exc}", file=sys.stderr)
         return 1
 
+    governance_evidence = None
+    sequence_enforcement = None
+    if args.governance_fixture is not None:
+        if not args.reviewed_head_sha or not args.sequence_workflow_sha:
+            print("ERROR: --governance-fixture requires --reviewed-head-sha and --sequence-workflow-sha", file=sys.stderr)
+            return 1
+        governance_evidence, sequence_enforcement = mint_evidence_from_governance_fixture(
+            args.governance_fixture,
+            repository=args.target_repository,
+            pr_number=args.pr_number,
+            head_sha=args.reviewed_head_sha,
+            sequence_app_id=args.sequence_app_id,
+            sequence_workflow_path=args.sequence_workflow_path,
+            sequence_workflow_sha=args.sequence_workflow_sha,
+            sequence_validator_command=args.sequence_validator_command,
+        )
+
     outcome = complete_review(
         args.package,
         args.output_dir,
         head_source=head_source,
+        governance_evidence=governance_evidence,
+        sequence_enforcement=sequence_enforcement,
     )
     if isinstance(outcome, IncompleteReview):
         print(outcome.technical_message, end="", file=sys.stderr)

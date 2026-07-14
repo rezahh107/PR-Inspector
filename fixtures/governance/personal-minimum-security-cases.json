@@ -1,0 +1,39 @@
+{
+  "cases": [
+    {
+      "case_id": "personal_without_repository_hosted_enforcement",
+      "expected": "green_allowed_without_stronger_claims",
+      "sequence_ci_enforced": true
+    },
+    {
+      "case_id": "minimum_enforcement_missing",
+      "expected_reason": "RSN-MERGE-ENFORCEMENT-MINIMUM-MISSING",
+      "sequence_ci_enforced": false
+    },
+    {
+      "case_id": "explicit_higher_security_activation",
+      "expected_reason": "RSN-REPOSITORY-HOSTED-ENFORCEMENT-REQUIRED",
+      "security_activation_trigger": true
+    },
+    {
+      "case_id": "false_repository_settings_claim",
+      "claim_repository_settings_enforced": true,
+      "expected_reason": "RSN-REPOSITORY-SETTINGS-CLAIM-UNVERIFIED"
+    },
+    {
+      "case_id": "false_merge_authorization_claim",
+      "claim_merge_authorized": true,
+      "expected_reason": "RSN-MERGE-AUTHORIZATION-CLAIM-UNVERIFIED"
+    },
+    {
+      "case_id": "verified_governance_evidence",
+      "expected": "stronger_claims_require_opaque_exact_bound_evidence"
+    },
+    {
+      "case_id": "manual_projection_injection",
+      "expected": "official_projection_recomputed_from_package"
+    }
+  ],
+  "profile": "personal_ai_operated_strong_governance_minimum_security",
+  "schema_version": 1
+}

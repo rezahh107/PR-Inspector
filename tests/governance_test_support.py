@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 HEAD = "1" * 40
 REPOSITORY = "example/project"
 PR_NUMBER = 42
+_CACHED_SEQUENCE_CAPABILITY = None
 
 
 def fixture() -> dict[str, Any]:
@@ -58,3 +59,55 @@ def membership_response(
         fetched_at=fetched_at or datetime.now(timezone.utc),
         payload={"state": state, "role": "member", "url": url},
     )
+
+
+def sequence_capability():
+    global _CACHED_SEQUENCE_CAPABILITY
+    if _CACHED_SEQUENCE_CAPABILITY is not None:
+        return _CACHED_SEQUENCE_CAPABILITY
+    from pr_inspector.governance import (
+        verify_github_governance_source,
+        verify_governance_record,
+    )
+    from pr_inspector.sequence_enforcement import (
+        SEQUENCE_ENFORCEMENT_CHECK_CONTEXT,
+        verify_sequence_ci_enforcement,
+        verify_sequence_producer_evidence,
+    )
+
+    value = fixture()
+    value["responses"]["checks"]["payload"]["check_runs"][0]["name"] = (
+        SEQUENCE_ENFORCEMENT_CHECK_CONTEXT
+    )
+    required = value["responses"]["branch_protection"]["payload"][
+        "required_status_checks"
+    ]
+    required["checks"][0]["context"] = SEQUENCE_ENFORCEMENT_CHECK_CONTEXT
+    required["contexts"] = [SEQUENCE_ENFORCEMENT_CHECK_CONTEXT]
+    source = verify_github_governance_source(
+        responses(value),
+        expected_repository=REPOSITORY,
+        expected_pr_number=PR_NUMBER,
+        expected_head_sha=HEAD,
+    )
+    governance = verify_governance_record(
+        source,
+        expected_repository=REPOSITORY,
+        expected_pr_number=PR_NUMBER,
+        expected_head_sha=HEAD,
+    )
+    producer = verify_sequence_producer_evidence(
+        governance,
+        check_context=SEQUENCE_ENFORCEMENT_CHECK_CONTEXT,
+        app_id=15368,
+        workflow_path=".github/workflows/validate-rereview-sequence.yml",
+        workflow_sha="2" * 40,
+        validator_command="python scripts/validate_rereview_sequence.py sequence.json --review EVENT=review",
+    )
+    _CACHED_SEQUENCE_CAPABILITY = verify_sequence_ci_enforcement(
+        governance,
+        check_context=SEQUENCE_ENFORCEMENT_CHECK_CONTEXT,
+        app_id=15368,
+        producer_evidence=producer,
+    )
+    return _CACHED_SEQUENCE_CAPABILITY
