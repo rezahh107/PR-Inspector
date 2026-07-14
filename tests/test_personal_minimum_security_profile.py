@@ -32,7 +32,10 @@ from pr_inspector.security_profile import (
     RSN_REPOSITORY_HOSTED_REQUIRED,
     RSN_REPOSITORY_SETTINGS_CLAIM_UNVERIFIED,
 )
-from pr_inspector.sequence_enforcement import verify_sequence_ci_enforcement
+from pr_inspector.sequence_enforcement import (
+    verify_sequence_ci_enforcement,
+    verify_sequence_producer_evidence,
+)
 from pr_inspector.validation_v2 import validate_directory, validate_package
 from tests.governance_test_support import fixture, responses
 
@@ -118,10 +121,19 @@ def verified_sequence(*, head: str = HEAD, pr_number: int = PR_NUMBER):
         pr_number=pr_number,
         check_context=SEQUENCE_CONTEXT,
     )
+    producer = verify_sequence_producer_evidence(
+        governance,
+        check_context=SEQUENCE_CONTEXT,
+        app_id=SEQUENCE_APP_ID,
+        workflow_path=".github/workflows/validate-rereview-sequence.yml",
+        workflow_sha="2" * 40,
+        validator_command="python scripts/validate_rereview_sequence.py sequence.json --review EVENT=review",
+    )
     return verify_sequence_ci_enforcement(
         governance,
         check_context=SEQUENCE_CONTEXT,
         app_id=SEQUENCE_APP_ID,
+        producer_evidence=producer,
     )
 
 
@@ -548,3 +560,126 @@ def test_profile_reason_codes_are_registered_as_non_modifying_verification():
         assert registry[code]["action_effect"] == "verify"
         assert registry[code]["recipient"] == "reviewer_model"
         assert registry[code]["may_modify_code"] is False
+
+
+def test_same_name_same_app_check_without_producer_evidence_cannot_mint_sequence():
+    governance = verified_governance(check_context=SEQUENCE_CONTEXT)
+    try:
+        verify_sequence_ci_enforcement(
+            governance,
+            check_context=SEQUENCE_CONTEXT,
+            app_id=SEQUENCE_APP_ID,
+        )
+    except ValueError as exc:
+        assert "producer execution evidence" in str(exc)
+    else:  # pragma: no cover - defensive assertion
+        raise AssertionError("same-name same-App check minted sequence without producer proof")
+
+
+def test_sequence_producer_evidence_requires_validator_execution():
+    governance = verified_governance(check_context=SEQUENCE_CONTEXT)
+    try:
+        verify_sequence_producer_evidence(
+            governance,
+            check_context=SEQUENCE_CONTEXT,
+            app_id=SEQUENCE_APP_ID,
+            workflow_path=".github/workflows/validate-rereview-sequence.yml",
+            workflow_sha="2" * 40,
+            validator_command="python -m pytest",
+        )
+    except ValueError as exc:
+        assert "sequence validator" in str(exc)
+    else:  # pragma: no cover - defensive assertion
+        raise AssertionError("producer proof accepted a non-sequence command")
+
+
+def test_manifest_validation_cli_replays_opaque_evidence_from_raw_receipts(tmp_path):
+    import subprocess
+    import sys
+
+    value = package()
+    package_path = tmp_path / "review-package.json"
+    package_bytes = write_package(package_path, value)
+    capability = verified_sequence()
+    write_review_artifacts(
+        value,
+        tmp_path,
+        review_package_bytes=package_bytes,
+        sequence_enforcement=capability,
+    )
+
+    raw = governance_fixture(check_context=SEQUENCE_CONTEXT)
+    fixture_path = tmp_path / "governance-responses.json"
+    fixture_path.write_text(json.dumps(raw), encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/validate_review_v2.py",
+            str(tmp_path),
+            "--target-repository",
+            REPOSITORY,
+            "--pr-number",
+            str(PR_NUMBER),
+            "--reviewed-head-sha",
+            HEAD,
+            "--governance-fixture",
+            str(fixture_path),
+            "--sequence-workflow-sha",
+            "2" * 40,
+            "--sequence-validator-command",
+            "python scripts/validate_rereview_sequence.py sequence.json --review EVENT=review",
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert "OK: review package" in result.stdout
+
+
+def test_manifest_validation_cli_rejects_wrong_sequence_command(tmp_path):
+    import subprocess
+    import sys
+
+    value = package()
+    package_path = tmp_path / "review-package.json"
+    package_bytes = write_package(package_path, value)
+    capability = verified_sequence()
+    write_review_artifacts(
+        value,
+        tmp_path,
+        review_package_bytes=package_bytes,
+        sequence_enforcement=capability,
+    )
+
+    raw = governance_fixture(check_context=SEQUENCE_CONTEXT)
+    fixture_path = tmp_path / "governance-responses.json"
+    fixture_path.write_text(json.dumps(raw), encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/validate_review_v2.py",
+            str(tmp_path),
+            "--target-repository",
+            REPOSITORY,
+            "--pr-number",
+            str(PR_NUMBER),
+            "--reviewed-head-sha",
+            HEAD,
+            "--governance-fixture",
+            str(fixture_path),
+            "--sequence-workflow-sha",
+            "2" * 40,
+            "--sequence-validator-command",
+            "python -m pytest",
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "sequence validator" in (result.stderr + result.stdout)

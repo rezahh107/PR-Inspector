@@ -18,6 +18,7 @@ from pr_inspector.official_review import (
 from pr_inspector.sequence_enforcement import (
     SEQUENCE_ENFORCEMENT_CHECK_CONTEXT,
     verify_sequence_ci_enforcement,
+    verify_sequence_producer_evidence,
 )
 from pr_inspector.validation_v2 import validate_directory
 from tests.governance_test_support import (
@@ -112,10 +113,19 @@ def profile_sequence_capability():
         expected_pr_number=PR_NUMBER,
         expected_head_sha=HEAD,
     )
+    producer = verify_sequence_producer_evidence(
+        governance,
+        check_context=SEQUENCE_ENFORCEMENT_CHECK_CONTEXT,
+        app_id=15368,
+        workflow_path=".github/workflows/validate-rereview-sequence.yml",
+        workflow_sha="2" * 40,
+        validator_command="python scripts/validate_rereview_sequence.py sequence.json --review EVENT=review",
+    )
     return verify_sequence_ci_enforcement(
         governance,
         check_context=SEQUENCE_ENFORCEMENT_CHECK_CONTEXT,
         app_id=15368,
+        producer_evidence=producer,
     )
 
 
