@@ -1,0 +1,160 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+from .governance import (
+    VerifiedGovernanceEvidence,
+    is_verified_governance_evidence,
+)
+
+PERSONAL_MINIMUM_SECURITY_PROFILE = "personal_ai_operated_strong_governance_minimum_security"
+OPTIONAL_HARDENING_CONTROLS = (
+    "dedicated_github_app",
+    "github_app_private_key",
+    "exact_app_id_check_runs",
+    "branch_protection",
+    "repository_rulesets",
+    "merge_queue",
+    "codeowners_approval",
+    "repository_hosted_exact_source_enforcement",
+)
+RSN_MERGE_ENFORCEMENT_MINIMUM_MISSING = "RSN-MERGE-ENFORCEMENT-MINIMUM-MISSING"
+RSN_REPOSITORY_HOSTED_REQUIRED = "RSN-REPOSITORY-HOSTED-ENFORCEMENT-REQUIRED"
+RSN_REPOSITORY_SETTINGS_CLAIM_UNVERIFIED = "RSN-REPOSITORY-SETTINGS-CLAIM-UNVERIFIED"
+RSN_MERGE_AUTHORIZATION_CLAIM_UNVERIFIED = "RSN-MERGE-AUTHORIZATION-CLAIM-UNVERIFIED"
+
+
+@dataclass(frozen=True)
+class SecurityProfileAssessment:
+    profile_name: str
+    security_level: str
+    sequence_ci_enforced: bool
+    repository_hosted_requirement: str
+    repository_hosted_enforcement: str
+    github_app_exact_source_enforcement: str
+    repository_settings_enforced: str
+    merge_authorized: str
+    governance_evidence_status: str
+    governance_evidence_id: str | None
+    blocks_green_merge_recommendation: bool
+    reason_codes: tuple[str, ...]
+    controls: tuple[tuple[str, str], ...]
+
+    def projection(self) -> dict[str, Any]:
+        return {
+            "name": self.profile_name,
+            "security_level": self.security_level,
+            "sequence_ci_enforced": self.sequence_ci_enforced,
+            "repository_hosted_requirement": self.repository_hosted_requirement,
+            "repository_hosted_enforcement": self.repository_hosted_enforcement,
+            "github_app_exact_source_enforcement": self.github_app_exact_source_enforcement,
+            "repository_settings_enforced": self.repository_settings_enforced,
+            "merge_authorized": self.merge_authorized,
+            "governance_evidence_status": self.governance_evidence_status,
+            "governance_evidence_id": self.governance_evidence_id,
+            "blocks_green_merge_recommendation": self.blocks_green_merge_recommendation,
+            "reason_codes": list(self.reason_codes),
+            "controls": [
+                {"control": control, "classification": classification}
+                for control, classification in self.controls
+            ],
+        }
+
+
+def _matching_verified_evidence(
+    pkg: dict[str, Any],
+    carrier: dict[str, Any],
+    evidence: VerifiedGovernanceEvidence | None,
+) -> bool:
+    return (
+        is_verified_governance_evidence(evidence)
+        and evidence.repository == pkg["review_identity"]["target_repository"]
+        and evidence.pull_request_number == pkg["review_identity"]["pr_number"]
+        and evidence.exact_head_sha == pkg["review_identity"]["reviewed_head_sha"]
+        and carrier["governance_evidence_id"] == evidence.evidence_id
+    )
+
+
+def assess_security_profile(
+    pkg: dict[str, Any],
+    governance_evidence: VerifiedGovernanceEvidence | None = None,
+) -> SecurityProfileAssessment:
+    carrier = pkg["security_profile"]
+    evidence_matches = _matching_verified_evidence(pkg, carrier, governance_evidence)
+    repository_hosted_verified = bool(
+        evidence_matches
+        and governance_evidence is not None
+        and governance_evidence.enforcement_status == "verified_enforced"
+    )
+    repository_settings_verified = bool(
+        carrier["claim_repository_settings_enforced"]
+        and repository_hosted_verified
+    )
+    merge_authorized_verified = bool(
+        carrier["claim_merge_authorized"]
+        and evidence_matches
+        and governance_evidence is not None
+        and governance_evidence.merge_authorized
+    )
+
+    repository_hosted_required = any(
+        (
+            carrier["explicit_repository_requirement"],
+            carrier["security_activation_trigger"],
+            carrier["external_requirement"],
+            carrier["claim_repository_settings_enforced"],
+            carrier["claim_merge_authorized"],
+            carrier["governance_evidence_id"] is not None,
+        )
+    )
+    reasons: list[str] = []
+    if not carrier["sequence_ci_enforced"] and not repository_hosted_verified:
+        reasons.append(RSN_MERGE_ENFORCEMENT_MINIMUM_MISSING)
+    if repository_hosted_required and not repository_hosted_verified:
+        reasons.append(RSN_REPOSITORY_HOSTED_REQUIRED)
+    if carrier["claim_repository_settings_enforced"] and not repository_settings_verified:
+        reasons.append(RSN_REPOSITORY_SETTINGS_CLAIM_UNVERIFIED)
+    if carrier["claim_merge_authorized"] and not merge_authorized_verified:
+        reasons.append(RSN_MERGE_AUTHORIZATION_CLAIM_UNVERIFIED)
+
+    requirement = "required" if repository_hosted_required else "optional_hardening"
+    return SecurityProfileAssessment(
+        profile_name=carrier["profile_name"],
+        security_level="minimum_security",
+        sequence_ci_enforced=carrier["sequence_ci_enforced"],
+        repository_hosted_requirement=requirement,
+        repository_hosted_enforcement=("verified" if repository_hosted_verified else "not_verified"),
+        github_app_exact_source_enforcement=requirement,
+        repository_settings_enforced=(
+            "verified" if repository_settings_verified else
+            "rejected" if carrier["claim_repository_settings_enforced"] else
+            "not_claimed"
+        ),
+        merge_authorized=(
+            "verified" if merge_authorized_verified else
+            "rejected" if carrier["claim_merge_authorized"] else
+            "not_claimed"
+        ),
+        governance_evidence_status=(
+            "verified" if evidence_matches else
+            "rejected" if carrier["governance_evidence_id"] is not None else
+            "not_provided"
+        ),
+        governance_evidence_id=carrier["governance_evidence_id"],
+        blocks_green_merge_recommendation=bool(reasons),
+        reason_codes=tuple(dict.fromkeys(reasons)),
+        controls=tuple((control, requirement) for control in OPTIONAL_HARDENING_CONTROLS),
+    )
+
+
+__all__ = [
+    "OPTIONAL_HARDENING_CONTROLS",
+    "PERSONAL_MINIMUM_SECURITY_PROFILE",
+    "RSN_MERGE_AUTHORIZATION_CLAIM_UNVERIFIED",
+    "RSN_MERGE_ENFORCEMENT_MINIMUM_MISSING",
+    "RSN_REPOSITORY_HOSTED_REQUIRED",
+    "RSN_REPOSITORY_SETTINGS_CLAIM_UNVERIFIED",
+    "SecurityProfileAssessment",
+    "assess_security_profile",
+]

@@ -78,7 +78,7 @@
     "summary": "این PR تغییراتی دارد، اما هدف دقیق آن از توضیح PR یا commitها به‌اندازهٔ کافی مشخص نیست.",
     "unknown": "هنوز مشخص نیست این PR دقیقاً باید چه رفتار موردانتظاری را برآورده کند."
   },
-  "protocol_version": "v1.10.0",
+  "protocol_version": "v1.10.1",
   "red_gate_flags": [],
   "required_actions": [],
   "review_identity": {
@@ -115,6 +115,16 @@
     "scope_limit_reason": null,
     "total_changed_files": 2,
     "total_changed_lines": 40
+  },
+  "security_profile": {
+    "claim_merge_authorized": false,
+    "claim_repository_settings_enforced": false,
+    "explicit_repository_requirement": false,
+    "external_requirement": false,
+    "governance_evidence_id": null,
+    "profile_name": "personal_ai_operated_strong_governance_minimum_security",
+    "security_activation_trigger": false,
+    "sequence_ci_enforced": true
   },
   "unverified_areas": []
 }
