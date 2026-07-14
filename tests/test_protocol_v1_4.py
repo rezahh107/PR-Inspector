@@ -123,7 +123,7 @@ def test_current_requires_exact_head_sha():
     value["review_identity"]["reviewed_head_sha"] = "UNKNOWN"
     value["evidence_records"][0]["reviewed_head_sha"] = "UNKNOWN"
     value["evidence_records"][1]["reviewed_head_sha"] = "UNKNOWN"
-    assert codes(value) == ["PRI-SHA-001"]
+    assert codes(value) == ["PRI-SHA-001", "PRI-STATUS-001"]
 
 
 def test_ordinary_review_rejects_production_capability():
