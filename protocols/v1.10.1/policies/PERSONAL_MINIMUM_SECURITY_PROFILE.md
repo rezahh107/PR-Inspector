@@ -12,7 +12,7 @@ For a personal AI-operated repository, the minimum merge-control invariant is:
 verified_sequence_ci_enforcement OR verified_repository_hosted_enforcement
 ```
 
-The package field `sequence_ci_enforced` is an untrusted claim. It contributes to the effective projection only when the official boundary receives a verifier-created opaque `VerifiedSequenceEnforcement` capability bound to the target repository, pull request, and exact reviewed head. The capability must be derived from an exact-App required status check that is verified successful on that exact head. A bare `true` value remains Yellow.
+The package field `sequence_ci_enforced` is an untrusted claim. It contributes to the effective projection only when the official boundary receives a verifier-created opaque `VerifiedSequenceEnforcement` capability bound to the target repository, pull request, and exact reviewed head. The capability must be derived from the designated required check context `Validate rereview sequence enforcement`, bound to an exact App ID and verified successful on that exact head. A different required check and a bare `true` value both remain Yellow.
 
 A dedicated GitHub App, App private key, exact App-ID check producer, branch protection, Rulesets, merge queue, CODEOWNERS approval, and repository-hosted exact-source enforcement are optional hardening by default. They become required when an explicit repository requirement, security activation trigger, external requirement, or stronger governance claim is present.
 
