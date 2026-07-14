@@ -76,17 +76,41 @@ jobs:
       - name: Validate versioned repository
         run: python scripts/validate_repository_v2.py
 
-      - name: Diagnose first ordered half
-        continue-on-error: true
-        run: >-
-          python -m pytest -q tests/test_behavioral_rule_coverage.py
-          -k "behavioral_coverage_matrix or every_behavioral_rule or owner_merge_mutation or owner_two_line or projection_action_drift or technical_handoff_uses_projection or unregistered_reason or verify_repair_authority or stale_repair_route or specialist_recipient or artifact_byte_mutation or synthetic_merge_exact or merge_sha_substitution or exact_head_and_synthetic or identity_and_artifact_bound or acceptance_without_verified or forged_inspector_repository_is_schema"
+      - name: Capture focused behavioral failures
+        shell: bash
+        run: |
+          set +e
+          python -m pytest -q tests/test_behavioral_rule_coverage.py > behavioral.out 2>&1
+          echo "$?" > behavioral.status
+          exit 0
 
-      - name: Diagnose second ordered half
+      - name: Failure bucket 1
         continue-on-error: true
-        run: >-
-          python -m pytest -q tests/test_behavioral_rule_coverage.py
-          -k "forged_inspector_commit or forged_inspector_repository_identity or noncanonical_inspector or missing_review_artifact or mismatched_artifact or non_green_verified or green_review_with_pending or stale_review_artifact or rereview_from_wrong or rereview_of_wrong or stale_rereview or replayed_rereview or legacy_string or prompt_injection or active_validator or released_v1_7"
+        shell: bash
+        run: |
+          grep -Eq "FAILED .*::(test_behavioral_coverage_matrix|test_every_behavioral_rule|test_owner_merge_mutation|test_owner_two_line_mutation|test_projection_action_drift|test_technical_handoff_uses_projection|test_unregistered_reason|test_verify_repair_authority)" behavioral.out && exit 1 || exit 0
+
+      - name: Failure bucket 2
+        continue-on-error: true
+        shell: bash
+        run: |
+          grep -Eq "FAILED .*::(test_stale_repair_route|test_specialist_recipient|test_artifact_byte_mutation|test_synthetic_merge_exact|test_merge_sha_substitution|test_exact_head_and_synthetic|test_identity_and_artifact_bound|test_acceptance_without_verified)" behavioral.out && exit 1 || exit 0
+
+      - name: Failure bucket 3
+        continue-on-error: true
+        shell: bash
+        run: |
+          grep -Eq "FAILED .*::(test_forged_inspector_repository_is_schema|test_forged_inspector_commit|test_forged_inspector_repository_identity|test_noncanonical_inspector|test_missing_review_artifact|test_mismatched_artifact|test_non_green_verified|test_green_review_with_pending)" behavioral.out && exit 1 || exit 0
+
+      - name: Failure bucket 4
+        continue-on-error: true
+        shell: bash
+        run: |
+          grep -Eq "FAILED .*::(test_stale_review_artifact|test_rereview_from_wrong|test_rereview_of_wrong|test_stale_rereview|test_replayed_rereview|test_legacy_string|test_prompt_injection|test_active_validator|test_released_v1_7)" behavioral.out && exit 1 || exit 0
+
+      - name: Assert captured focused result
+        shell: bash
+        run: test "$(cat behavioral.status)" = "0"
 
       - name: Run focused Behavioral Rule Coverage mutations
         run: python -m pytest -q tests/test_behavioral_rule_coverage.py
