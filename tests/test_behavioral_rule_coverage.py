@@ -32,10 +32,16 @@ from pr_inspector.review_provenance import (
     verify_github_commit_payload,
     verify_review_directory,
 )
-from pr_inspector.sequence_enforcement import verify_sequence_ci_enforcement
+from pr_inspector.sequence_enforcement import (
+    SEQUENCE_ENFORCEMENT_CHECK_CONTEXT,
+    verify_sequence_ci_enforcement,
+)
 from pr_inspector.sequence_policy import validate_rereview_sequence
 from pr_inspector.validation_v2 import validate_directory
-from tests.governance_test_support import responses as governance_responses
+from tests.governance_test_support import (
+    fixture as governance_fixture,
+    responses as governance_responses,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 MUTATIONS = load_mutation_cases()
@@ -344,9 +350,28 @@ def rereview_sequence() -> dict:
     )
 
 
-def _governance_source(head_sha: str):
+def _governance_source(
+    head_sha: str,
+    *,
+    check_context: str = "Validate PR Inspector repository",
+):
+    value = governance_fixture()
+    value["responses"]["pull_request"]["payload"]["head"]["sha"] = head_sha
+    value["responses"]["reviews"]["payload"][0]["commit_id"] = head_sha
+    value["responses"]["checks"]["payload"]["check_runs"][0].update(
+        {"head_sha": head_sha, "name": check_context}
+    )
+    value["responses"]["checks"]["url"] = (
+        f"https://api.github.com/repos/example/project/commits/{head_sha}/"
+        "check-runs?per_page=100"
+    )
+    required = value["responses"]["branch_protection"]["payload"][
+        "required_status_checks"
+    ]
+    required["checks"][0]["context"] = check_context
+    required["contexts"] = [check_context]
     return verify_github_governance_source(
-        governance_responses(),
+        governance_responses(value),
         expected_repository="example/project",
         expected_pr_number=42,
         expected_head_sha=head_sha,
@@ -355,14 +380,17 @@ def _governance_source(head_sha: str):
 
 def profile_sequence_capability():
     governance = verify_governance_record(
-        _governance_source("1" * 40),
+        _governance_source(
+            "1" * 40,
+            check_context=SEQUENCE_ENFORCEMENT_CHECK_CONTEXT,
+        ),
         expected_repository="example/project",
         expected_pr_number=42,
         expected_head_sha="1" * 40,
     )
     return verify_sequence_ci_enforcement(
         governance,
-        check_context="Validate PR Inspector repository",
+        check_context=SEQUENCE_ENFORCEMENT_CHECK_CONTEXT,
         app_id=15368,
     )
 
