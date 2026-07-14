@@ -1,0 +1,39 @@
+{
+  "$id": "https://github.com/rezahh107/PR-Inspector/protocols/v1.10.1/schemas/review-package.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PR Inspector Review Package v1.10.1 Extension",
+  "type": "object",
+  "required": ["protocol_version", "security_profile"],
+  "properties": {
+    "protocol_version": {"const": "v1.10.1"},
+    "security_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile_name",
+        "sequence_ci_enforced",
+        "explicit_repository_requirement",
+        "security_activation_trigger",
+        "external_requirement",
+        "claim_repository_settings_enforced",
+        "claim_merge_authorized",
+        "governance_evidence_id"
+      ],
+      "properties": {
+        "profile_name": {
+          "const": "personal_ai_operated_strong_governance_minimum_security"
+        },
+        "sequence_ci_enforced": {"type": "boolean"},
+        "explicit_repository_requirement": {"type": "boolean"},
+        "security_activation_trigger": {"type": "boolean"},
+        "external_requirement": {"type": "boolean"},
+        "claim_repository_settings_enforced": {"type": "boolean"},
+        "claim_merge_authorized": {"type": "boolean"},
+        "governance_evidence_id": {
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    }
+  }
+}

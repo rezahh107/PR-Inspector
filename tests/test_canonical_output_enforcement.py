@@ -11,6 +11,10 @@ from pr_inspector.derived_outputs import (
     PROMPT_NAME,
     build_review_artifacts,
 )
+from pr_inspector.governance import (
+    verify_github_governance_source,
+    verify_governance_record,
+)
 from pr_inspector.official_review import (
     CompletionError,
     IncompleteReview,
@@ -22,6 +26,14 @@ from pr_inspector.official_review import (
     official_owner_result,
     official_technical_handoff,
     verify_completed_review,
+)
+from pr_inspector.sequence_enforcement import (
+    SEQUENCE_ENFORCEMENT_CHECK_CONTEXT,
+    verify_sequence_ci_enforcement,
+)
+from tests.governance_test_support import (
+    fixture as governance_fixture,
+    responses as governance_responses,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -106,6 +118,35 @@ def source():
     )
 
 
+def profile_sequence_capability():
+    value = governance_fixture()
+    value["responses"]["checks"]["payload"]["check_runs"][0]["name"] = (
+        SEQUENCE_ENFORCEMENT_CHECK_CONTEXT
+    )
+    required = value["responses"]["branch_protection"]["payload"][
+        "required_status_checks"
+    ]
+    required["checks"][0]["context"] = SEQUENCE_ENFORCEMENT_CHECK_CONTEXT
+    required["contexts"] = [SEQUENCE_ENFORCEMENT_CHECK_CONTEXT]
+    source_evidence = verify_github_governance_source(
+        governance_responses(value),
+        expected_repository=REPOSITORY,
+        expected_pr_number=PR_NUMBER,
+        expected_head_sha=HEAD,
+    )
+    governance = verify_governance_record(
+        source_evidence,
+        expected_repository=REPOSITORY,
+        expected_pr_number=PR_NUMBER,
+        expected_head_sha=HEAD,
+    )
+    return verify_sequence_ci_enforcement(
+        governance,
+        check_context=SEQUENCE_ENFORCEMENT_CHECK_CONTEXT,
+        app_id=15368,
+    )
+
+
 def completed_bundle(
     tmp_path: Path,
     monkeypatch,
@@ -116,7 +157,15 @@ def completed_bundle(
     package_path = tmp_path / f"{name}.json"
     write_package(package_path, value)
     output = tmp_path / "review"
-    result = complete_review(package_path, output, head_source=source())
+    sequence_enforcement = (
+        profile_sequence_capability() if name == "golden-green" else None
+    )
+    result = complete_review(
+        package_path,
+        output,
+        head_source=source(),
+        sequence_enforcement=sequence_enforcement,
+    )
     assert is_verified_review_completion(result)
     assert isinstance(result, VerifiedReviewCompletion)
     return result, output, value
@@ -335,10 +384,12 @@ def test_stale_package_head_is_rejected_against_live_github(
     value = package()
     package_path = tmp_path / "review-package.json"
     write_package(package_path, value)
+    capability = profile_sequence_capability()
     result = complete_review(
         package_path,
         tmp_path / "review",
         head_source=source(),
+        sequence_enforcement=capability,
     )
     assert isinstance(result, IncompleteReview)
     assert {item.code for item in result.diagnostics} == {"PRI-COMPLETE-007"}
@@ -359,7 +410,13 @@ def test_head_change_before_publication_preserves_existing_output(
     output.mkdir()
     sentinel = output / "existing.txt"
     sentinel.write_text("preserve\n", encoding="utf-8", newline="\n")
-    result = complete_review(package_path, output, head_source=source())
+    capability = profile_sequence_capability()
+    result = complete_review(
+        package_path,
+        output,
+        head_source=source(),
+        sequence_enforcement=capability,
+    )
     assert isinstance(result, IncompleteReview)
     assert {item.code for item in result.diagnostics} == {"PRI-COMPLETE-008"}
     assert sentinel.read_text(encoding="utf-8") == "preserve\n"
@@ -381,7 +438,13 @@ def test_head_change_after_publication_rolls_back_existing_output(
     output.mkdir()
     sentinel = output / "existing.txt"
     sentinel.write_text("preserve\n", encoding="utf-8", newline="\n")
-    result = complete_review(package_path, output, head_source=source())
+    capability = profile_sequence_capability()
+    result = complete_review(
+        package_path,
+        output,
+        head_source=source(),
+        sequence_enforcement=capability,
+    )
     assert isinstance(result, IncompleteReview)
     assert {item.code for item in result.diagnostics} == {"PRI-COMPLETE-008"}
     assert sentinel.read_text(encoding="utf-8") == "preserve\n"

@@ -275,7 +275,7 @@ def test_active_version_declarations_and_paths_are_aligned():
     assert project_version_match is not None
     project_version = project_version_match.group(1)
 
-    assert current == "v1.10.0"
+    assert current == "v1.10.1"
     assert manifest["active_version"] == current
     assert manifest["status"] == "active"
     assert manifest["release_lock"] == f"release-locks/{current}.sha256"
@@ -293,8 +293,8 @@ def test_current_status_statement_is_explicit_and_truthful():
         encoding="utf-8"
     )
     required = (
-        "active_protocol: v1.10.0",
-        "implementation_state: v1.10_branch_snapshot_preserves_v1.9_main_implementation",
+        "active_protocol: v1.10.1",
+        "implementation_state: v1.10.1_forward_profile_integration_pending_independent_review",
         "canonical_output_boundary: implemented",
         "publication_commit_point: implemented",
         "verified_byte_snapshot_accessors: implemented",
@@ -304,7 +304,7 @@ def test_current_status_statement_is_explicit_and_truthful():
         "closure_pr_review_state: pending_independent_review",
         "live_review_thread_state: not_asserted_by_static_document",
         "bot_commented_feedback: not_approval",
-        "closure_status: implementation_complete_closure_polish_pending_independent_review",
+        "closure_status: profile_implementation_complete_pending_independent_review",
     )
     for statement in required:
         assert statement in status
@@ -326,9 +326,6 @@ def test_candidate_release_text_does_not_claim_unmerged_profile_or_stale_pr_iden
         ROOT / f"protocols/{current}/policies/SECURITY_AND_TRUST.md",
     )
     forbidden = (
-        "active_security_profile",
-        "personal_ai_operated_strong_governance_minimum_security is active",
-        "active profile: personal_ai_operated_strong_governance_minimum_security",
         "pr #16 push failure",
         "0a28a16d8cc7c6ca11a4be98189eee84cab39ca9",
         "15 tests passed",
@@ -397,6 +394,10 @@ def test_no_temporary_repair_or_encoded_payload_residue_is_committed():
         "apply-bounded-governance-repair.yml",
         "apply-pr14-final.yml",
         "export-current-snapshot.yml",
+        "pr18-readonly-export.yml",
+        "apply-pr18-evidence-repair.yml",
+        "apply-pr18-evidence-repair-v2.yml",
+        "diagnose-pr18-payload.yml",
     }
 
     for path in ROOT.rglob("*"):
@@ -404,6 +405,7 @@ def test_no_temporary_repair_or_encoded_payload_residue_is_committed():
         if any(part in excluded_parts for part in relative.parts):
             continue
         assert ".repair" not in relative.parts, relative
+        assert ".pr18-repair" not in relative.parts, relative
         if path.is_file():
             assert path.name not in forbidden_names, relative
             assert not path.match("payload-*.b64"), relative

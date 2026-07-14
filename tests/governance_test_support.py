@@ -58,3 +58,41 @@ def membership_response(
         fetched_at=fetched_at or datetime.now(timezone.utc),
         payload={"state": state, "role": "member", "url": url},
     )
+
+
+def sequence_capability():
+    from pr_inspector.governance import (
+        verify_github_governance_source,
+        verify_governance_record,
+    )
+    from pr_inspector.sequence_enforcement import (
+        SEQUENCE_ENFORCEMENT_CHECK_CONTEXT,
+        verify_sequence_ci_enforcement,
+    )
+
+    value = fixture()
+    value["responses"]["checks"]["payload"]["check_runs"][0]["name"] = (
+        SEQUENCE_ENFORCEMENT_CHECK_CONTEXT
+    )
+    required = value["responses"]["branch_protection"]["payload"][
+        "required_status_checks"
+    ]
+    required["checks"][0]["context"] = SEQUENCE_ENFORCEMENT_CHECK_CONTEXT
+    required["contexts"] = [SEQUENCE_ENFORCEMENT_CHECK_CONTEXT]
+    source = verify_github_governance_source(
+        responses(value),
+        expected_repository=REPOSITORY,
+        expected_pr_number=PR_NUMBER,
+        expected_head_sha=HEAD,
+    )
+    governance = verify_governance_record(
+        source,
+        expected_repository=REPOSITORY,
+        expected_pr_number=PR_NUMBER,
+        expected_head_sha=HEAD,
+    )
+    return verify_sequence_ci_enforcement(
+        governance,
+        check_context=SEQUENCE_ENFORCEMENT_CHECK_CONTEXT,
+        app_id=15368,
+    )

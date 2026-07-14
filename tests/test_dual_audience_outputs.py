@@ -9,22 +9,46 @@ from pr_inspector.decision_projection import (
     OWNER_RESULT_REGISTRY,
     ProjectionError,
     owner_result_text,
-    project_decision,
+    project_decision as _project_decision,
     projection_json,
 )
 from pr_inspector.derived_outputs import (
     MANIFEST_NAME,
     PROJECTION_NAME,
     PROMPT_NAME,
-    build_review_artifacts,
-    derive_action_mode,
+    build_review_artifacts as _build_review_artifacts,
+    derive_action_mode as _derive_action_mode,
     render_next_action_prompt,
     render_owner_result,
-    write_review_artifacts,
+    write_review_artifacts as _write_review_artifacts,
 )
-from pr_inspector.validation_v2 import validate_directory, validate_package
+from pr_inspector.validation_v2 import validate_directory as _validate_directory, validate_package
+from tests.governance_test_support import sequence_capability
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def project_decision(value):
+    return _project_decision(value, sequence_enforcement=sequence_capability())
+
+
+def build_review_artifacts(value, *args, **kwargs):
+    kwargs.setdefault("sequence_enforcement", sequence_capability())
+    return _build_review_artifacts(value, *args, **kwargs)
+
+
+def write_review_artifacts(value, *args, **kwargs):
+    kwargs.setdefault("sequence_enforcement", sequence_capability())
+    return _write_review_artifacts(value, *args, **kwargs)
+
+
+def validate_directory(path, *args, **kwargs):
+    kwargs.setdefault("sequence_enforcement", sequence_capability())
+    return _validate_directory(path, *args, **kwargs)
+
+
+def derive_action_mode(value):
+    return _derive_action_mode(value, sequence_enforcement=sequence_capability())
 
 
 def package(name: str = "golden-green"):

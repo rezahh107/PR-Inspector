@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.10.1
+
+- Added the structured `personal_ai_operated_strong_governance_minimum_security` carrier and canonical projection.
+- Made sequence CI or exact-bound verified repository enforcement the default minimum and made explicit activation fail closed.
+- Bound sequence-CI satisfaction to an opaque exact-head capability derived from verified required-check evidence; a bare package boolean now remains Yellow.
+- Threaded opaque governance and sequence capabilities through semantic derivation, rendering, directory validation, publication, final-byte verification, and completion re-verification without serialization.
+- Rejected self-asserted repository-settings and merge-authorization claims unless backed by opaque verifier-created governance evidence.
+- Routed profile reasons through the canonical registry, semantic decision path, owner readiness, Technical Handoff, Owner Result, conditional action prompt, Behavioral Rule Coverage, and CI.
+- Preserved the v1.10.0 external Coverage trust behavior and historical release locks.
+
 ## 1.10.0
 
 - Added the v1.10.0 protocol snapshot for the external Coverage trust gate security-boundary repair.
