@@ -61,7 +61,7 @@ class _Bundle:
     artifact_bytes: Mapping[str, bytes] = field(repr=False, compare=False)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class VerifiedReviewCompletion:
     output_directory: Path
     protocol_version: str

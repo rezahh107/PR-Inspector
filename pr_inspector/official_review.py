@@ -29,22 +29,18 @@ from .evidence_context import evidence_scope
 from .governance import VerifiedGovernanceEvidence
 from .sequence_enforcement import VerifiedSequenceEnforcement
 
-_BOUND_EVIDENCE: dict[
-    int,
-    tuple[
-        weakref.ReferenceType[VerifiedReviewCompletion],
-        VerifiedGovernanceEvidence | None,
-        VerifiedSequenceEnforcement | None,
-    ],
-] = {}
+_BOUND_EVIDENCE: weakref.WeakKeyDictionary[
+    VerifiedReviewCompletion,
+    tuple[VerifiedGovernanceEvidence | None, VerifiedSequenceEnforcement | None],
+] = weakref.WeakKeyDictionary()
 _ORIGINAL_REVERIFY = VerifiedReviewCompletion._reverify
 
 
 def _evidence_aware_reverify(self: VerifiedReviewCompletion):
-    bound = _BOUND_EVIDENCE.get(id(self))
-    if bound is None or bound[0]() is not self:
+    bound = _BOUND_EVIDENCE.get(self)
+    if bound is None:
         return _ORIGINAL_REVERIFY(self)
-    with evidence_scope(bound[1], bound[2]):
+    with evidence_scope(bound[0], bound[1]):
         return _ORIGINAL_REVERIFY(self)
 
 
@@ -61,17 +57,7 @@ def _bind_evidence(
     if not is_verified_review_completion(result):
         return
     assert isinstance(result, VerifiedReviewCompletion)
-    key = id(result)
-
-    def cleanup(_reference: weakref.ReferenceType[VerifiedReviewCompletion]) -> None:
-        _BOUND_EVIDENCE.pop(key, None)
-
-    reference = weakref.ref(result, cleanup)
-    _BOUND_EVIDENCE[key] = (
-        reference,
-        governance_evidence,
-        sequence_enforcement,
-    )
+    _BOUND_EVIDENCE[result] = (governance_evidence, sequence_enforcement)
 
 
 def complete_review(
