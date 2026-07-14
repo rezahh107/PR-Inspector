@@ -23,6 +23,11 @@ def evidence_scope(
     governance_evidence: VerifiedGovernanceEvidence | None = None,
     sequence_enforcement: VerifiedSequenceEnforcement | None = None,
 ) -> Iterator[None]:
+    current_governance, current_sequence = current_evidence()
+    if governance_evidence is None:
+        governance_evidence = current_governance
+    if sequence_enforcement is None:
+        sequence_enforcement = current_sequence
     token = _EVIDENCE_CONTEXT.set((governance_evidence, sequence_enforcement))
     try:
         yield
