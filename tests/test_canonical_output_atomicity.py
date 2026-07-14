@@ -3,6 +3,10 @@ import json
 from pathlib import Path
 
 from pr_inspector.derived_outputs import build_review_artifacts
+from pr_inspector.governance import (
+    verify_github_governance_source,
+    verify_governance_record,
+)
 from pr_inspector.official_review import (
     CompletionError,
     IncompleteReview,
@@ -11,7 +15,15 @@ from pr_inspector.official_review import (
     is_verified_review_completion,
     verify_completed_review,
 )
+from pr_inspector.sequence_enforcement import (
+    SEQUENCE_ENFORCEMENT_CHECK_CONTEXT,
+    verify_sequence_ci_enforcement,
+)
 from pr_inspector.validation_v2 import validate_directory
+from tests.governance_test_support import (
+    fixture as governance_fixture,
+    responses as governance_responses,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY = "example/project"
@@ -78,6 +90,58 @@ def source():
     )
 
 
+def profile_sequence_capability():
+    value = governance_fixture()
+    value["responses"]["checks"]["payload"]["check_runs"][0]["name"] = (
+        SEQUENCE_ENFORCEMENT_CHECK_CONTEXT
+    )
+    required = value["responses"]["branch_protection"]["payload"][
+        "required_status_checks"
+    ]
+    required["checks"][0]["context"] = SEQUENCE_ENFORCEMENT_CHECK_CONTEXT
+    required["contexts"] = [SEQUENCE_ENFORCEMENT_CHECK_CONTEXT]
+    source_evidence = verify_github_governance_source(
+        governance_responses(value),
+        expected_repository=REPOSITORY,
+        expected_pr_number=PR_NUMBER,
+        expected_head_sha=HEAD,
+    )
+    governance = verify_governance_record(
+        source_evidence,
+        expected_repository=REPOSITORY,
+        expected_pr_number=PR_NUMBER,
+        expected_head_sha=HEAD,
+    )
+    return verify_sequence_ci_enforcement(
+        governance,
+        check_context=SEQUENCE_ENFORCEMENT_CHECK_CONTEXT,
+        app_id=15368,
+    )
+
+
+def sequence_capability_for(value: dict):
+    if value["decision"]["technical_status"] != "GREEN_TECHNICALLY_READY":
+        return None
+    return profile_sequence_capability()
+
+
+def complete_with_evidence(package_path: Path, output: Path, value: dict):
+    return complete_review(
+        package_path,
+        output,
+        head_source=source(),
+        sequence_enforcement=sequence_capability_for(value),
+    )
+
+
+def verify_with_evidence(output: Path, value: dict):
+    return verify_completed_review(
+        output,
+        head_source=source(),
+        sequence_enforcement=sequence_capability_for(value),
+    )
+
+
 def run_review(
     tmp_path: Path,
     monkeypatch,
@@ -91,7 +155,7 @@ def run_review(
     write_package(package_path, value)
     output = output or tmp_path / "review"
     return (
-        complete_review(package_path, output, head_source=source()),
+        complete_with_evidence(package_path, output, value),
         output,
         value,
     )
@@ -133,12 +197,12 @@ def test_existing_valid_output_is_restored_after_post_publication_failure(
         monkeypatch,
         [pr_payload(), pr_payload(), pr_payload(OTHER_HEAD)],
     )
-    result = complete_review(package_path, output, head_source=source())
+    result = complete_with_evidence(package_path, output, value)
 
     assert isinstance(result, IncompleteReview)
     assert (output / "artifact-manifest.json").read_bytes() == original_manifest
     install_payloads(monkeypatch)
-    verify_completed_review(output, head_source=source())
+    verify_with_evidence(output, value)
 
 
 def test_quarantine_rename_failure_falls_back_to_explicit_delete_and_restore(
@@ -163,13 +227,13 @@ def test_quarantine_rename_failure_falls_back_to_explicit_delete_and_restore(
         return real_replace(source_path, destination)
 
     monkeypatch.setattr(_official_complete.os, "replace", fail_quarantine)
-    result = complete_review(package_path, output, head_source=source())
+    result = complete_with_evidence(package_path, output, value)
 
     assert isinstance(result, IncompleteReview)
     assert "PRI-COMPLETE-ROLLBACK-001" in codes(result)
     assert output.exists()
     install_payloads(monkeypatch)
-    verify_completed_review(output, head_source=source())
+    verify_with_evidence(output, value)
 
 
 def test_failed_published_directory_deletion_leaves_only_non_authoritative_files(
@@ -201,7 +265,7 @@ def test_failed_published_directory_deletion_leaves_only_non_authoritative_files
 
     monkeypatch.setattr(_official_complete.os, "replace", fail_quarantine)
     monkeypatch.setattr(_official_complete.shutil, "rmtree", fail_delete)
-    result = complete_review(package_path, output, head_source=source())
+    result = complete_with_evidence(package_path, output, value)
 
     assert isinstance(result, IncompleteReview)
     assert "PRI-COMPLETE-ROLLBACK-002" in codes(result)
@@ -233,7 +297,7 @@ def test_backup_restore_failure_keeps_official_path_absent_and_evidence_retained
         return real_replace(source_path, destination)
 
     monkeypatch.setattr(_official_complete.os, "replace", fail_restore)
-    result = complete_review(package_path, output, head_source=source())
+    result = complete_with_evidence(package_path, output, value)
 
     assert isinstance(result, IncompleteReview)
     assert "PRI-COMPLETE-ROLLBACK-009" in codes(result)
@@ -261,7 +325,7 @@ def test_unexpected_rollback_exception_is_bounded_and_manifest_invalidated(
         raise RuntimeError("simulated unexpected rollback failure")
 
     monkeypatch.setattr(_official_complete, "restore", explode)
-    result = complete_review(package_path, output, head_source=source())
+    result = complete_with_evidence(package_path, output, value)
 
     assert isinstance(result, IncompleteReview)
     assert "PRI-COMPLETE-ROLLBACK-999" in codes(result)
@@ -294,7 +358,7 @@ def test_quarantine_cleanup_failure_is_reported_not_successful_rollback(
         "rmtree",
         fail_quarantine_cleanup,
     )
-    result = complete_review(package_path, output, head_source=source())
+    result = complete_with_evidence(package_path, output, value)
 
     assert isinstance(result, IncompleteReview)
     assert {
@@ -302,7 +366,7 @@ def test_quarantine_cleanup_failure_is_reported_not_successful_rollback(
         "PRI-COMPLETE-ROLLBACK-011",
     }.issubset(codes(result))
     install_payloads(monkeypatch)
-    verify_completed_review(output, head_source=source())
+    verify_with_evidence(output, value)
     assert list(tmp_path.glob(".review.quarantine-*"))
 
 
@@ -343,7 +407,7 @@ def test_partial_backup_cleanup_failure_after_commit_keeps_new_official_bundle(
         "rmtree",
         partially_delete_backup,
     )
-    result = complete_review(package_path, output, head_source=source())
+    result = complete_with_evidence(package_path, output, second)
 
     assert is_verified_review_completion(result)
     assert {item.code for item in result.cleanup_diagnostics} == {
@@ -356,7 +420,7 @@ def test_partial_backup_cleanup_failure_after_commit_keeps_new_official_bundle(
     assert not (partial_backup / "OWNER_RESULT.fa.txt").exists()
 
     install_payloads(monkeypatch)
-    verified = verify_completed_review(output, head_source=source())
+    verified = verify_with_evidence(output, second)
     assert is_verified_review_completion(verified)
     assert verified.owner_result_text() == expected["OWNER_RESULT.fa.txt"]
 
@@ -377,6 +441,6 @@ def test_publication_failure_does_not_escape_supported_api(
         raise RuntimeError("simulated publication boundary failure")
 
     monkeypatch.setattr(_official_complete, "publish", explode)
-    result = complete_review(package_path, output, head_source=source())
+    result = complete_with_evidence(package_path, output, value)
     assert isinstance(result, IncompleteReview)
     assert codes(result) == {"PRI-COMPLETE-999"}
