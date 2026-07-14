@@ -16,33 +16,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check out exact triggering head
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-          fetch-depth: 1
-
-      - name: Verify exact checkout identity
+      - name: Print exact focused failure
         shell: bash
         env:
           EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
-
-      - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
-        with:
-          python-version: "3.12"
-          cache: pip
-
-      - name: Install pinned project and test dependencies
-        run: python -m pip install --disable-pip-version-check ".[dev]" >/tmp/pip-install.log
-
-      - name: Capture exact behavioral failure
-        shell: bash
         run: |
+          set -euo pipefail
+          mkdir source
+          git -C source init -q
+          git -C source remote add origin https://github.com/rezahh107/PR-Inspector.git
+          git -C source fetch -q --depth=1 origin "${EXPECTED_SHA}"
+          git -C source checkout -q --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "${EXPECTED_SHA}"
+          python3 -m venv source/.venv
+          source/.venv/bin/python -m pip install -q --disable-pip-version-check "./source[dev]"
           set +e
-          python -m pytest -q tests/test_behavioral_rule_coverage.py > behavioral.out 2>&1
+          source/.venv/bin/python -m pytest -q source/tests/test_behavioral_rule_coverage.py > behavioral.out 2>&1
           status=$?
-          tail -n 80 behavioral.out
+          set -e
+          tail -n 90 behavioral.out
           exit "${status}"
