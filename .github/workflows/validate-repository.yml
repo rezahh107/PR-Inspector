@@ -76,10 +76,10 @@ jobs:
       - name: Validate versioned repository
         run: python scripts/validate_repository_v2.py
 
-      - name: Diagnose adjacent mutation tests
+      - name: Diagnose first mutation subset
         run: >-
           python -m pytest -q tests/test_behavioral_rule_coverage.py
-          -k "owner_two_line or projection_action_drift or unregistered_reason or verify_repair_authority or stale_repair_route or specialist_recipient or artifact_byte"
+          -k "owner_two_line or projection_action_drift or unregistered_reason"
 
       - name: Run focused Behavioral Rule Coverage mutations
         run: python -m pytest -q tests/test_behavioral_rule_coverage.py
