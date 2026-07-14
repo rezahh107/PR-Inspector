@@ -7,6 +7,10 @@ from .governance import (
     VerifiedGovernanceEvidence,
     is_verified_governance_evidence,
 )
+from .sequence_enforcement import (
+    VerifiedSequenceEnforcement,
+    sequence_enforcement_matches_package,
+)
 
 PERSONAL_MINIMUM_SECURITY_PROFILE = "personal_ai_operated_strong_governance_minimum_security"
 OPTIONAL_HARDENING_CONTROLS = (
@@ -79,9 +83,14 @@ def _matching_verified_evidence(
 def assess_security_profile(
     pkg: dict[str, Any],
     governance_evidence: VerifiedGovernanceEvidence | None = None,
+    sequence_enforcement: VerifiedSequenceEnforcement | None = None,
 ) -> SecurityProfileAssessment:
     carrier = pkg["security_profile"]
     evidence_matches = _matching_verified_evidence(pkg, carrier, governance_evidence)
+    sequence_verified = bool(
+        carrier["sequence_ci_enforced"]
+        and sequence_enforcement_matches_package(pkg, sequence_enforcement)
+    )
     repository_hosted_verified = bool(
         evidence_matches
         and governance_evidence is not None
@@ -109,7 +118,7 @@ def assess_security_profile(
         )
     )
     reasons: list[str] = []
-    if not carrier["sequence_ci_enforced"] and not repository_hosted_verified:
+    if not sequence_verified and not repository_hosted_verified:
         reasons.append(RSN_MERGE_ENFORCEMENT_MINIMUM_MISSING)
     if repository_hosted_required and not repository_hosted_verified:
         reasons.append(RSN_REPOSITORY_HOSTED_REQUIRED)
@@ -122,7 +131,7 @@ def assess_security_profile(
     return SecurityProfileAssessment(
         profile_name=carrier["profile_name"],
         security_level="minimum_security",
-        sequence_ci_enforced=carrier["sequence_ci_enforced"],
+        sequence_ci_enforced=sequence_verified,
         repository_hosted_requirement=requirement,
         repository_hosted_enforcement=("verified" if repository_hosted_verified else "not_verified"),
         github_app_exact_source_enforcement=requirement,
