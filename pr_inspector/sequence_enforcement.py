@@ -1,0 +1,115 @@
+from __future__ import annotations
+
+import hashlib
+import json
+from dataclasses import dataclass, field
+from weakref import WeakSet
+
+from .governance import (
+    VerifiedGovernanceEvidence,
+    is_verified_governance_evidence,
+)
+
+_SEQUENCE_MARKER = object()
+_SEQUENCE_CAPABILITIES: WeakSet[VerifiedSequenceEnforcement] = WeakSet()
+
+
+@dataclass(frozen=True)
+class VerifiedSequenceEnforcement:
+    evidence_id: str
+    repository: str
+    pull_request_number: int
+    exact_head_sha: str
+    check_context: str
+    app_id: int
+    source_governance_evidence_id: str
+    _marker: object = field(repr=False, compare=False)
+
+
+def is_verified_sequence_enforcement(value: object) -> bool:
+    return (
+        isinstance(value, VerifiedSequenceEnforcement)
+        and value._marker is _SEQUENCE_MARKER
+        and value in _SEQUENCE_CAPABILITIES
+    )
+
+
+def verify_sequence_ci_enforcement(
+    governance_evidence: VerifiedGovernanceEvidence,
+    *,
+    check_context: str,
+    app_id: int,
+) -> VerifiedSequenceEnforcement:
+    """Mint an opaque exact-head capability from verified required CI evidence.
+
+    The check context is accepted only when it is a required exact-App check and all
+    required checks succeeded on the exact reviewed head. A serialized lookalike or
+    an arbitrary successful check cannot mint this capability.
+    """
+
+    if not is_verified_governance_evidence(governance_evidence):
+        raise ValueError("sequence enforcement requires verified governance evidence")
+    if not isinstance(check_context, str) or not check_context.strip():
+        raise ValueError("sequence check context must be a non-empty string")
+    if not isinstance(app_id, int) or app_id <= 0:
+        raise ValueError("sequence check app_id must be a positive integer")
+
+    required_check = (check_context, app_id)
+    if required_check not in governance_evidence.required_status_checks:
+        raise ValueError(
+            "sequence enforcement check is not an exact-App required status check"
+        )
+    if not governance_evidence.exact_head_checks_satisfied:
+        raise ValueError(
+            "sequence enforcement requires successful required checks on the exact head"
+        )
+
+    payload = {
+        "repository": governance_evidence.repository,
+        "pull_request_number": governance_evidence.pull_request_number,
+        "exact_head_sha": governance_evidence.exact_head_sha,
+        "check_context": check_context,
+        "app_id": app_id,
+        "source_governance_evidence_id": governance_evidence.evidence_id,
+    }
+    evidence_id = hashlib.sha256(
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    capability = VerifiedSequenceEnforcement(
+        evidence_id=evidence_id,
+        _marker=_SEQUENCE_MARKER,
+        **payload,
+    )
+    _SEQUENCE_CAPABILITIES.add(capability)
+    return capability
+
+
+def sequence_enforcement_matches_package(
+    package: dict[str, object],
+    capability: VerifiedSequenceEnforcement | None,
+) -> bool:
+    if not is_verified_sequence_enforcement(capability):
+        return False
+    assert isinstance(capability, VerifiedSequenceEnforcement)
+    identity = package.get("review_identity")
+    if not isinstance(identity, dict):
+        return False
+    return (
+        capability.repository == identity.get("target_repository")
+        and capability.pull_request_number == identity.get("pr_number")
+        and capability.exact_head_sha == identity.get("reviewed_head_sha")
+    )
+
+
+__all__ = [
+    "VerifiedSequenceEnforcement",
+    "is_verified_sequence_enforcement",
+    "sequence_enforcement_matches_package",
+    "verify_sequence_ci_enforcement",
+]
