@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from .decision_projection import owner_result_text, project_decision, projection_json, validate_projection_invariants
+from .governance import VerifiedGovernanceEvidence
 from .sequence_enforcement import VerifiedSequenceEnforcement
 from .render import canonical_json_bytes, package_sha256, render_handoff, render_owner
 
@@ -22,12 +23,12 @@ def _json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
 
-def derive_action_mode(pkg: dict[str, Any], *, sequence_enforcement: VerifiedSequenceEnforcement | None = None) -> str:
-    return project_decision(pkg, sequence_enforcement=sequence_enforcement)["next_action"]["kind"]
+def derive_action_mode(pkg: dict[str, Any], *, governance_evidence: VerifiedGovernanceEvidence | None = None, sequence_enforcement: VerifiedSequenceEnforcement | None = None) -> str:
+    return project_decision(pkg, governance_evidence=governance_evidence, sequence_enforcement=sequence_enforcement)["next_action"]["kind"]
 
 
-def structured_action_reasons(pkg: dict[str, Any], *, sequence_enforcement: VerifiedSequenceEnforcement | None = None) -> dict[str, Any]:
-    projection = project_decision(pkg, sequence_enforcement=sequence_enforcement)
+def structured_action_reasons(pkg: dict[str, Any], *, governance_evidence: VerifiedGovernanceEvidence | None = None, sequence_enforcement: VerifiedSequenceEnforcement | None = None) -> dict[str, Any]:
+    projection = project_decision(pkg, governance_evidence=governance_evidence, sequence_enforcement=sequence_enforcement)
     selected = set(projection["next_action"]["reason_codes"])
     return {
         "action_mode": projection["next_action"]["kind"],
@@ -40,8 +41,8 @@ def structured_action_reasons(pkg: dict[str, Any], *, sequence_enforcement: Veri
     }
 
 
-def render_owner_result(projection_or_package: dict[str, Any], *, sequence_enforcement: VerifiedSequenceEnforcement | None = None) -> str:
-    projection = project_decision(projection_or_package, sequence_enforcement=sequence_enforcement) if "decision" in projection_or_package else projection_or_package
+def render_owner_result(projection_or_package: dict[str, Any], *, governance_evidence: VerifiedGovernanceEvidence | None = None, sequence_enforcement: VerifiedSequenceEnforcement | None = None) -> str:
+    projection = project_decision(projection_or_package, governance_evidence=governance_evidence, sequence_enforcement=sequence_enforcement) if "decision" in projection_or_package else projection_or_package
     return owner_result_text(projection)
 
 
@@ -193,8 +194,8 @@ def _render_human_handoff(pkg: dict[str, Any], projection: dict[str, Any]) -> st
     ])
 
 
-def render_next_action_prompt(pkg: dict[str, Any], projection: dict[str, Any] | None = None, *, sequence_enforcement: VerifiedSequenceEnforcement | None = None) -> str:
-    projection = projection or project_decision(pkg, sequence_enforcement=sequence_enforcement)
+def render_next_action_prompt(pkg: dict[str, Any], projection: dict[str, Any] | None = None, *, governance_evidence: VerifiedGovernanceEvidence | None = None, sequence_enforcement: VerifiedSequenceEnforcement | None = None) -> str:
+    projection = projection or project_decision(pkg, governance_evidence=governance_evidence, sequence_enforcement=sequence_enforcement)
     validate_projection_invariants(projection)
     action = projection["next_action"]
     if not action["prompt_required"]:
@@ -236,9 +237,9 @@ def _manifest_text(data: dict[str, Any]) -> str:
     return json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n"
 
 
-def build_review_artifacts(pkg: dict[str, Any], review_package_bytes: bytes | None = None, *, sequence_enforcement: VerifiedSequenceEnforcement | None = None) -> dict[str, str]:
+def build_review_artifacts(pkg: dict[str, Any], review_package_bytes: bytes | None = None, *, governance_evidence: VerifiedGovernanceEvidence | None = None, sequence_enforcement: VerifiedSequenceEnforcement | None = None) -> dict[str, str]:
     package_bytes = review_package_bytes if review_package_bytes is not None else canonical_json_bytes(pkg)
-    projection = project_decision(pkg, sequence_enforcement=sequence_enforcement)
+    projection = project_decision(pkg, governance_evidence=governance_evidence, sequence_enforcement=sequence_enforcement)
     artifacts = {
         PROJECTION_NAME: projection_json(projection),
         "OWNER_DECISION_CARD.fa.md": render_owner(pkg, projection),
@@ -252,19 +253,19 @@ def build_review_artifacts(pkg: dict[str, Any], review_package_bytes: bytes | No
     return artifacts
 
 
-def write_review_artifacts(pkg: dict[str, Any], output_dir: Path, review_package_bytes: bytes | None = None, *, sequence_enforcement: VerifiedSequenceEnforcement | None = None) -> dict[str, str]:
+def write_review_artifacts(pkg: dict[str, Any], output_dir: Path, review_package_bytes: bytes | None = None, *, governance_evidence: VerifiedGovernanceEvidence | None = None, sequence_enforcement: VerifiedSequenceEnforcement | None = None) -> dict[str, str]:
     output_dir.mkdir(parents=True, exist_ok=True)
     if review_package_bytes is None:
         package_path = output_dir / "review-package.json"
         review_package_bytes = package_path.read_bytes() if package_path.is_file() else canonical_json_bytes(pkg)
-    artifacts = build_review_artifacts(pkg, review_package_bytes=review_package_bytes, sequence_enforcement=sequence_enforcement)
+    artifacts = build_review_artifacts(pkg, review_package_bytes=review_package_bytes, governance_evidence=governance_evidence, sequence_enforcement=sequence_enforcement)
     for name, text in artifacts.items():
         if name != MANIFEST_NAME:
             (output_dir / name).write_bytes(text.encode("utf-8"))
     stale = output_dir / PROMPT_NAME
     if PROMPT_NAME not in artifacts and stale.exists():
         stale.unlink()
-    projection = project_decision(pkg, sequence_enforcement=sequence_enforcement)
+    projection = project_decision(pkg, governance_evidence=governance_evidence, sequence_enforcement=sequence_enforcement)
     on_disk = {name: (output_dir / name).read_bytes() for name in artifacts if name != MANIFEST_NAME}
     manifest = _manifest_text(_manifest_data(pkg, on_disk, projection, review_package_bytes))
     (output_dir / MANIFEST_NAME).write_bytes(manifest.encode("utf-8"))

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from .decision_projection_core import ProjectionError
 from .governance import (
     VerifiedGovernanceEvidence,
     is_verified_governance_evidence,
@@ -71,12 +72,15 @@ def _matching_verified_evidence(
     carrier: dict[str, Any],
     evidence: VerifiedGovernanceEvidence | None,
 ) -> bool:
+    identity = pkg.get("review_identity")
+    if not isinstance(identity, dict):
+        return False
     return (
         is_verified_governance_evidence(evidence)
-        and evidence.repository == pkg["review_identity"]["target_repository"]
-        and evidence.pull_request_number == pkg["review_identity"]["pr_number"]
-        and evidence.exact_head_sha == pkg["review_identity"]["reviewed_head_sha"]
-        and carrier["governance_evidence_id"] == evidence.evidence_id
+        and evidence.repository == identity.get("target_repository")
+        and evidence.pull_request_number == identity.get("pr_number")
+        and evidence.exact_head_sha == identity.get("reviewed_head_sha")
+        and carrier.get("governance_evidence_id") == evidence.evidence_id
     )
 
 
@@ -85,10 +89,15 @@ def assess_security_profile(
     governance_evidence: VerifiedGovernanceEvidence | None = None,
     sequence_enforcement: VerifiedSequenceEnforcement | None = None,
 ) -> SecurityProfileAssessment:
-    carrier = pkg["security_profile"]
+    carrier = pkg.get("security_profile")
+    if not isinstance(carrier, dict):
+        raise ProjectionError("security_profile must be present as an object")
+    if not isinstance(pkg.get("review_identity"), dict):
+        raise ProjectionError("review_identity must be present as an object")
+
     evidence_matches = _matching_verified_evidence(pkg, carrier, governance_evidence)
     sequence_verified = bool(
-        carrier["sequence_ci_enforced"]
+        carrier.get("sequence_ci_enforced", False)
         and sequence_enforcement_matches_package(pkg, sequence_enforcement)
     )
     repository_hosted_verified = bool(
@@ -97,11 +106,11 @@ def assess_security_profile(
         and governance_evidence.enforcement_status == "verified_enforced"
     )
     repository_settings_verified = bool(
-        carrier["claim_repository_settings_enforced"]
+        carrier.get("claim_repository_settings_enforced", False)
         and repository_hosted_verified
     )
     merge_authorized_verified = bool(
-        carrier["claim_merge_authorized"]
+        carrier.get("claim_merge_authorized", False)
         and evidence_matches
         and governance_evidence is not None
         and governance_evidence.merge_authorized
@@ -109,12 +118,12 @@ def assess_security_profile(
 
     repository_hosted_required = any(
         (
-            carrier["explicit_repository_requirement"],
-            carrier["security_activation_trigger"],
-            carrier["external_requirement"],
-            carrier["claim_repository_settings_enforced"],
-            carrier["claim_merge_authorized"],
-            carrier["governance_evidence_id"] is not None,
+            carrier.get("explicit_repository_requirement", False),
+            carrier.get("security_activation_trigger", False),
+            carrier.get("external_requirement", False),
+            carrier.get("claim_repository_settings_enforced", False),
+            carrier.get("claim_merge_authorized", False),
+            carrier.get("governance_evidence_id") is not None,
         )
     )
     reasons: list[str] = []
@@ -122,14 +131,14 @@ def assess_security_profile(
         reasons.append(RSN_MERGE_ENFORCEMENT_MINIMUM_MISSING)
     if repository_hosted_required and not repository_hosted_verified:
         reasons.append(RSN_REPOSITORY_HOSTED_REQUIRED)
-    if carrier["claim_repository_settings_enforced"] and not repository_settings_verified:
+    if carrier.get("claim_repository_settings_enforced", False) and not repository_settings_verified:
         reasons.append(RSN_REPOSITORY_SETTINGS_CLAIM_UNVERIFIED)
-    if carrier["claim_merge_authorized"] and not merge_authorized_verified:
+    if carrier.get("claim_merge_authorized", False) and not merge_authorized_verified:
         reasons.append(RSN_MERGE_AUTHORIZATION_CLAIM_UNVERIFIED)
 
     requirement = "required" if repository_hosted_required else "optional_hardening"
     return SecurityProfileAssessment(
-        profile_name=carrier["profile_name"],
+        profile_name=carrier.get("profile_name", PERSONAL_MINIMUM_SECURITY_PROFILE),
         security_level="minimum_security",
         sequence_ci_enforced=sequence_verified,
         repository_hosted_requirement=requirement,
@@ -137,20 +146,20 @@ def assess_security_profile(
         github_app_exact_source_enforcement=requirement,
         repository_settings_enforced=(
             "verified" if repository_settings_verified else
-            "rejected" if carrier["claim_repository_settings_enforced"] else
+            "rejected" if carrier.get("claim_repository_settings_enforced", False) else
             "not_claimed"
         ),
         merge_authorized=(
             "verified" if merge_authorized_verified else
-            "rejected" if carrier["claim_merge_authorized"] else
+            "rejected" if carrier.get("claim_merge_authorized", False) else
             "not_claimed"
         ),
         governance_evidence_status=(
             "verified" if evidence_matches else
-            "rejected" if carrier["governance_evidence_id"] is not None else
+            "rejected" if carrier.get("governance_evidence_id") is not None else
             "not_provided"
         ),
-        governance_evidence_id=carrier["governance_evidence_id"],
+        governance_evidence_id=carrier.get("governance_evidence_id"),
         blocks_green_merge_recommendation=bool(reasons),
         reason_codes=tuple(dict.fromkeys(reasons)),
         controls=tuple((control, requirement) for control in OPTIONAL_HARDENING_CONTROLS),

@@ -64,9 +64,9 @@ def validate_directory(
         return _core.validate_directory(
             Path(path),
             compare_rendered=compare_rendered,
+            package_validator=validate_package,
         )
 
 
-_core.validate_package = validate_package
 
 load_json = _core.load_json

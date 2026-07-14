@@ -407,6 +407,7 @@ def _manifest_diagnostics(
 def validate_directory(
     path: Path,
     compare_rendered: bool = True,
+    package_validator=validate_package,
 ) -> list[Diagnostic]:
     package_path = path / "review-package.json"
     if not package_path.is_file():
@@ -430,7 +431,7 @@ def validate_directory(
             )
         ]
 
-    diagnostics = validate_package(package)
+    diagnostics = package_validator(package)
     if diagnostics or not compare_rendered:
         return diagnostics
 

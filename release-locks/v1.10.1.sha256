@@ -14,7 +14,7 @@ bf4d1cdb9aa138e581515b6a3ddf9224c4632c26cc65210ee7d5b093eb1fa9e1  protocols/v1.1
 7652c2999dfb72316a8ddf8d37af3b43ad63c70c2f93493efa6b353db712c99d  protocols/v1.10.1/pipeline/REVIEW_PIPELINE.md
 8fcd238b5dfd0ac9dad3160943d273d42cf803f13cb4fa9ccc78d5d357eca6aa  protocols/v1.10.1/templates/OWNER_DECISION_CARD.fa.md
 79ff2952bf719b206c12bfa8f80c126119d1a6dee1b0bb0430bbc81dfe6b87cd  protocols/v1.10.1/templates/TECHNICAL_HANDOFF.en.md
-b480de2687b52f6be161ad3c45a18a7aae7d38149581961765b84b8651ac09df  protocols/v1.10.1/schemas/review-package.schema.json
+f288996a803d33aa34582a1f6065a0f08a4ea66a69d97a7b7bfa89aba6e8e24b  protocols/v1.10.1/schemas/review-package.schema.json
 5019c30fbec408bd30d7dbf54fa03399ef617d342d3b7dc580b434866bc11b5a  protocols/v1.10.1/schemas/decision-projection.schema.json
 4300515e00caf2777a92651ee14c46aab454940bb197491cfb6e267f3c5b8dbe  protocols/v1.10.1/schemas/ci-identity.schema.json
 0cff7055b271a6ac274e0c0922d15ec37181312ef76d4a1504fc2294549e5398  protocols/v1.10.1/schemas/rereview-sequence.schema.json

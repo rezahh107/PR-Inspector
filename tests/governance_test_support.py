@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 HEAD = "1" * 40
 REPOSITORY = "example/project"
 PR_NUMBER = 42
+_CACHED_SEQUENCE_CAPABILITY = None
 
 
 def fixture() -> dict[str, Any]:
@@ -61,6 +62,9 @@ def membership_response(
 
 
 def sequence_capability():
+    global _CACHED_SEQUENCE_CAPABILITY
+    if _CACHED_SEQUENCE_CAPABILITY is not None:
+        return _CACHED_SEQUENCE_CAPABILITY
     from pr_inspector.governance import (
         verify_github_governance_source,
         verify_governance_record,
@@ -100,9 +104,10 @@ def sequence_capability():
         workflow_sha="2" * 40,
         validator_command="python scripts/validate_rereview_sequence.py sequence.json --review EVENT=review",
     )
-    return verify_sequence_ci_enforcement(
+    _CACHED_SEQUENCE_CAPABILITY = verify_sequence_ci_enforcement(
         governance,
         check_context=SEQUENCE_ENFORCEMENT_CHECK_CONTEXT,
         app_id=15368,
         producer_evidence=producer,
     )
+    return _CACHED_SEQUENCE_CAPABILITY
