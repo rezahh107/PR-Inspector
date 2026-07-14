@@ -15,7 +15,7 @@ _SEQUENCE_MARKER = object()
 _SEQUENCE_CAPABILITIES: WeakSet[VerifiedSequenceEnforcement] = WeakSet()
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class VerifiedSequenceEnforcement:
     evidence_id: str
     repository: str
@@ -46,7 +46,8 @@ def verify_sequence_ci_enforcement(
     The capability is available only when the designated check is an exact-App
     required status check and every required check succeeded on the reviewed head.
     A different required check, a serialized lookalike, or a bare boolean cannot
-    satisfy this boundary.
+    satisfy this boundary. Capability registration is identity-based so separately
+    verified equal evidence instances cannot invalidate one another.
     """
 
     if not is_verified_governance_evidence(governance_evidence):
