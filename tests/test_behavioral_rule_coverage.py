@@ -149,10 +149,15 @@ def test_owner_merge_mutation_routes_to_owner_confirmation_not_merge():
 
 
 def test_owner_two_line_mutation_is_rejected(tmp_path):
-    write_directory(tmp_path, package())
+    capability = profile_sequence_capability()
+    write_directory(
+        tmp_path,
+        package(),
+        sequence_enforcement=capability,
+    )
     path = tmp_path / "OWNER_RESULT.fa.txt"
     path.write_bytes(path.read_bytes() + "خط سوم\n".encode("utf-8"))
-    observed = codes(tmp_path)
+    observed = codes(tmp_path, sequence_enforcement=capability)
     assert "PRI-CONSIST-001" in observed
     assert "PRI-MANIFEST-003" in observed
 
@@ -257,7 +262,12 @@ def test_specialist_recipient_mutation_is_rejected(tmp_path):
     )
     value["decision"]["risk_classification"] = "SENSITIVE"
     value["decision"]["sensitive_domains"] = ["AUTHENTICATION"]
-    write_directory(tmp_path, value)
+    capability = profile_sequence_capability()
+    write_directory(
+        tmp_path,
+        value,
+        sequence_enforcement=capability,
+    )
     path = tmp_path / PROJECTION_NAME
     projection = json.loads(path.read_text(encoding="utf-8"))
     projection["next_action"].update(
@@ -268,7 +278,10 @@ def test_specialist_recipient_mutation_is_rejected(tmp_path):
         }
     )
     rewrite_json(path, projection)
-    assert "PRI-PROJECTION-003" in codes(tmp_path)
+    assert "PRI-PROJECTION-003" in codes(
+        tmp_path,
+        sequence_enforcement=capability,
+    )
 
 
 def test_artifact_byte_mutation_is_rejected(tmp_path):
