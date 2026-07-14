@@ -10,6 +10,7 @@ from .governance import (
     is_verified_governance_evidence,
 )
 
+SEQUENCE_ENFORCEMENT_CHECK_CONTEXT = "Validate rereview sequence enforcement"
 _SEQUENCE_MARKER = object()
 _SEQUENCE_CAPABILITIES: WeakSet[VerifiedSequenceEnforcement] = WeakSet()
 
@@ -40,17 +41,20 @@ def verify_sequence_ci_enforcement(
     check_context: str,
     app_id: int,
 ) -> VerifiedSequenceEnforcement:
-    """Mint an opaque exact-head capability from verified required CI evidence.
+    """Mint an opaque capability from the designated exact-head sequence check.
 
-    The check context is accepted only when it is a required exact-App check and all
-    required checks succeeded on the exact reviewed head. A serialized lookalike or
-    an arbitrary successful check cannot mint this capability.
+    The capability is available only when the designated check is an exact-App
+    required status check and every required check succeeded on the reviewed head.
+    A different required check, a serialized lookalike, or a bare boolean cannot
+    satisfy this boundary.
     """
 
     if not is_verified_governance_evidence(governance_evidence):
         raise ValueError("sequence enforcement requires verified governance evidence")
-    if not isinstance(check_context, str) or not check_context.strip():
-        raise ValueError("sequence check context must be a non-empty string")
+    if check_context != SEQUENCE_ENFORCEMENT_CHECK_CONTEXT:
+        raise ValueError(
+            "sequence enforcement requires the designated sequence check context"
+        )
     if not isinstance(app_id, int) or app_id <= 0:
         raise ValueError("sequence check app_id must be a positive integer")
 
@@ -108,6 +112,7 @@ def sequence_enforcement_matches_package(
 
 
 __all__ = [
+    "SEQUENCE_ENFORCEMENT_CHECK_CONTEXT",
     "VerifiedSequenceEnforcement",
     "is_verified_sequence_enforcement",
     "sequence_enforcement_matches_package",
