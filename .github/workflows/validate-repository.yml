@@ -76,10 +76,17 @@ jobs:
       - name: Validate versioned repository
         run: python scripts/validate_repository_v2.py
 
-      - name: Diagnose first mutation subset
-        run: >-
-          python -m pytest -q tests/test_behavioral_rule_coverage.py
-          -k "owner_two_line or projection_action_drift or unregistered_reason"
+      - name: Diagnose owner two-line mutation
+        continue-on-error: true
+        run: python -m pytest -q tests/test_behavioral_rule_coverage.py::test_owner_two_line_mutation_is_rejected
+
+      - name: Diagnose projection drift mutation
+        continue-on-error: true
+        run: python -m pytest -q tests/test_behavioral_rule_coverage.py::test_projection_action_drift_mutation_is_rejected
+
+      - name: Diagnose unregistered reason mutation
+        continue-on-error: true
+        run: python -m pytest -q tests/test_behavioral_rule_coverage.py::test_unregistered_reason_mutation_is_rejected
 
       - name: Run focused Behavioral Rule Coverage mutations
         run: python -m pytest -q tests/test_behavioral_rule_coverage.py
