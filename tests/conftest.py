@@ -19,6 +19,7 @@ from tests.governance_test_support import fixture, responses
 _LEGACY_GREEN_MODULES = {
     "test_dual_audience_outputs.py",
     "test_protocol_v1_4.py",
+    "test_sensitive_domains.py",
 }
 
 
