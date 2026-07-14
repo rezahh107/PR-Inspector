@@ -384,10 +384,12 @@ def test_stale_package_head_is_rejected_against_live_github(
     value = package()
     package_path = tmp_path / "review-package.json"
     write_package(package_path, value)
+    capability = profile_sequence_capability()
     result = complete_review(
         package_path,
         tmp_path / "review",
         head_source=source(),
+        sequence_enforcement=capability,
     )
     assert isinstance(result, IncompleteReview)
     assert {item.code for item in result.diagnostics} == {"PRI-COMPLETE-007"}
