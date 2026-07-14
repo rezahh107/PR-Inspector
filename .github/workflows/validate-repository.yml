@@ -76,6 +76,11 @@ jobs:
       - name: Validate versioned repository
         run: python scripts/validate_repository_v2.py
 
+      - name: Diagnose repaired evidence-bound behavioral cases
+        run: >-
+          python -m pytest -q tests/test_behavioral_rule_coverage.py
+          -k "owner_merge_mutation or technical_handoff_uses_projection or identity_and_artifact_bound_rereview or missing_review_artifact"
+
       - name: Run focused Behavioral Rule Coverage mutations
         run: python -m pytest -q tests/test_behavioral_rule_coverage.py
 
