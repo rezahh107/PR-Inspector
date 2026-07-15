@@ -1,0 +1,26 @@
+name: Temporary owner-delivery diagnostics
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact triggering head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Upload source needed for bounded repair
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: owner-delivery-source-${{ github.run_id }}
+          path: tests/test_canonical_output_enforcement.py
+          if-no-files-found: error
+          retention-days: 1
