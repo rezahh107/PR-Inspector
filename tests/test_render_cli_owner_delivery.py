@@ -1,6 +1,6 @@
 import sys
 
-from pr_inspector.official_review import official_next_action_prompt
+from pr_inspector.official_review import CompletionError, official_next_action_prompt
 from scripts import render_review_v2
 from tests.test_canonical_output_enforcement import completed_bundle
 
@@ -99,3 +99,56 @@ def test_cli_stdout_has_no_prompt_section_when_not_required(
 
     assert captured.out == owner_result
     assert "## پرامپت اقدام" not in captured.out
+
+
+
+def test_cli_delivery_verification_failure_emits_no_partial_stdout(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    completion, _, _ = completed_bundle(
+        tmp_path,
+        monkeypatch,
+        "repair-handoff-valid",
+    )
+    monkeypatch.setattr(
+        render_review_v2,
+        "trust_policy",
+        lambda: {"github_api_version": "2026-03-10"},
+    )
+    monkeypatch.setattr(
+        render_review_v2,
+        "github_pull_request_head_source",
+        lambda *args, **kwargs: object(),
+    )
+    monkeypatch.setattr(
+        render_review_v2,
+        "complete_review",
+        lambda *args, **kwargs: completion,
+    )
+    monkeypatch.setattr(
+        render_review_v2,
+        "official_owner_delivery",
+        lambda value: (_ for _ in ()).throw(CompletionError("delivery blocked")),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "render_review_v2.py",
+            str(tmp_path / "review-package.json"),
+            "--output-dir",
+            str(tmp_path / "output"),
+            "--target-repository",
+            "example/project",
+            "--pr-number",
+            "42",
+        ],
+    )
+
+    assert render_review_v2.main() == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "No partial owner result or prompt was emitted." in captured.err
+    assert "PRI-DELIVERY-001" in captured.err

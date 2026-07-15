@@ -1,8 +1,10 @@
+import json
+import warnings
+
 import pytest
 
 from pr_inspector._official_head import CompletionError
 from pr_inspector.official_review import (
-    PromptDeliveryRequiredWarning,
     official_next_action_prompt,
     official_owner_delivery,
     official_owner_result,
@@ -28,24 +30,34 @@ def test_prompt_required_delivery_contains_exact_prompt_bytes(
     assert delivery == f"{owner_result}\n## پرامپت اقدام\n\n{prompt}"
 
 
-def test_prompt_required_compact_owner_accessor_warns_as_incomplete(
+def test_prompt_required_compact_owner_accessor_fails_closed(
     tmp_path,
     monkeypatch,
 ):
-    completion, output, _ = completed_bundle(
+    completion, _, _ = completed_bundle(
         tmp_path,
         monkeypatch,
         "repair-handoff-valid",
     )
 
-    with pytest.warns(
-        PromptDeliveryRequiredWarning,
-        match="use official_owner_delivery",
-    ):
-        compact = official_owner_result(completion)
+    with pytest.raises(CompletionError, match="must use official_owner_delivery"):
+        official_owner_result(completion)
 
-    assert compact == (output / "OWNER_RESULT.fa.txt").read_text(encoding="utf-8")
-    assert "## پرامپت اقدام" not in compact
+
+def test_ignored_warning_filters_cannot_bypass_compact_access_invariant(
+    tmp_path,
+    monkeypatch,
+):
+    completion, _, _ = completed_bundle(
+        tmp_path,
+        monkeypatch,
+        "repair-handoff-valid",
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        with pytest.raises(CompletionError, match="must use official_owner_delivery"):
+            official_owner_result(completion)
 
 
 def test_no_prompt_delivery_remains_exact_compact_owner_result(
@@ -91,3 +103,26 @@ def test_atomic_delivery_rejects_tampered_prompt_bytes(
 
     with pytest.raises(CompletionError):
         official_owner_delivery(completion)
+
+
+def test_malformed_projection_is_blocked_by_reverification_before_prompt_read(
+    tmp_path,
+    monkeypatch,
+):
+    completion, output, _ = completed_bundle(
+        tmp_path,
+        monkeypatch,
+        "repair-handoff-valid",
+    )
+    projection_path = output / "DECISION_PROJECTION.json"
+    projection = json.loads(projection_path.read_text(encoding="utf-8"))
+    del projection["next_action"]["prompt_required"]
+    projection_path.write_text(
+        json.dumps(projection, ensure_ascii=False, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    with pytest.raises(CompletionError) as captured:
+        official_owner_delivery(completion)
+    assert not isinstance(captured.value.__cause__, (KeyError, TypeError))

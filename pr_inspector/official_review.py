@@ -26,11 +26,7 @@ from ._official_head import (
 )
 from .evidence_context import evidence_scope
 from .governance import VerifiedGovernanceEvidence
-from .owner_delivery import (
-    PromptDeliveryRequiredWarning,
-    official_owner_delivery,
-    official_owner_result,
-)
+from .owner_delivery import official_owner_delivery, official_owner_result
 from .sequence_enforcement import VerifiedSequenceEnforcement
 
 _BOUND_EVIDENCE: weakref.WeakKeyDictionary[
@@ -106,7 +102,6 @@ __all__ = [
     "CompletionError",
     "GitHubPullRequestHeadSource",
     "IncompleteReview",
-    "PromptDeliveryRequiredWarning",
     "VerifiedLivePullRequestHead",
     "VerifiedReviewCompletion",
     "complete_review",

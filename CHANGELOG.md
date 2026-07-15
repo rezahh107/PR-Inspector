@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.10.2
+
+- Added the immutable v1.10.2 protocol snapshot and active release lock for atomic owner delivery.
+- Defined and schema-validated the canonical owner-delivery accessor, exact prompt composition, CLI stdout/stderr behavior, and failure semantics.
+- Made prompt-required use of the compact owner accessor fail closed with `CompletionError`; warning filters cannot bypass the invariant.
+- Added dedicated Behavioral Rule Coverage, mutation fixtures, adversarial accessor tests, CLI partial-output tests, and exact-head CI coverage.
+- Preserved the released v1.10.1 protocol snapshot and release lock byte-for-byte.
+
 ## 1.10.1
 
 - Added the structured `personal_ai_operated_strong_governance_minimum_security` carrier and canonical projection.

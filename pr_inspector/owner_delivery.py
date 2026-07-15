@@ -1,7 +1,11 @@
 from __future__ import annotations
 
-import warnings
+import json
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
+
+from jsonschema import Draft202012Validator
 
 from ._official_bundle import (
     VerifiedReviewCompletion,
@@ -11,14 +15,36 @@ from ._official_bundle import (
     utf8_bytes,
 )
 from ._official_head import CompletionError
-from .derived_outputs import PROJECTION_NAME, PROMPT_NAME
 
-OWNER_RESULT_NAME = "OWNER_RESULT.fa.txt"
-OWNER_PROMPT_HEADING = "## پرامپت اقدام"
+ROOT = Path(__file__).resolve().parents[1]
+CURRENT_VERSION = (ROOT / "CURRENT_VERSION").read_text(encoding="utf-8").strip()
+CONTRACT_PATH = ROOT / f"protocols/{CURRENT_VERSION}/policies/OWNER_DELIVERY_CONTRACT.json"
+CONTRACT_SCHEMA_PATH = ROOT / f"protocols/{CURRENT_VERSION}/schemas/owner-delivery-contract.schema.json"
 
 
-class PromptDeliveryRequiredWarning(RuntimeWarning):
-    """The compact owner result omits a canonically required action prompt."""
+@lru_cache(maxsize=1)
+def _delivery_contract() -> dict[str, Any]:
+    try:
+        contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
+        schema = json.loads(CONTRACT_SCHEMA_PATH.read_text(encoding="utf-8"))
+        Draft202012Validator.check_schema(schema)
+        errors = sorted(
+            Draft202012Validator(schema).iter_errors(contract),
+            key=lambda item: tuple(str(part) for part in item.absolute_path),
+        )
+    except (OSError, json.JSONDecodeError) as exc:
+        raise CompletionError(f"cannot load active owner-delivery contract: {exc}") from exc
+    except Exception as exc:
+        raise CompletionError(f"invalid active owner-delivery contract schema: {exc}") from exc
+    if errors:
+        first = errors[0]
+        path = "/" + "/".join(str(item) for item in first.absolute_path)
+        raise CompletionError(
+            f"active owner-delivery contract is invalid at {path}: {first.message}"
+        )
+    if contract.get("protocol_version") != CURRENT_VERSION:
+        raise CompletionError("active owner-delivery contract version mismatch")
+    return contract
 
 
 def _verified_bundle(value: VerifiedReviewCompletion):
@@ -27,72 +53,70 @@ def _verified_bundle(value: VerifiedReviewCompletion):
     return value._reverify()
 
 
-def _projection(bundle: Any) -> dict[str, Any]:
+def _projection(bundle: Any, contract: dict[str, Any]) -> dict[str, Any]:
+    name = contract["projection_name"]
     return json_object_bytes(
-        PROJECTION_NAME,
-        required_artifact_bytes(bundle.artifact_bytes, PROJECTION_NAME),
+        name,
+        required_artifact_bytes(bundle.artifact_bytes, name),
     )
 
 
-def _owner_result(bundle: Any) -> str:
+def _owner_result(bundle: Any, contract: dict[str, Any]) -> str:
+    name = contract["owner_result_name"]
     return utf8_bytes(
-        OWNER_RESULT_NAME,
-        required_artifact_bytes(bundle.artifact_bytes, OWNER_RESULT_NAME),
+        name,
+        required_artifact_bytes(bundle.artifact_bytes, name),
     )
 
 
-def _prompt(bundle: Any, projection: dict[str, Any]) -> str | None:
+def _prompt(
+    bundle: Any,
+    projection: dict[str, Any],
+    contract: dict[str, Any],
+) -> str | None:
+    # _verified_bundle() has already validated the captured projection against its
+    # schema and deterministic canonical projection. This function consumes that
+    # verified shape rather than introducing a competing validation path.
     prompt_required = projection["next_action"]["prompt_required"]
-    prompt_bytes = bundle.artifact_bytes.get(PROMPT_NAME)
+    name = contract["prompt_name"]
+    prompt_bytes = bundle.artifact_bytes.get(name)
 
     if not prompt_required:
         if prompt_bytes is not None:
-            raise CompletionError(
-                "canonical projection forbids a next-action prompt"
-            )
+            raise CompletionError("canonical projection forbids a next-action prompt")
         return None
 
     if prompt_bytes is None:
-        raise CompletionError(
-            "canonical projection requires a next-action prompt"
-        )
-    return utf8_bytes(PROMPT_NAME, prompt_bytes)
+        raise CompletionError("canonical projection requires a next-action prompt")
+    return utf8_bytes(name, prompt_bytes)
 
 
 def official_owner_delivery(value: VerifiedReviewCompletion) -> str:
-    """Return one indivisible owner-facing result, including the exact prompt when required.
+    """Return one complete owner-facing delivery from one verified byte snapshot."""
 
-    The owner result, projection, and conditional action prompt are read from one
-    fully reverified in-memory byte snapshot. Supported integrations should use
-    this accessor for every owner-facing response.
-    """
-
+    contract = _delivery_contract()
     bundle = _verified_bundle(value)
-    projection = _projection(bundle)
-    owner_result = _owner_result(bundle)
-    prompt = _prompt(bundle, projection)
+    projection = _projection(bundle, contract)
+    owner_result = _owner_result(bundle, contract)
+    prompt = _prompt(bundle, projection, contract)
 
     if prompt is None:
         return owner_result
-    return f"{owner_result}\n{OWNER_PROMPT_HEADING}\n\n{prompt}"
+    separator = contract["prompt_separator_template"].format(
+        heading=contract["prompt_heading"]
+    )
+    return owner_result + separator + prompt
 
 
 def official_owner_result(value: VerifiedReviewCompletion) -> str:
-    """Return the legacy compact owner result.
+    """Return compact owner text only when the canonical projection needs no prompt."""
 
-    This accessor remains compatible with the active v1.10.1 API. When a prompt is
-    required it emits ``PromptDeliveryRequiredWarning`` because the returned two-line
-    artifact is not a complete owner delivery. New integrations must use
-    ``official_owner_delivery`` instead.
-    """
-
+    contract = _delivery_contract()
     bundle = _verified_bundle(value)
-    projection = _projection(bundle)
-    prompt = _prompt(bundle, projection)
+    projection = _projection(bundle, contract)
+    prompt = _prompt(bundle, projection, contract)
     if prompt is not None:
-        warnings.warn(
-            "prompt-required owner output is incomplete; use official_owner_delivery",
-            PromptDeliveryRequiredWarning,
-            stacklevel=2,
+        raise CompletionError(
+            "prompt-required owner output must use official_owner_delivery"
         )
-    return _owner_result(bundle)
+    return _owner_result(bundle, contract)
