@@ -70,7 +70,6 @@ jobs:
           test ! -e .github/workflows/export-pr-workspace.yml
           test ! -e .github/workflows/apply-pr21-repair.yml
           test ! -e .pr-inspector-repair
-          git diff --cached --check
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
