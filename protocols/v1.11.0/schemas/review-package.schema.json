@@ -19,7 +19,12 @@
     "out_of_scope_observations",
     "owner_card",
     "red_gate_flags",
-    "security_profile"
+    "security_profile",
+    "inspection_profile",
+    "technical_decision",
+    "governance_decision",
+    "overall_recommendation",
+    "external_review_reconciliation"
   ],
   "properties": {
     "capabilities": {
@@ -294,7 +299,7 @@
         "counts",
         "uninspected_source_ids"
       ],
-      "additionalProperties": true,
+      "additionalProperties": false,
       "properties": {
         "collection_status": {
           "type": "string",
@@ -364,6 +369,56 @@
           "type": "array",
           "items": {
             "type": "string"
+          }
+        },
+        "valid_blocking_finding_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "suggestion_results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "source_id",
+              "classification",
+              "linked_finding_ids",
+              "repair_authorized",
+              "duplicate_confirmed"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "source_id": {
+                "type": "string"
+              },
+              "classification": {
+                "type": "string",
+                "enum": [
+                  "accepted",
+                  "resolved",
+                  "stale",
+                  "false_positive",
+                  "duplicate",
+                  "insufficient_evidence",
+                  "deferred",
+                  "out_of_scope"
+                ]
+              },
+              "linked_finding_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "repair_authorized": {
+                "type": "boolean"
+              },
+              "duplicate_confirmed": {
+                "type": "boolean"
+              }
+            }
           }
         }
       }

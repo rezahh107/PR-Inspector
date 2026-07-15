@@ -319,3 +319,110 @@ reasons:
     may_modify_code: false
     prompt_kind: verification_prompt
     recovery_action: block
+
+candidate_reason_domains:
+  - reason_code: required_technical_check_failed
+    decision_domain: technical
+    status_effect: RED
+    recipient: implementer_model
+    authority: candidate_v1_11.project_decision
+    recovery_action: repair_required
+    test_carrier: tests/test_candidate_v1_11.py
+  - reason_code: critical_supported_finding
+    decision_domain: technical
+    status_effect: RED
+    recipient: implementer_model
+    authority: candidate_v1_11.project_decision
+    recovery_action: repair_required
+    test_carrier: tests/test_candidate_v1_11.py
+  - reason_code: high_reproduced_finding
+    decision_domain: technical
+    status_effect: RED
+    recipient: implementer_model
+    authority: candidate_v1_11.project_decision
+    recovery_action: repair_required
+    test_carrier: tests/test_candidate_v1_11.py
+  - reason_code: blocking_medium_finding
+    decision_domain: technical
+    status_effect: YELLOW
+    recipient: implementer_model
+    authority: candidate_v1_11.project_decision
+    recovery_action: repair_required
+    test_carrier: tests/test_candidate_v1_11.py
+  - reason_code: incomplete_technical_scope
+    decision_domain: technical
+    status_effect: YELLOW
+    recipient: reviewer_model
+    authority: candidate_v1_11.project_decision
+    recovery_action: verify_required
+    test_carrier: tests/test_candidate_v1_11.py
+  - reason_code: unresolved_valid_bot_finding
+    decision_domain: technical
+    status_effect: YELLOW
+    recipient: implementer_model
+    authority: candidate_v1_11.technical_reasons_from_reconciliation
+    recovery_action: repair_required
+    test_carrier: tests/test_candidate_v1_11.py
+  - reason_code: stale_technical_review_identity
+    decision_domain: technical
+    status_effect: YELLOW
+    recipient: reviewer_model
+    authority: candidate_v1_11.verify_base_review_reference
+    recovery_action: rerun_minimal_then_strict
+    test_carrier: tests/test_candidate_v1_11.py
+  - reason_code: bot_collection_incomplete
+    decision_domain: technical
+    status_effect: YELLOW
+    recipient: reviewer_model
+    authority: candidate_v1_11.technical_reasons_from_reconciliation
+    recovery_action: collect_bot_surfaces
+    test_carrier: tests/test_candidate_v1_11.py
+  - reason_code: repository_settings_not_verified
+    decision_domain: governance
+    status_effect: NOT_VERIFIABLE
+    recipient: owner
+    authority: candidate_v1_11.classify_governance
+    recovery_action: obtain_authoritative_governance_evidence
+    test_carrier: tests/test_candidate_v1_11.py
+  - reason_code: branch_protection_unavailable
+    decision_domain: governance
+    status_effect: GAP_FOUND
+    recipient: owner
+    authority: candidate_v1_11.classify_governance
+    recovery_action: separate_governance_remediation
+    test_carrier: tests/test_candidate_v1_11.py
+  - reason_code: bypass_actors_unknown
+    decision_domain: governance
+    status_effect: GAP_FOUND
+    recipient: owner
+    authority: candidate_v1_11.classify_governance
+    recovery_action: separate_governance_remediation
+    test_carrier: tests/test_candidate_v1_11.py
+  - reason_code: sequence_enforcement_missing
+    decision_domain: governance
+    status_effect: GAP_FOUND
+    recipient: owner
+    authority: candidate_v1_11.classify_governance
+    recovery_action: separate_governance_remediation
+    test_carrier: tests/test_candidate_v1_11.py
+  - reason_code: required_review_enforcement_absent
+    decision_domain: governance
+    status_effect: GAP_FOUND
+    recipient: owner
+    authority: candidate_v1_11.classify_governance
+    recovery_action: separate_governance_remediation
+    test_carrier: tests/test_candidate_v1_11.py
+  - reason_code: merge_authorization_unverified
+    decision_domain: governance
+    status_effect: NOT_VERIFIABLE
+    recipient: owner
+    authority: candidate_v1_11.classify_governance
+    recovery_action: separate_merge_authorization
+    test_carrier: tests/test_candidate_v1_11.py
+  - reason_code: required_checks_not_verified
+    decision_domain: governance
+    status_effect: GAP_FOUND
+    recipient: owner
+    authority: candidate_v1_11.classify_governance
+    recovery_action: separate_governance_remediation
+    test_carrier: tests/test_candidate_v1_11.py

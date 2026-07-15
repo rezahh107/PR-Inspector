@@ -400,15 +400,11 @@
   "required": [
     "schema_version",
     "protocol_version",
-    "technical_status",
-    "technical_status_reason_codes",
-    "approval_requirement",
-    "security_profile",
-    "owner_readiness",
-    "next_action",
-    "review_identity",
-    "reason_details",
-    "required_actions"
+    "inspection_profile",
+    "technical_decision",
+    "governance_decision",
+    "overall_recommendation",
+    "governance_follow_up"
   ],
   "title": "PR Inspector Canonical Decision Projection v1.11.0",
   "type": "object"

@@ -1,6 +1,6 @@
 # PR Review Contract
 
-**Version:** 1.10.2  
+**Version:** 1.11.0  
 **Status:** Versioned protocol snapshot; activation is determined from live `main`, `CURRENT_VERSION`, and GitHub history  
 **Default authority:** Read-only review  
 **Canonical source artifact:** `review-package.json`  
