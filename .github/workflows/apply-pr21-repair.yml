@@ -1,9 +1,7 @@
 name: Apply bounded PR21 repair
 
 on:
-  push:
-    branches:
-      - fix/atomic-prompt-delivery-contract
+  pull_request:
 
 permissions:
   contents: write
@@ -17,14 +15,14 @@ jobs:
       - name: Check out exact triggering head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: true
           fetch-depth: 0
 
       - name: Verify bounded staging identity
         shell: bash
         env:
-          EXPECTED_SHA: ${{ github.sha }}
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
@@ -97,7 +95,7 @@ jobs:
       - name: Commit and push repaired PR head
         shell: bash
         env:
-          BRANCH: ${{ github.ref_name }}
+          BRANCH: ${{ github.head_ref }}
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
