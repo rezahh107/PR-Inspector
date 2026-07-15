@@ -8,10 +8,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from pr_inspector.official_review import (
+    CompletionError,
     IncompleteReview,
     complete_review,
     github_pull_request_head_source,
     is_verified_review_completion,
+    official_owner_delivery,
 )
 from pr_inspector.review_provenance import trust_policy
 from pr_inspector.evidence_adapter import mint_evidence_from_governance_fixture
@@ -21,7 +23,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
             "Produce an official PR Inspector artifact bundle only after canonical "
-            "validation and live GitHub PR-head rechecks."
+            "validation and live GitHub PR-head rechecks. On success, stdout contains "
+            "the complete owner delivery, including the canonical prompt when required."
         )
     )
     parser.add_argument("package", type=Path)
@@ -95,9 +98,23 @@ def main() -> int:
         )
         return 1
 
+    try:
+        delivery = official_owner_delivery(outcome)
+    except CompletionError as exc:
+        print(
+            "The official PR Inspector owner delivery did not complete.\n"
+            "No partial owner result or prompt was emitted.",
+            file=sys.stderr,
+        )
+        print(f"ERROR: PRI-DELIVERY-001 /owner-delivery: {exc}", file=sys.stderr)
+        return 1
+
+    sys.stdout.write(delivery)
     print(
         "OK: canonical package, projection, rendered artifacts, manifest, final bytes, "
-        f"and live GitHub head {outcome.reviewed_head_sha} completed verified validation."
+        f"live GitHub head {outcome.reviewed_head_sha}, and atomic owner delivery completed "
+        "verified validation.",
+        file=sys.stderr,
     )
     return 0
 
