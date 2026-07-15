@@ -1,5 +1,6 @@
 import sys
 
+from pr_inspector.official_review import official_next_action_prompt
 from scripts import render_review_v2
 from tests.test_canonical_output_enforcement import completed_bundle
 
@@ -9,11 +10,14 @@ def test_cli_stdout_contains_owner_result_and_required_prompt(
     monkeypatch,
     capsys,
 ):
-    completion, _, _ = completed_bundle(
+    completion, output, _ = completed_bundle(
         tmp_path,
         monkeypatch,
         "repair-handoff-valid",
     )
+    owner_result = (output / "OWNER_RESULT.fa.txt").read_text(encoding="utf-8")
+    prompt = official_next_action_prompt(completion)
+    assert prompt is not None
 
     monkeypatch.setattr(
         render_review_v2,
@@ -48,9 +52,7 @@ def test_cli_stdout_contains_owner_result_and_required_prompt(
     assert render_review_v2.main() == 0
     captured = capsys.readouterr()
 
-    assert "پرامپت اصلاح آماده است." in captured.out
-    assert "## پرامپت اقدام" in captured.out
-    assert "[ROLE AND AUTHORITY]" in captured.out
+    assert captured.out == f"{owner_result}\n## پرامپت اقدام\n\n{prompt}"
     assert "atomic owner delivery completed verified validation" in captured.err
 
 
@@ -59,7 +61,8 @@ def test_cli_stdout_has_no_prompt_section_when_not_required(
     monkeypatch,
     capsys,
 ):
-    completion, _, _ = completed_bundle(tmp_path, monkeypatch)
+    completion, output, _ = completed_bundle(tmp_path, monkeypatch)
+    owner_result = (output / "OWNER_RESULT.fa.txt").read_text(encoding="utf-8")
 
     monkeypatch.setattr(
         render_review_v2,
@@ -94,5 +97,5 @@ def test_cli_stdout_has_no_prompt_section_when_not_required(
     assert render_review_v2.main() == 0
     captured = capsys.readouterr()
 
-    assert "🟢 وضعیت: از نظر فنی آماده" in captured.out
+    assert captured.out == owner_result
     assert "## پرامپت اقدام" not in captured.out
