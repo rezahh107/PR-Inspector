@@ -2,6 +2,7 @@ import pytest
 
 from pr_inspector._official_head import CompletionError
 from pr_inspector.official_review import (
+    PromptDeliveryRequiredWarning,
     official_next_action_prompt,
     official_owner_delivery,
     official_owner_result,
@@ -28,21 +29,24 @@ def test_prompt_required_delivery_contains_exact_prompt_bytes(
     assert delivery.endswith(prompt)
 
 
-def test_prompt_required_compact_owner_accessor_fails_closed(
+def test_prompt_required_compact_owner_accessor_warns_as_incomplete(
     tmp_path,
     monkeypatch,
 ):
-    completion, _, _ = completed_bundle(
+    completion, output, _ = completed_bundle(
         tmp_path,
         monkeypatch,
         "repair-handoff-valid",
     )
 
-    with pytest.raises(
-        CompletionError,
-        match="must use official_owner_delivery",
+    with pytest.warns(
+        PromptDeliveryRequiredWarning,
+        match="use official_owner_delivery",
     ):
-        official_owner_result(completion)
+        compact = official_owner_result(completion)
+
+    assert compact == (output / "OWNER_RESULT.fa.txt").read_text(encoding="utf-8")
+    assert "## پرامپت اقدام" not in compact
 
 
 def test_no_prompt_delivery_remains_exact_compact_owner_result(
