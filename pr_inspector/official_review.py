@@ -10,12 +10,16 @@ import weakref
 from pathlib import Path
 
 from ._official_bundle import (
+    PROMPT_NAME,
+    PROJECTION_NAME,
     IncompleteReview,
     VerifiedReviewCompletion,
     is_verified_review_completion,
+    json_object_bytes,
     official_next_action_prompt,
-    official_owner_result,
     official_technical_handoff,
+    required_artifact_bytes,
+    utf8_bytes,
     verify_completed_review as _verify_completed_review,
 )
 from ._official_complete import complete_review as _complete_review
@@ -34,6 +38,7 @@ _BOUND_EVIDENCE: weakref.WeakKeyDictionary[
     tuple[VerifiedGovernanceEvidence | None, VerifiedSequenceEnforcement | None],
 ] = weakref.WeakKeyDictionary()
 _ORIGINAL_REVERIFY = VerifiedReviewCompletion._reverify
+_OWNER_DELIVERY_HEADING = "\n## متن کامل اقدام بعدی\n\n"
 
 
 def _evidence_aware_reverify(self: VerifiedReviewCompletion):
@@ -98,6 +103,66 @@ def verify_completed_review(
     return result
 
 
+def _verified_bundle_snapshot(value: VerifiedReviewCompletion):
+    if not is_verified_review_completion(value):
+        raise CompletionError("official owner output requires verified completion")
+    return value._reverify()
+
+
+def _owner_result_from_bundle(bundle) -> str:
+    return utf8_bytes(
+        "OWNER_RESULT.fa.txt",
+        required_artifact_bytes(bundle.artifact_bytes, "OWNER_RESULT.fa.txt"),
+    )
+
+
+def _projection_from_bundle(bundle) -> dict:
+    return json_object_bytes(
+        PROJECTION_NAME,
+        required_artifact_bytes(bundle.artifact_bytes, PROJECTION_NAME),
+    )
+
+
+def official_owner_result(value: VerifiedReviewCompletion) -> str:
+    """Return owner-only output only when no conditional action prompt is required.
+
+    Human-facing callers must use ``official_owner_delivery`` for prompt-required
+    decisions so the status message cannot be delivered without its verified prompt.
+    """
+
+    bundle = _verified_bundle_snapshot(value)
+    projection = _projection_from_bundle(bundle)
+    if projection["next_action"]["prompt_required"]:
+        raise CompletionError(
+            "prompt-required owner output must use official_owner_delivery"
+        )
+    return _owner_result_from_bundle(bundle)
+
+
+def official_owner_delivery(value: VerifiedReviewCompletion) -> str:
+    """Return one atomic owner-facing delivery from one verified byte snapshot."""
+
+    bundle = _verified_bundle_snapshot(value)
+    owner_result = _owner_result_from_bundle(bundle)
+    projection = _projection_from_bundle(bundle)
+    prompt_required = projection["next_action"]["prompt_required"]
+    prompt_bytes = bundle.artifact_bytes.get(PROMPT_NAME)
+
+    if not prompt_required:
+        if prompt_bytes is not None:
+            raise CompletionError(
+                "canonical projection forbids a next-action prompt"
+            )
+        return owner_result
+
+    if prompt_bytes is None:
+        raise CompletionError(
+            "canonical projection requires a next-action prompt"
+        )
+    prompt = utf8_bytes(PROMPT_NAME, prompt_bytes)
+    return owner_result + _OWNER_DELIVERY_HEADING + prompt
+
+
 __all__ = [
     "CompletionError",
     "GitHubPullRequestHeadSource",
@@ -108,6 +173,7 @@ __all__ = [
     "github_pull_request_head_source",
     "is_verified_review_completion",
     "official_next_action_prompt",
+    "official_owner_delivery",
     "official_owner_result",
     "official_technical_handoff",
     "verify_completed_review",
