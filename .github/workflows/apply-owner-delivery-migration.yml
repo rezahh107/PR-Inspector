@@ -1,0 +1,81 @@
+name: Apply atomic owner-delivery test migration
+
+on:
+  push:
+    branches:
+      - agent/atomic-owner-prompt-delivery
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact branch head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: agent/atomic-owner-prompt-delivery
+          persist-credentials: true
+          fetch-depth: 1
+
+      - name: Patch the legacy owner-only assertion
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("tests/test_canonical_output_enforcement.py")
+          text = path.read_text(encoding="utf-8")
+
+          old_import = "    official_next_action_prompt,\n    official_owner_result,\n"
+          new_import = (
+              "    official_next_action_prompt,\n"
+              "    official_owner_delivery,\n"
+              "    official_owner_result,\n"
+          )
+          if text.count(old_import) != 1:
+              raise SystemExit("legacy import anchor is missing or ambiguous")
+          text = text.replace(old_import, new_import, 1)
+
+          old_assertions = '''    assert official_owner_result(completion) == (
+              output / "OWNER_RESULT.fa.txt"
+          ).read_text(encoding="utf-8")
+          assert official_technical_handoff(completion) == (
+              output / "TECHNICAL_HANDOFF.en.md"
+          ).read_text(encoding="utf-8")
+          assert official_next_action_prompt(completion) == (
+              output / PROMPT_NAME
+          ).read_text(encoding="utf-8")
+          '''
+          new_assertions = '''    owner_result = (output / "OWNER_RESULT.fa.txt").read_text(encoding="utf-8")
+          prompt = (output / PROMPT_NAME).read_text(encoding="utf-8")
+          with pytest.raises(CompletionError, match="official_owner_delivery"):
+              official_owner_result(completion)
+          assert official_owner_delivery(completion) == (
+              owner_result + "\\n## متن کامل اقدام بعدی\\n\\n" + prompt
+          )
+          assert official_technical_handoff(completion) == (
+              output / "TECHNICAL_HANDOFF.en.md"
+          ).read_text(encoding="utf-8")
+          assert official_next_action_prompt(completion) == prompt
+          '''
+          if text.count(old_assertions) != 1:
+              raise SystemExit("legacy assertion anchor is missing or ambiguous")
+          text = text.replace(old_assertions, new_assertions, 1)
+          path.write_text(text, encoding="utf-8", newline="\n")
+          PY
+          python -m py_compile tests/test_canonical_output_enforcement.py
+
+      - name: Commit the bounded test migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/test_canonical_output_enforcement.py
+          git diff --cached --check
+          git commit -m "Align canonical output test with atomic delivery"
+          git push origin HEAD:agent/atomic-owner-prompt-delivery
