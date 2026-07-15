@@ -14,19 +14,18 @@ def test_prompt_required_delivery_contains_exact_prompt_bytes(
     tmp_path,
     monkeypatch,
 ):
-    completion, _, _ = completed_bundle(
+    completion, output, _ = completed_bundle(
         tmp_path,
         monkeypatch,
         "repair-handoff-valid",
     )
 
+    owner_result = (output / "OWNER_RESULT.fa.txt").read_text(encoding="utf-8")
     prompt = official_next_action_prompt(completion)
     delivery = official_owner_delivery(completion)
 
     assert prompt is not None
-    assert "پرامپت اصلاح آماده است." in delivery
-    assert "\n\n## پرامپت اقدام\n\n" in delivery
-    assert delivery.endswith(prompt)
+    assert delivery == f"{owner_result}\n## پرامپت اقدام\n\n{prompt}"
 
 
 def test_prompt_required_compact_owner_accessor_warns_as_incomplete(
