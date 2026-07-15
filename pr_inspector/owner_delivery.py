@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 from ._official_bundle import (
@@ -14,6 +15,10 @@ from .derived_outputs import PROJECTION_NAME, PROMPT_NAME
 
 OWNER_RESULT_NAME = "OWNER_RESULT.fa.txt"
 OWNER_PROMPT_HEADING = "## پرامپت اقدام"
+
+
+class PromptDeliveryRequiredWarning(RuntimeWarning):
+    """The compact owner result omits a canonically required action prompt."""
 
 
 def _verified_bundle(value: VerifiedReviewCompletion):
@@ -58,8 +63,8 @@ def official_owner_delivery(value: VerifiedReviewCompletion) -> str:
     """Return one indivisible owner-facing result, including the exact prompt when required.
 
     The owner result, projection, and conditional action prompt are read from one
-    fully reverified in-memory byte snapshot. Callers therefore cannot truthfully
-    announce that a prompt is ready while omitting it from the same delivery.
+    fully reverified in-memory byte snapshot. Supported integrations should use
+    this accessor for every owner-facing response.
     """
 
     bundle = _verified_bundle(value)
@@ -73,18 +78,21 @@ def official_owner_delivery(value: VerifiedReviewCompletion) -> str:
 
 
 def official_owner_result(value: VerifiedReviewCompletion) -> str:
-    """Return the compact owner result only when no action prompt is required.
+    """Return the legacy compact owner result.
 
-    Prompt-required decisions fail closed and must use ``official_owner_delivery``.
-    This prevents integrations from displaying "prompt ready" wording without the
-    canonical prompt body.
+    This accessor remains compatible with the active v1.10.1 API. When a prompt is
+    required it emits ``PromptDeliveryRequiredWarning`` because the returned two-line
+    artifact is not a complete owner delivery. New integrations must use
+    ``official_owner_delivery`` instead.
     """
 
     bundle = _verified_bundle(value)
     projection = _projection(bundle)
     prompt = _prompt(bundle, projection)
     if prompt is not None:
-        raise CompletionError(
-            "prompt-required owner output must use official_owner_delivery"
+        warnings.warn(
+            "prompt-required owner output is incomplete; use official_owner_delivery",
+            PromptDeliveryRequiredWarning,
+            stacklevel=2,
         )
     return _owner_result(bundle)
