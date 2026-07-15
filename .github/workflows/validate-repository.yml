@@ -92,7 +92,20 @@ jobs:
         run: python -m pytest -q tests/test_repository_closure.py
 
       - name: Run focused canonical output enforcement tests
-        run: python -m pytest -q tests/test_canonical_output_enforcement.py
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m pytest -q tests/test_canonical_output_enforcement.py \
+            2>&1 | tee canonical-output-${{ matrix.python-version }}.log
+
+      - name: Upload canonical output failure diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: canonical-output-failure-${{ matrix.python-version }}-${{ github.run_id }}
+          path: canonical-output-${{ matrix.python-version }}.log
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Run verified-byte accessor TOCTOU regressions
         run: python -m pytest -q tests/test_canonical_output_enforcement.py -k toctou
