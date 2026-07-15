@@ -106,11 +106,26 @@ jobs:
       - name: Run focused artifact byte-consistency tests
         run: python -m pytest -q tests/test_dual_audience_outputs.py -k "manifest or byte or crlf or bom or newline"
 
-      - name: Run atomic owner delivery accessor tests
-        run: python -m pytest -q tests/test_atomic_owner_delivery.py
+      - name: Verify exact prompt bytes in owner delivery
+        run: python -m pytest -q tests/test_atomic_owner_delivery.py -k exact_prompt_bytes
 
-      - name: Run atomic owner delivery CLI tests
-        run: python -m pytest -q tests/test_render_cli_owner_delivery.py
+      - name: Verify compact owner compatibility warning
+        run: python -m pytest -q tests/test_atomic_owner_delivery.py -k warns_as_incomplete
+
+      - name: Verify no-prompt owner delivery
+        run: python -m pytest -q tests/test_atomic_owner_delivery.py -k no_prompt_delivery
+
+      - name: Reject missing owner prompt
+        run: python -m pytest -q tests/test_atomic_owner_delivery.py -k missing_required_prompt
+
+      - name: Reject tampered owner prompt
+        run: python -m pytest -q tests/test_atomic_owner_delivery.py -k tampered_prompt_bytes
+
+      - name: Verify prompt-required CLI delivery
+        run: python -m pytest -q tests/test_render_cli_owner_delivery.py -k required_prompt
+
+      - name: Verify no-prompt CLI delivery
+        run: python -m pytest -q tests/test_render_cli_owner_delivery.py -k no_prompt_section
 
       - name: Run semantic and rendering tests
         run: python -m pytest
