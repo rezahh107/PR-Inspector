@@ -59,7 +59,7 @@ The repository defect was real but bounded: the supported render CLI validated o
 | `pr_inspector.official_review.complete_review` | official high-level package API | Performs live identity reads, validation, staging, atomic publication, pre-commit rollback, publication commit, and bounded obsolete-backup cleanup. |
 | `pr_inspector.official_review.verify_completed_review` | official existing-bundle verifier | Requires a verifier-created live head source, captures exact artifact bytes, validates that snapshot, and reads GitHub before and after bundle validation. |
 | `official_owner_delivery` | canonical owner-facing delivery accessor | Accepts only `VerifiedReviewCompletion`; returns the compact owner result and, when required, the complete canonical prompt from one reverified byte snapshot. |
-| `official_owner_result` | compact owner-result accessor | Allowed only when the canonical projection does not require a prompt. Prompt-required decisions fail closed and must use `official_owner_delivery`. |
+| `official_owner_result` | legacy compact owner-result accessor | Preserved for v1.10.1 compatibility. When a prompt is required it emits `PromptDeliveryRequiredWarning`; new owner-facing integrations must use `official_owner_delivery`. |
 | `official_technical_handoff`, `official_next_action_prompt` | specialized official accessors | Accept only `VerifiedReviewCompletion`; recheck the live head, fully validate captured artifact bytes, and return only those verified bytes. |
 | `decision_projection.project_decision` | internal composition API | Canonical decision derivation only; not completion evidence. |
 | `derived_outputs.build_review_artifacts` | internal composition API | In-memory deterministic construction; not completion evidence. |
@@ -119,7 +119,7 @@ The verified `_Bundle` carries those immutable bytes. Official accessors perform
 
 A prompt-required owner result is not a complete delivery by itself. `official_owner_delivery` reads `OWNER_RESULT.fa.txt`, `DECISION_PROJECTION.json`, and the conditional `NEXT_ACTION_PROMPT.en.md` from one fully reverified in-memory byte snapshot. When `prompt_required` is true, the returned text contains the complete prompt after the Persian `## پرامپت اقدام` heading. It never returns a path, readiness claim, summary, reconstructed prompt, or later-delivery promise as a substitute for the exact verified prompt bytes.
 
-`official_owner_result` is intentionally fail-closed for prompt-required decisions. This preserves the two-line compact artifact while preventing supported integrations from displaying wording such as “پرامپت اصلاح آماده است” without the prompt body. The supported CLI emits `official_owner_delivery` by default and places only technical completion information on stderr.
+The supported CLI emits `official_owner_delivery` by default and places only technical completion information on stderr. The legacy `official_owner_result` accessor remains byte-compatible with the active v1.10.1 API, but emits `PromptDeliveryRequiredWarning` whenever its two-line result omits a required prompt. A future versioned breaking release may convert that warning into a fail-closed error after consumers migrate.
 
 ## Completion and output claims
 
@@ -135,11 +135,12 @@ An external ChatGPT/project/connector integration that wants to present an **off
 2. require a successful process result and verifier-created completion;
 3. use `official_owner_delivery` for owner-facing output;
 4. never use the compact owner result alone when `prompt_required` is true;
-5. never synthesize, summarize, truncate, postpone, or independently reconstruct the action prompt;
-6. display technical or prompt content only through official accessors or from the validated published bundle;
-7. never synthesize status, next action, or prompt-ready wording directly;
-8. preserve failure output as incomplete/blocked rather than converting it into Green/Yellow/Red prose;
-9. surface `cleanup_diagnostics` without treating cleanup residue as publication rollback.
+5. treat `PromptDeliveryRequiredWarning` as an integration defect requiring migration;
+6. never synthesize, summarize, truncate, postpone, or independently reconstruct the action prompt;
+7. display technical or prompt content only through official accessors or from the validated published bundle;
+8. never synthesize status, next action, or prompt-ready wording directly;
+9. preserve failure output as incomplete/blocked rather than converting it into Green/Yellow/Red prose;
+10. surface `cleanup_diagnostics` without treating cleanup residue as publication rollback.
 
 The repository cannot enforce these rules against unrelated free-form chat output. That remaining obligation belongs to the external orchestration layer.
 
