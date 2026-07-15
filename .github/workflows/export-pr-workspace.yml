@@ -23,12 +23,12 @@ jobs:
         run: test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
 
       - name: Create workspace archive
-        run: tar --exclude=.git -czf pr-inspector-workspace.tgz .
+        run: tar --exclude=.git -czf /tmp/pr-inspector-workspace.tgz .
 
       - name: Upload workspace archive
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: pr-inspector-workspace-${{ github.run_id }}
-          path: pr-inspector-workspace.tgz
+          path: /tmp/pr-inspector-workspace.tgz
           if-no-files-found: error
           retention-days: 1
