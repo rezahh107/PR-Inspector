@@ -78,7 +78,7 @@
     "summary": "این PR تغییراتی دارد، اما هدف دقیق آن از توضیح PR یا commitها به‌اندازهٔ کافی مشخص نیست.",
     "unknown": "هنوز مشخص نیست این PR دقیقاً باید چه رفتار موردانتظاری را برآورده کند."
   },
-  "protocol_version": "v1.10.1",
+  "protocol_version": "v1.10.2",
   "red_gate_flags": [],
   "required_actions": [],
   "review_identity": {

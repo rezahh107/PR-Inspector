@@ -1,5 +1,6 @@
 import hashlib
 import json
+import warnings
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,7 @@ from pr_inspector.behavioral_coverage import (
     parse_coverage_matrix,
     validate_behavioral_coverage,
 )
+from pr_inspector._official_head import CompletionError
 from pr_inspector.ci_identity import build_ci_identity, validate_ci_identity
 from pr_inspector.decision_projection import owner_result_text, project_decision
 from pr_inspector.derived_outputs import (
@@ -25,6 +27,7 @@ from pr_inspector.governance import (
     verify_github_governance_source,
     verify_governance_record,
 )
+from pr_inspector.official_review import official_owner_delivery, official_owner_result
 from pr_inspector.render import canonical_action_text, render_handoff
 from pr_inspector.review_provenance import (
     ProvenanceError,
@@ -39,6 +42,7 @@ from pr_inspector.sequence_enforcement import (
 )
 from pr_inspector.sequence_policy import validate_rereview_sequence
 from pr_inspector.validation_v2 import validate_directory
+from tests.test_canonical_output_enforcement import completed_bundle
 from tests.governance_test_support import (
     fixture as governance_fixture,
     responses as governance_responses,
@@ -162,6 +166,28 @@ def test_owner_two_line_mutation_is_rejected(tmp_path):
     assert "PRI-CONSIST-001" in observed
     assert "PRI-MANIFEST-003" in observed
 
+
+
+def test_owner_prompt_atomic_mutation_fails_closed_even_when_warnings_are_ignored(
+    tmp_path,
+    monkeypatch,
+):
+    completion, output, _ = completed_bundle(
+        tmp_path,
+        monkeypatch,
+        "repair-handoff-valid",
+    )
+    owner_result = (output / "OWNER_RESULT.fa.txt").read_text(encoding="utf-8")
+    prompt = (output / "NEXT_ACTION_PROMPT.en.md").read_text(encoding="utf-8")
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        with pytest.raises(CompletionError, match="official_owner_delivery"):
+            official_owner_result(completion)
+
+    assert official_owner_delivery(completion) == (
+        f"{owner_result}\n## پرامپت اقدام\n\n{prompt}"
+    )
 
 def test_projection_action_drift_mutation_is_rejected(tmp_path):
     value = yellow_verify_package()

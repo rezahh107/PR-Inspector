@@ -61,7 +61,7 @@ def project_decision(
     governance_evidence: VerifiedGovernanceEvidence | None = None,
     sequence_enforcement: VerifiedSequenceEnforcement | None = None,
 ) -> dict[str, Any]:
-    """Produce the sole official v1.10.1 decision projection."""
+    """Produce the sole official v1.10.2 decision projection."""
 
     governance_evidence, sequence_enforcement = _resolved_evidence(
         governance_evidence,

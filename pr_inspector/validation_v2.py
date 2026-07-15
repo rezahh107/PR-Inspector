@@ -17,7 +17,7 @@ from .sequence_enforcement import VerifiedSequenceEnforcement
 ROOT = Path(__file__).resolve().parents[1]
 CURRENT_VERSION = (ROOT / "CURRENT_VERSION").read_text(encoding="utf-8").strip()
 EXTENSION_SCHEMA = ROOT / f"protocols/{CURRENT_VERSION}/schemas/review-package.schema.json"
-BASE_SCHEMA = ROOT / "protocols/v1.10.0/schemas/review-package.schema.json"
+BASE_SCHEMA = ROOT / "protocols/v1.10.1/schemas/review-package.schema.json"
 
 
 def _schema_diagnostics(
@@ -37,7 +37,7 @@ def validate_package(
     governance_evidence: VerifiedGovernanceEvidence | None = None,
     sequence_enforcement: VerifiedSequenceEnforcement | None = None,
 ) -> list[Diagnostic]:
-    """Validate v1.10.1 as a strict extension of immutable v1.10.0."""
+    """Validate v1.10.2 as a strict extension of immutable v1.10.1."""
 
     with evidence_scope(governance_evidence, sequence_enforcement):
         diagnostics = _schema_diagnostics(pkg, EXTENSION_SCHEMA)
@@ -45,8 +45,7 @@ def validate_package(
             return sorted(set(diagnostics))
 
         base_value = copy.deepcopy(pkg)
-        base_value.pop("security_profile", None)
-        base_value["protocol_version"] = "v1.10.0"
+        base_value["protocol_version"] = "v1.10.1"
         diagnostics.extend(_schema_diagnostics(base_value, BASE_SCHEMA))
         if not diagnostics:
             diagnostics.extend(validate_semantics(pkg))

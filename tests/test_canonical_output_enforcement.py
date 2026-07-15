@@ -23,6 +23,7 @@ from pr_inspector.official_review import (
     github_pull_request_head_source,
     is_verified_review_completion,
     official_next_action_prompt,
+    official_owner_delivery,
     official_owner_result,
     official_technical_handoff,
     verify_completed_review,
@@ -485,9 +486,13 @@ def test_successful_completion_exposes_only_validated_outputs(
         "review-package.json",
         *expected,
     }
-    assert official_owner_result(completion) == (
-        output / "OWNER_RESULT.fa.txt"
-    ).read_text(encoding="utf-8")
+    with pytest.raises(CompletionError, match="official_owner_delivery"):
+        official_owner_result(completion)
+    owner_result = (output / "OWNER_RESULT.fa.txt").read_text(encoding="utf-8")
+    prompt = (output / PROMPT_NAME).read_text(encoding="utf-8")
+    assert official_owner_delivery(completion) == (
+        f"{owner_result}\n## پرامپت اقدام\n\n{prompt}"
+    )
     assert official_technical_handoff(completion) == (
         output / "TECHNICAL_HANDOFF.en.md"
     ).read_text(encoding="utf-8")
