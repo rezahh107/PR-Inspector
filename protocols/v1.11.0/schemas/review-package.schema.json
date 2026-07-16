@@ -835,6 +835,57 @@
             "string",
             "null"
           ]
+        },
+        "github_source_key": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "github_object_type": {
+          "enum": [
+            "review_comment",
+            "review_thread",
+            "review_submission",
+            "issue_comment",
+            "check_annotation",
+            "check_summary"
+          ]
+        },
+        "github_object_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "target_repository_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "pr_number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "reviewed_head_sha": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "content_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "receipt_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "triage_disposition": {
+          "enum": [
+            "inspected_no_action",
+            "accepted",
+            "resolved",
+            "stale",
+            "false_positive",
+            "duplicate",
+            "insufficient_evidence",
+            "deferred",
+            "out_of_scope"
+          ]
         }
       },
       "required": [
@@ -843,7 +894,16 @@
         "author",
         "is_bot",
         "url",
-        "inspected"
+        "inspected",
+        "github_source_key",
+        "github_object_type",
+        "github_object_id",
+        "target_repository_id",
+        "pr_number",
+        "reviewed_head_sha",
+        "content_sha256",
+        "receipt_id",
+        "triage_disposition"
       ],
       "type": "object"
     },

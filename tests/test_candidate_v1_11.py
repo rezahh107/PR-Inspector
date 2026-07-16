@@ -2,13 +2,14 @@ import copy
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import yaml
 from jsonschema import Draft202012Validator
 
-from pr_inspector._governance_transport import _mint_response
-from pr_inspector.governance import VerifiedGovernanceEvidence, _EVIDENCE_CAPABILITIES
+from pr_inspector._governance_transport import _mint_response, fetch_github_api_response
+from pr_inspector.governance import VerifiedGovernanceEvidence, _EVIDENCE_CAPABILITIES, verify_github_governance_source, verify_governance_record
 from pr_inspector.review_provenance import verify_github_commit_payload
 from pr_inspector.candidate_v1_11 import (
     GOVERNANCE_REASON_CODES, GOVERNANCE_STATUS_EFFECT, LOCKED_INSPECTOR_REPOSITORY_ID,
@@ -20,7 +21,7 @@ from pr_inspector.candidate_v1_11 import (
     render_owner_profile_commands, validate_candidate_package,
     validate_owner_profile_commands, verify_base_review_reference,
     verify_candidate_inspector_commit_payload, verify_candidate_inspector_commit_responses,
-    verify_governance_payload_bundle, verify_minimal_review_artifact_bytes,
+    verify_governance_payload_bundle, verify_candidate_review_artifact_bytes, verify_minimal_review_artifact_bytes,
     verify_review_surface_inventory_responses, verify_target_identity_response,
 )
 
@@ -36,7 +37,26 @@ def now():
     return datetime.now(timezone.utc)
 
 
+class FakeHTTPResponse:
+    def __init__(self, url, payload, status=200):
+        self._url = url
+        self._payload = json.dumps(payload).encode("utf-8")
+        self.status = status
+        self.code = status
+    def geturl(self):
+        return self._url
+    def read(self):
+        return self._payload
+    def close(self):
+        pass
+
+
 def response(url, payload, status=200, fetched_at=None):
+    with patch("urllib.request.urlopen", return_value=FakeHTTPResponse(url, payload, status)):
+        return fetch_github_api_response(url, token=None, api_version="2022-11-28", fetched_at=fetched_at or now())
+
+
+def synthetic_response(url, payload, status=200, fetched_at=None):
     return _mint_response(request_url=url, response_url=url, status_code=status, fetched_at=fetched_at or now(), payload=payload)
 
 
@@ -79,7 +99,7 @@ def surface_inventory(repo=REPO, repo_id=REPO_ID, pr=7, head=SHA, bot_sources=No
     return verify_review_surface_inventory_responses(responses, target_repository=repo, target_identity=ident, pull_request=pr, reviewed_head_sha=head)
 
 
-def governance(authorized=True, repo=REPO, pr=7, head=SHA):
+def manual_governance(authorized=True, repo=REPO, pr=7, head=SHA):
     ev = object.__new__(VerifiedGovernanceEvidence)
     values = {"evidence_id": "ev", "repository": repo, "default_branch": "main", "pull_request_number": pr, "exact_head_sha": head, "enforcement_status": "verified_enforced", "valid_approval_reviewers": ("reviewer",), "required_status_checks": (("ci", 15368),), "exact_head_checks_satisfied": authorized, "approval_complete": authorized, "specialist_satisfied": authorized, "specialist_status": "not_required", "bypass_actors": () if authorized else ("admin",), "merge_readiness_satisfied": authorized, "merge_authorized": authorized, "conclusion": "verified" if authorized else "gap", "source_response_urls": (f"https://api.github.com/repos/{repo}",)}
     for k, v in values.items():
@@ -88,8 +108,24 @@ def governance(authorized=True, repo=REPO, pr=7, head=SHA):
     return ev
 
 
+def governance_source_and_evidence(authorized=True, repo=REPO, repo_id=REPO_ID, pr=7, head=SHA):
+    base = f"https://api.github.com/repos/{repo}"
+    responses = {
+        "repository": response(base, {"full_name": repo, "id": repo_id, "url": base, "html_url": f"https://github.com/{repo}", "default_branch": "main"}),
+        "pull_request": response(f"{base}/pulls/{pr}", {"number": pr, "head": {"sha": head}, "base": {"ref": "main"}, "user": {"login": "author"}}),
+        "branch_protection": response(f"{base}/branches/main/protection", {"required_pull_request_reviews": {"required_approving_review_count": 1, "dismiss_stale_reviews": True, "require_code_owner_reviews": False, "bypass_pull_request_allowances": {"users": [], "teams": [], "apps": []}}, "required_status_checks": {"checks": [{"context": "ci", "app_id": 15368}]}, "enforce_admins": {"enabled": True}}),
+        "rulesets": response(f"{base}/rulesets?includes_parents=true&per_page=100", []),
+        "reviews": response(f"{base}/pulls/{pr}/reviews?per_page=100", [{"user": {"login": "reviewer", "type": "User"}, "state": "APPROVED" if authorized else "COMMENTED", "commit_id": head, "submitted_at": "2026-07-16T00:00:00Z"}]),
+        "checks": response(f"{base}/commits/{head}/check-runs?per_page=100", {"check_runs": [{"name": "ci", "app": {"id": 15368}, "head_sha": head, "status": "completed", "conclusion": "success" if authorized else "failure", "completed_at": "2026-07-16T00:00:00Z"}]}),
+    }
+    source = verify_github_governance_source(responses, expected_repository=repo, expected_pr_number=pr, expected_head_sha=head)
+    evidence = verify_governance_record(source, expected_repository=repo, expected_pr_number=pr, expected_head_sha=head)
+    return source, evidence
+
+
 def candidate_governance(authorized=True, repo=REPO, repo_id=REPO_ID, pr=7, head=SHA):
-    return bind_candidate_governance_evidence(governance(authorized, repo, pr, head), target_identity(repo, repo_id))
+    source, evidence = governance_source_and_evidence(authorized, repo, repo_id, pr, head)
+    return bind_candidate_governance_evidence(evidence, source, target_identity(repo, repo_id))
 
 
 def complete_reconciliation(**overrides):
@@ -133,13 +169,31 @@ def test_prf001_inspector_commit_requires_receipt_derived_candidate_capability()
     lookalike = type("Lookalike", (), {"repository": "rezahh107/PR-Inspector", "repository_id": LOCKED_INSPECTOR_REPOSITORY_ID, "commit_sha": INSPECTOR_SHA})()
     with pytest.raises(ValueError, match="candidate inspector commit receipt"):
         verify_minimal_review_artifact_bytes(build_candidate_review_artifacts(package_for_decision(), review_surface_inventory=surface_inventory()), lookalike, review_surface_inventory=surface_inventory())
+    with pytest.raises(ValueError, match="operational GitHub HTTPS adapter"):
+        verify_candidate_inspector_commit_responses(
+            synthetic_response("https://api.github.com/repos/rezahh107/PR-Inspector", repo),
+            synthetic_response(f"https://api.github.com/repos/rezahh107/PR-Inspector/commits/{INSPECTOR_SHA}", commit),
+            expected_commit_sha=INSPECTOR_SHA,
+        )
+    with pytest.raises(ValueError, match="not fresh"):
+        verify_candidate_inspector_commit_responses(
+            response("https://api.github.com/repos/rezahh107/PR-Inspector", repo, fetched_at=now() - timedelta(hours=1)),
+            response(f"https://api.github.com/repos/rezahh107/PR-Inspector/commits/{INSPECTOR_SHA}", commit),
+            expected_commit_sha=INSPECTOR_SHA,
+        )
+    with pytest.raises(ValueError, match="not fresh"):
+        verify_candidate_inspector_commit_responses(
+            response("https://api.github.com/repos/rezahh107/PR-Inspector", repo, fetched_at=now() + timedelta(hours=1)),
+            response(f"https://api.github.com/repos/rezahh107/PR-Inspector/commits/{INSPECTOR_SHA}", commit),
+            expected_commit_sha=INSPECTOR_SHA,
+        )
     with pytest.raises(ValueError, match="identity mismatch"):
         inspector_commit_receipt(repo_id=999)
     assert artifact_bundle().inspector_commit.commit_sha == INSPECTOR_SHA
 
 
 def test_prf002_governance_repository_id_is_bound_to_candidate_evidence():
-    assert project_decision("strict", [], governance(True), target_repository=REPO, target_repository_id=REPO_ID, pull_request=7, reviewed_head_sha=SHA)["governance_decision"]["status"] == "NOT_VERIFIABLE"
+    assert project_decision("strict", [], manual_governance(True), target_repository=REPO, target_repository_id=REPO_ID, pull_request=7, reviewed_head_sha=SHA)["governance_decision"]["status"] == "NOT_VERIFIABLE"
     projection = project_decision("strict", [], candidate_governance(False), target_repository=REPO, target_repository_id=REPO_ID, pull_request=7, reviewed_head_sha=SHA)
     assert projection["governance_decision"] == {"status": "GAP_FOUND", "reason_codes": ["merge_authorization_unverified"]}
     assert GOVERNANCE_STATUS_EFFECT["merge_authorization_unverified"] == "GAP_FOUND"
@@ -184,6 +238,14 @@ def test_prf004_review_surface_inventory_surfaces_freshness_pagination_and_bot_i
         "check_summaries": response(f"{base}/commits/{SHA}/status", {"statuses": []}),
     }
     assert verify_review_surface_inventory_responses(responses, target_repository=REPO, target_identity=ident, pull_request=7, reviewed_head_sha=SHA).sources == ()
+    inv_source = dict(inv.sources[0]); inv_source["inspected"] = True
+    pkg = package_for_decision(sources=[inv_source], reconciliation=reconcile_bot_reviews([inv_source], [], []))
+    assert validate_candidate_package(pkg, review_surface_inventory=inv) == []
+    changed = copy.deepcopy(pkg); changed["external_review_intake"]["sources_inspected"][0]["content_sha256"] = "0" * 64
+    assert any("source identity mismatch" in err for err in validate_candidate_package(changed, review_surface_inventory=inv))
+    no_triage = copy.deepcopy(pkg); no_triage["external_review_intake"]["sources_inspected"][0].pop("triage_disposition")
+    Draft202012Validator(json.loads((ROOT / "protocols/v1.11.0/schemas/review-package.schema.json").read_text())).validate(pkg)
+    assert any("required property" in err or "triage" in err for err in validate_candidate_package(no_triage, review_surface_inventory=inv))
 
 
 def test_prf005_projection_controls_prompt_routing_and_owner_bytes():
@@ -202,6 +264,11 @@ def test_prf005_projection_controls_prompt_routing_and_owner_bytes():
     yellow_pkg["decision"]["blocking_findings_count"] = 1
     yellow = build_candidate_review_artifacts(yellow_pkg, review_surface_inventory=inv)
     assert "NEXT_ACTION_PROMPT.en.md" in yellow
+    assert project_decision("minimal", ["incomplete_technical_scope"])["next_action"]["kind"] == "verify"
+    assert project_decision("minimal", ["incomplete_technical_scope"])["next_action"]["may_modify_code"] is False
+    assert project_decision("minimal", ["stale_technical_review_identity"])["next_action"]["kind"] == "rerun_review"
+    assert project_decision("minimal", ["blocking_medium_finding", "incomplete_technical_scope"])["next_action"]["kind"] == "repair_and_verify"
+    assert yellow_projection["next_action"]["reason_codes"]
     tampered = dict(yellow); tampered.pop("NEXT_ACTION_PROMPT.en.md")
     with pytest.raises(ValueError, match="artifact set"):
         verify_minimal_review_artifact_bytes(tampered, inspector_commit_receipt(), review_surface_inventory=inv)
@@ -222,6 +289,13 @@ def test_prf006_owner_delivery_requires_verified_bundle_and_atomic_prompt():
     tampered = dict(prompt_bundle.artifact_bytes); tampered[OWNER_PROFILE_COMMANDS_ARTIFACT] += b"x"
     fake = type("FakeBundle", (), {"artifact_bytes": tampered})()
     assert candidate_owner_delivery_stdout(fake) == b""
+    assert candidate_owner_delivery_stdout(prompt_bundle, live_head_sha=OTHER_SHA) == b""
+    gov = candidate_governance(False)
+    strict_projection = project_decision("strict", [], gov, target_repository=REPO, target_repository_id=REPO_ID, pull_request=7, reviewed_head_sha=SHA)
+    strict_pkg = package_for_decision(strict_projection, profile="strict")
+    strict_artifacts = build_candidate_review_artifacts(strict_pkg, governance_evidence=gov, review_surface_inventory=inv)
+    strict_bundle = verify_candidate_review_artifact_bytes(strict_artifacts, inspector_commit_receipt(), governance_evidence=gov, review_surface_inventory=inv, live_head_sha=SHA)
+    assert candidate_owner_delivery_stdout(strict_bundle, live_head_sha=SHA).endswith(PROFILE_COMMANDS_BYTES)
 
 
 def test_existing_intake_reconciliation_reason_schema_and_registry_paths():

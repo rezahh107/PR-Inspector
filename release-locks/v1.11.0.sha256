@@ -18,7 +18,7 @@ cf0d0a3bcc6d97ec52bbf314dae3b71749bf4e573e6c750a6be2b7e691d1fc50  protocols/v1.1
 ea108eda28748321dcf928778f8bed384da832884961b151a463072cfc3ddb50  protocols/v1.11.0/schemas/governance-evidence.schema.json
 69648d258d6ebadb1f5be111e02dc690460159fa49dfe2ede043c72854cad630  protocols/v1.11.0/schemas/owner-delivery-contract.schema.json
 893b095bd815b701bb9606f86c5cdd422e078bed0aff4e752e99da6bd9aacf17  protocols/v1.11.0/schemas/rereview-sequence.schema.json
-f66a7f2273772df440a05440adad5cb04e13e56ec5d07b87f9cbb4649683ef00  protocols/v1.11.0/schemas/review-package.schema.json
+3ffc3dd61b995ed6402a71626edbbeafb380a1ea54ab1d714f54e23b9a06ffc3  protocols/v1.11.0/schemas/review-package.schema.json
 8fcd238b5dfd0ac9dad3160943d273d42cf803f13cb4fa9ccc78d5d357eca6aa  protocols/v1.11.0/templates/OWNER_DECISION_CARD.fa.md
 79ff2952bf719b206c12bfa8f80c126119d1a6dee1b0bb0430bbc81dfe6b87cd  protocols/v1.11.0/templates/TECHNICAL_HANDOFF.en.md
 c400eb626152544817f16684bab060b6e7ba8c2f3f31d46162a2fc5be6725390  protocols/v1.11.0/trust/INSPECTOR_TRUST_POLICY.json
