@@ -327,7 +327,7 @@ def verify_review_surface_inventory_responses(responses: Mapping[str, GitHubApiR
             raise ValueError("review surface pagination is incomplete")
         if not isinstance(payload_items, list):
             raise ValueError("review surface payload is malformed")
-        if len(payload_items) >= 100:
+        if key != "check_runs" and len(payload_items) >= 100:
             raise ValueError("review surface pagination is incomplete")
         for index, item in enumerate(payload_items):
             if not isinstance(item, Mapping):
@@ -346,7 +346,7 @@ def verify_review_surface_inventory_responses(responses: Mapping[str, GitHubApiR
                 if github_key in github_source_keys:
                     raise ValueError("duplicate review surface source identity")
                 github_source_keys.add(github_key)
-                sources.append(MappingProxyType({"source_id": f"EXTSRC-{len(sources)+1:03d}", "github_source_key": github_key, "github_object_type": object_type, "github_object_id": str(stable_id), "target_repository_id": target_identity.repository_id, "pr_number": pull_request, "reviewed_head_sha": reviewed_head_sha, "receipt_id": response.receipt_id, "triage_disposition": "inspected_no_action", "inspected": False, "source_type": source_type, "author": login, "is_bot": True, "url": item.get("html_url") or item.get("target_url"), "content_sha256": bytes_sha256(json.dumps(dict(item), sort_keys=True, separators=(",", ":")).encode())}))
+                sources.append(MappingProxyType({"source_id": f"EXTSRC-{len(sources)+1:03d}", "github_source_key": github_key, "github_object_type": object_type, "github_object_id": str(stable_id), "target_repository_id": target_identity.repository_id, "pr_number": pull_request, "reviewed_head_sha": reviewed_head_sha, "receipt_id": item["receipt_id"] if key == "check_runs" else response.receipt_id, "triage_disposition": "inspected_no_action", "inspected": False, "source_type": source_type, "author": login, "is_bot": True, "url": item.get("html_url") or item.get("target_url"), "content_sha256": bytes_sha256(json.dumps(dict(item), sort_keys=True, separators=(",", ":")).encode())}))
     return VerifiedReviewSurfaceInventory(_SURFACE_TOKEN, target_repository, target_identity.repository_id, pull_request, reviewed_head_sha, tuple(sources), True)
 
 
@@ -421,6 +421,7 @@ def _collect_check_annotations(responses: Mapping[str, GitHubApiResponse], *, ba
                         "html_url": run.get("html_url") or run.get("details_url"),
                         "app": app or {"slug": run.get("name"), "type": "App"},
                         "reviewed_head_sha": reviewed_head_sha,
+                        "receipt_id": ann_response.receipt_id,
                     })
                     key = (check_run_id, source["path"], source["start_line"], source["end_line"], source["annotation_level"], source["message"], source["raw_details"])
                     if key not in seen:

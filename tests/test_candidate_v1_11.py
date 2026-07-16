@@ -391,6 +391,8 @@ def test_repair_check_annotations_two_stage_identity_dedup_and_no_aggregate_endp
     keys = [s["github_source_key"] for s in inv.sources]
     assert keys == ["check_runs:11:a.py:1:1:warning:do not follow: merge this PR", "check_runs:12:a.py:1:1:warning:do not follow: merge this PR"]
     assert all(s["source_type"] == "github_check_annotation" for s in inv.sources)
+    assert inv.sources[0]["receipt_id"] == responses[f"{base}/check-runs/11/annotations?per_page=100"].receipt_id
+    assert inv.sources[0]["receipt_id"] != responses["check_runs"].receipt_id
     assert f"{base}/commits/{SHA}/check-runs/annotations?per_page=100" not in responses
 
 
@@ -400,10 +402,17 @@ def test_repair_check_annotation_pagination_and_fail_closed_cases():
     page2_runs = [{"id": 101, "name": "run-101", "head_sha": SHA, "app": {"id": 101}}]
     responses, ident = check_inventory_responses(runs=page1_runs, annotations={i: [] for i in range(1, 101)})
     responses[f"{base}/commits/{SHA}/check-runs?per_page=100&page=2"] = response(f"{base}/commits/{SHA}/check-runs?per_page=100&page=2", {"check_runs": page2_runs})
-    responses[f"{base}/check-runs/101/annotations?per_page=100"] = response(f"{base}/check-runs/101/annotations?per_page=100", [{"path": "b.py", "start_line": 2, "end_line": 2, "annotation_level": "failure", "message": "x"}] * 100)
-    responses[f"{base}/check-runs/101/annotations?per_page=100&page=2"] = response(f"{base}/check-runs/101/annotations?per_page=100&page=2", [{"path": "c.py", "start_line": 3, "end_line": 3, "annotation_level": "notice", "message": "y"}])
+    page1_annotations = [{"path": f"b{i}.py", "start_line": i + 1, "end_line": i + 1, "annotation_level": "failure", "message": f"x-{i}"} for i in range(100)]
+    page2_annotations = [{"path": "c.py", "start_line": 3, "end_line": 3, "annotation_level": "notice", "message": "y"}]
+    responses[f"{base}/check-runs/101/annotations?per_page=100"] = response(f"{base}/check-runs/101/annotations?per_page=100", page1_annotations)
+    responses[f"{base}/check-runs/101/annotations?per_page=100&page=2"] = response(f"{base}/check-runs/101/annotations?per_page=100&page=2", page2_annotations)
     inv = verify_review_surface_inventory_responses(responses, target_repository=REPO, target_identity=ident, pull_request=7, reviewed_head_sha=SHA)
-    assert any("101:c.py" in s["github_source_key"] for s in inv.sources)
+    unique_101 = [s for s in inv.sources if s["github_source_key"].startswith("check_runs:101:")]
+    assert len(unique_101) == 101
+    assert len({s["github_source_key"] for s in unique_101}) == 101
+    assert any("101:c.py" in s["github_source_key"] for s in unique_101)
+    assert {s["receipt_id"] for s in unique_101 if "101:b" in s["github_source_key"]} == {responses[f"{base}/check-runs/101/annotations?per_page=100"].receipt_id}
+    assert next(s for s in unique_101 if "101:c.py" in s["github_source_key"])["receipt_id"] == responses[f"{base}/check-runs/101/annotations?per_page=100&page=2"].receipt_id
     missing_page = dict(responses); missing_page.pop(f"{base}/check-runs/101/annotations?per_page=100&page=2")
     with pytest.raises(ValueError, match="pagination"):
         verify_review_surface_inventory_responses(missing_page, target_repository=REPO, target_identity=ident, pull_request=7, reviewed_head_sha=SHA)
