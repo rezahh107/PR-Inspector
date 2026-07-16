@@ -48,6 +48,12 @@ _GOVERNANCE_REASON_STATUS = {
     "rulesets_unavailable": "GAP_FOUND",
     "sequence_enforcement_missing": "GAP_FOUND",
 }
+_GOVERNANCE_STATUSES = {
+    "NOT_REQUESTED",
+    "VERIFIED",
+    "NOT_VERIFIABLE",
+    "GAP_FOUND",
+}
 
 
 def _profile_reason_instances(assessment: SecurityProfileAssessment) -> list[dict[str, Any]]:
@@ -261,7 +267,7 @@ def validate_projection_invariants(projection: dict[str, Any]) -> None:
     inspection_profile = projection.get("inspection_profile")
     if inspection_profile not in {_MINIMAL, _STRICT}:
         raise ProjectionError("canonical inspection profile is invalid")
-    expected_candidate_status = _CANDIDATE_STATUS_BY_TECHNICAL_STATUS.get(
+    expected_candidate_status = _CANDIDATE_STATUS_BY_TENICAL_STATUS.get(
         projection.get("technical_status")
     )
     technical_decision = projection.get("technical_decision")
@@ -281,6 +287,8 @@ def validate_projection_invariants(projection: dict[str, Any]) -> None:
     if not isinstance(governance_decision, dict):
         raise ProjectionError("canonical governance decision is missing")
     governance_status = governance_decision.get("status")
+    if governance_status not in _GOVERNANCE_STATUSES:
+        raise ProjectionError("canonical governance status is invalid")
     governance_reasons = governance_decision.get("reason_codes")
     if not isinstance(governance_reasons, list):
         raise ProjectionError("governance reason codes are invalid")
