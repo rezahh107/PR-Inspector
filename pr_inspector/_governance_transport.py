@@ -42,6 +42,7 @@ class GitHubApiResponse:
         "payload_json",
         "receipt_id",
         "content_id",
+        "transport_origin",
         "__weakref__",
     )
 
@@ -204,6 +205,7 @@ def _mint_response(
     status_code: int,
     fetched_at: datetime,
     payload: Any,
+    transport_origin: str = "test_factory",
 ) -> GitHubApiResponse:
     payload_json = _canonical_json(payload)
     content_id = hashlib.sha256(
@@ -232,6 +234,7 @@ def _mint_response(
     object.__setattr__(value, "payload_json", payload_json)
     object.__setattr__(value, "receipt_id", receipt_id)
     object.__setattr__(value, "content_id", content_id)
+    object.__setattr__(value, "transport_origin", transport_origin)
     _RESPONSE_CAPABILITIES.add(value)
     return value
 
@@ -299,6 +302,7 @@ def fetch_github_api_response(
         status_code=status_code,
         fetched_at=fetched_at or _utcnow(),
         payload=payload,
+        transport_origin="github_https",
     )
 
 
