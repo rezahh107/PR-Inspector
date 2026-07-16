@@ -337,11 +337,11 @@ def test_existing_intake_reconciliation_reason_schema_and_registry_paths():
     assert set(entries) == TECHNICAL_REASON_CODES | GOVERNANCE_REASON_CODES
 
 
-def test_repair_active_version_invariants_remain_v1_10_2():
-    assert (ROOT / "CURRENT_VERSION").read_text().strip() == "v1.10.2"
+def test_activation_active_version_invariants_select_v1_11_0():
+    assert (ROOT / "CURRENT_VERSION").read_text().strip() == "v1.11.0"
     manifest = yaml.safe_load((ROOT / "protocol-manifest.yaml").read_text())
-    assert manifest["active_version"] == "v1.10.2"
-    assert manifest["release_lock"] == "release-locks/v1.10.2.sha256"
+    assert manifest["active_version"] == "v1.11.0"
+    assert manifest["release_lock"] == "release-locks/v1.11.0.sha256"
 
 
 def test_repair_head_drift_orchestration_preserves_target_refreshes_and_continues():

@@ -12,9 +12,9 @@ Every completed review validates one canonical package and computes one canonica
 
 Repository code validates artifacts, provenance, identities, and lifecycle sequences. GitHub-hosted governance independently blocks merge when configured. Human or specialist reviewers supply judgment. PR Inspector records evidence but never approves or merges.
 
-## Current v1.10.2 status
+## Current v1.11.0 status
 
-The `v1.10.2` snapshot adds an atomic owner-delivery contract. Prompt-required owner output is returned with the complete verified action prompt in one canonical call, while compact prompt-required access fails closed. It preserves the v1.10.1 personal minimum-security profile and all earlier trust, canonical-output, publication, and governance boundaries.
+The `v1.11.0` snapshot adds an atomic owner-delivery contract. Prompt-required owner output is returned with the complete verified action prompt in one canonical call, while compact prompt-required access fails closed. It preserves the v1.10.1 personal minimum-security profile and all earlier trust, canonical-output, publication, and governance boundaries.
 
 Repository-settings enforcement remains `insufficient_evidence`. Successful CI does not prove branch protection, Rulesets, required reviews, CODEOWNERS enforcement, stale-approval dismissal, bypass restrictions, or merge-queue enforcement.
 
@@ -42,9 +42,9 @@ Pull-request CI checks out the triggering PR head, asserts the tested SHA, recor
 
 ## Active protocol
 
-`v1.10.2`
+`v1.11.0`
 
-`CURRENT_VERSION` selects the snapshot under [`protocols/v1.10.2/`](protocols/v1.10.2/) in this checkout, protected by [`release-locks/v1.10.2.sha256`](release-locks/v1.10.2.sha256). Repository authority is determined from live `main`; a feature branch or its own prose cannot independently prove activation or merge state. Earlier snapshots, including v1.8.0 and v1.9.0, remain immutable historical releases.
+`CURRENT_VERSION` selects the snapshot under [`protocols/v1.11.0/`](protocols/v1.11.0/) in this checkout, protected by [`release-locks/v1.11.0.sha256`](release-locks/v1.11.0.sha256). Repository authority is determined from live `main`; a feature branch or its own prose cannot independently prove activation or merge state. Earlier snapshots, including v1.8.0 and v1.9.0, remain immutable historical releases.
 
 ## License
 

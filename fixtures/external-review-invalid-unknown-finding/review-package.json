@@ -65,18 +65,36 @@
     "sources_inspected": [
       {
         "author": "gemini-code-assist[bot]",
+        "content_sha256": "ad27cd3ff0b62e74c143222edc02c0f970e218d45dc690e0dbb73bbb5e946193",
+        "github_object_id": "EXTSRC-001",
+        "github_object_type": "review_comment",
+        "github_source_key": "github_pr_review_comment:EXTSRC-001",
         "inspected": true,
         "is_bot": true,
+        "pr_number": 42,
+        "receipt_id": "bf761f6830d10e6bf765603bb0a04c3e9f43a8fec2ea70de67a72c6065ea8df8",
+        "reviewed_head_sha": "1111111111111111111111111111111111111111",
         "source_id": "EXTSRC-001",
         "source_type": "github_pr_review_comment",
+        "target_repository_id": 4242,
+        "triage_disposition": "inspected_no_action",
         "url": "https://github.com/example/project/pull/42#discussion_r1"
       },
       {
         "author": "coderabbitai[bot]",
+        "content_sha256": "badcffc9d611a10bea520ae8b8d1d5444e18356af35caec33d9a17513d261724",
+        "github_object_id": "EXTSRC-002",
+        "github_object_type": "review_comment",
+        "github_source_key": "github_pr_review_comment:EXTSRC-002",
         "inspected": true,
         "is_bot": true,
+        "pr_number": 42,
+        "receipt_id": "cacc807493846ef5233462bf3ff3a657ecd99488c97f06a888db93ef860c3a93",
+        "reviewed_head_sha": "1111111111111111111111111111111111111111",
         "source_id": "EXTSRC-002",
         "source_type": "github_pr_review_comment",
+        "target_repository_id": 4242,
+        "triage_disposition": "inspected_no_action",
         "url": "https://github.com/example/project/pull/42#discussion_r2"
       }
     ],
@@ -155,6 +173,24 @@
       }
     ]
   },
+  "external_review_reconciliation": {
+    "collection_status": "COMPLETE",
+    "counts": {
+      "accepted": 0,
+      "deferred": 0,
+      "duplicate": 0,
+      "false_positive": 0,
+      "insufficient_evidence": 0,
+      "out_of_scope": 0,
+      "resolved": 0,
+      "stale": 0
+    },
+    "inspected_total": 0,
+    "open_bot_sources_total": 0,
+    "suggestion_results": [],
+    "uninspected_source_ids": [],
+    "valid_blocking_finding_ids": []
+  },
   "findings": [
     {
       "blocking": true,
@@ -176,6 +212,11 @@
       "symbol": "load_config"
     }
   ],
+  "governance_decision": {
+    "reason_codes": [],
+    "status": "NOT_REQUESTED"
+  },
+  "inspection_profile": "minimal",
   "intent_fit": {
     "implementation_evidence": [
       {
@@ -195,6 +236,10 @@
     "unsupported_claims": []
   },
   "out_of_scope_observations": [],
+  "overall_recommendation": {
+    "merge_governance_verified": false,
+    "technical_ready": false
+  },
   "owner_card": {
     "checked": "تغییرات کد، مسیر فراخوانی، نسبت آن با هدف PR و نتیجهٔ تست‌های متصل به نسخهٔ بررسی‌شده کنترل شد.",
     "mental_model": null,
@@ -203,7 +248,7 @@
     "summary": "این تغییر قالب جدیدی را به پردازشگر اضافه می‌کند و سازگاری قبلی را حفظ می‌کند.",
     "unknown": "مورد مهمی در دامنهٔ بررسی باقی نمانده است."
   },
-  "protocol_version": "v1.10.2",
+  "protocol_version": "v1.11.0",
   "red_gate_flags": [],
   "required_actions": [],
   "review_identity": {
@@ -220,7 +265,8 @@
     "review_started": "2026-07-03T10:00:00Z",
     "review_validity": "CURRENT",
     "reviewed_head_sha": "1111111111111111111111111111111111111111",
-    "target_repository": "example/project"
+    "target_repository": "example/project",
+    "target_repository_id": 4242
   },
   "schema_version": 1,
   "scope": {
@@ -250,6 +296,12 @@
     "profile_name": "personal_ai_operated_strong_governance_minimum_security",
     "security_activation_trigger": false,
     "sequence_ci_enforced": true
+  },
+  "technical_decision": {
+    "reason_codes": [
+      "blocking_medium_finding"
+    ],
+    "status": "YELLOW"
   },
   "unverified_areas": []
 }

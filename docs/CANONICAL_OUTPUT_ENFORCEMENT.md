@@ -1,12 +1,12 @@
 # Canonical Artifact and Official-Output Boundary
 
-Status: v1.10.2 atomic owner-delivery implementation is complete on this pull-request head and pending independent re-review; activation remains determined by live `main`.
+Status: v1.11.0 atomic owner-delivery implementation is complete on this pull-request head and pending independent re-review; activation remains determined by live `main`.
 
 ## Current closure status
 
 ```yaml
-active_protocol: v1.10.2
-implementation_state: v1.10.2_atomic_owner_delivery_pending_independent_review
+active_protocol: v1.11.0
+implementation_state: v1.11.0_atomic_owner_delivery_pending_independent_review
 live_main_head_at_audit_start: 35e3b398d8e8d6823007540f0a156ff2a3feece6
 source_prs:
   - 13
@@ -36,7 +36,7 @@ The status above records the merged v1.9 implementation and the evidence availab
 
 ## Personal minimum-security profile boundary
 
-The v1.10.2 carrier adds the locked atomic owner-delivery contract while preserving the canonical package, projection, reason registry, semantic validation, owner/action routing, renderers, fixtures, and CI. Repository-settings enforcement and merge authorization remain separate evidence claims and are not asserted by this document. Independent review of the final exact PR head remains pending.
+The v1.11.0 carrier adds the locked atomic owner-delivery contract while preserving the canonical package, projection, reason registry, semantic validation, owner/action routing, renderers, fixtures, and CI. Repository-settings enforcement and merge authorization remain separate evidence claims and are not asserted by this document. Independent review of the final exact PR head remains pending.
 
 ## Boundary classification
 
@@ -119,7 +119,7 @@ The verified `_Bundle` carries those immutable bytes. Official accessors perform
 
 A prompt-required owner result is not a complete delivery by itself. `official_owner_delivery` reads `OWNER_RESULT.fa.txt`, `DECISION_PROJECTION.json`, and the conditional `NEXT_ACTION_PROMPT.en.md` from one fully reverified in-memory byte snapshot. When `prompt_required` is true, the returned text contains the complete prompt after the Persian `## پرامپت اقدام` heading. It never returns a path, readiness claim, summary, reconstructed prompt, or later-delivery promise as a substitute for the exact verified prompt bytes.
 
-The supported CLI emits `official_owner_delivery` by default and places only technical completion information on stderr. Under v1.10.2, `official_owner_result` raises `CompletionError` whenever the canonical projection requires a prompt; warnings are not an enforcement mechanism.
+The supported CLI emits `official_owner_delivery` by default and places only technical completion information on stderr. Under v1.11.0, `official_owner_result` raises `CompletionError` whenever the canonical projection requires a prompt; warnings are not an enforcement mechanism.
 
 ## Completion and output claims
 

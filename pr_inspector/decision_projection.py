@@ -61,7 +61,7 @@ def project_decision(
     governance_evidence: VerifiedGovernanceEvidence | None = None,
     sequence_enforcement: VerifiedSequenceEnforcement | None = None,
 ) -> dict[str, Any]:
-    """Produce the sole official v1.10.2 decision projection."""
+    """Produce the sole official active decision projection."""
 
     governance_evidence, sequence_enforcement = _resolved_evidence(
         governance_evidence,
@@ -80,9 +80,30 @@ def project_decision(
     color = _core._owner_color(technical_status, action_kind)
     message_key = _core._owner_message_key(color, action_kind)
 
+    inspection_profile = pkg.get("inspection_profile", "minimal")
+    technical_decision = pkg.get("technical_decision") or {
+        "status": "GREEN" if technical_status == _core.STATUS_GREEN else ("RED" if technical_status == _core.STATUS_RED else "YELLOW"),
+        "reason_codes": [],
+    }
+    governance_decision = pkg.get("governance_decision") or {"status": "NOT_REQUESTED", "reason_codes": []}
+    overall_recommendation = pkg.get("overall_recommendation") or {
+        "technical_ready": technical_decision.get("status") == "GREEN",
+        "merge_governance_verified": governance_decision.get("status") == "VERIFIED",
+    }
+    governance_follow_up = {
+        "kind": "none" if governance_decision.get("status") in {"NOT_REQUESTED", "VERIFIED"} else "access_limitation",
+        "may_modify_code": False,
+        "prompt_required": False,
+    }
+
     projection = {
         "schema_version": 1,
         "protocol_version": _core.CURRENT_VERSION,
+        "inspection_profile": inspection_profile,
+        "technical_decision": technical_decision,
+        "governance_decision": governance_decision,
+        "overall_recommendation": overall_recommendation,
+        "governance_follow_up": governance_follow_up,
         "technical_status": technical_status,
         "technical_status_reason_codes": technical_codes,
         "approval_requirement": pkg["decision"]["approval_requirement"],
