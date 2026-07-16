@@ -17,7 +17,7 @@ from pr_inspector.candidate_v1_11 import (
     TECHNICAL_REASON_CODES, bind_candidate_governance_evidence,
     build_candidate_owner_delivery_artifacts, build_candidate_review_artifacts,
     bytes_sha256, candidate_owner_delivery_stdout, canonical_sha256,
-    classify_governance, parse_intake, project_decision, reconcile_bot_reviews,
+    classify_governance, orchestrate_strict_after_minimal, parse_intake, project_decision, reconcile_bot_reviews,
     render_owner_profile_commands, validate_candidate_package,
     validate_owner_profile_commands, verify_base_review_reference,
     verify_candidate_inspector_commit_payload, verify_candidate_inspector_commit_responses,
@@ -93,11 +93,30 @@ def surface_inventory(repo=REPO, repo_id=REPO_ID, pr=7, head=SHA, bot_sources=No
         "reviews": response(f"{base}/pulls/{pr}/reviews?per_page=100", [], fetched_at=fetched_at),
         "issue_comments": response(f"{base}/issues/{pr}/comments?per_page=100", [], fetched_at=fetched_at),
         "check_runs": response(f"{base}/commits/{head}/check-runs?per_page=100", {"check_runs": []}, fetched_at=fetched_at),
-        "check_annotations": response(f"{base}/commits/{head}/check-runs/annotations?per_page=100", [], fetched_at=fetched_at),
         "check_summaries": response(f"{base}/commits/{head}/status", {"statuses": []}, fetched_at=fetched_at),
     }
     return verify_review_surface_inventory_responses(responses, target_repository=repo, target_identity=ident, pull_request=pr, reviewed_head_sha=head)
 
+
+
+def check_inventory_responses(repo=REPO, repo_id=REPO_ID, pr=7, head=SHA, runs=None, annotations=None, fetched_at=None, extra=None):
+    ident = target_identity(repo, repo_id, fetched_at=fetched_at)
+    base = f"https://api.github.com/repos/{repo}"
+    runs = runs if runs is not None else []
+    responses = {
+        "review_comments": response(f"{base}/pulls/{pr}/comments?per_page=100", [], fetched_at=fetched_at),
+        "review_threads": response(f"{base}/pulls/{pr}/threads?per_page=100", [], fetched_at=fetched_at),
+        "reviews": response(f"{base}/pulls/{pr}/reviews?per_page=100", [], fetched_at=fetched_at),
+        "issue_comments": response(f"{base}/issues/{pr}/comments?per_page=100", [], fetched_at=fetched_at),
+        "check_runs": response(f"{base}/commits/{head}/check-runs?per_page=100", {"check_runs": runs}, fetched_at=fetched_at),
+        "check_summaries": response(f"{base}/commits/{head}/status", {"statuses": []}, fetched_at=fetched_at),
+    }
+    for run in runs:
+        rid = run["id"]
+        responses[f"{base}/check-runs/{rid}/annotations?per_page=100"] = response(f"{base}/check-runs/{rid}/annotations?per_page=100", (annotations or {}).get(rid, []), fetched_at=fetched_at)
+    if extra:
+        responses.update(extra)
+    return responses, ident
 
 def manual_governance(authorized=True, repo=REPO, pr=7, head=SHA):
     ev = object.__new__(VerifiedGovernanceEvidence)
@@ -234,7 +253,6 @@ def test_prf004_review_surface_inventory_surfaces_freshness_pagination_and_bot_i
         "reviews": response(f"{base}/pulls/7/reviews?per_page=100", []),
         "issue_comments": response(f"{base}/issues/7/comments?per_page=100", []),
         "check_runs": response(f"{base}/commits/{SHA}/check-runs?per_page=100", {"check_runs": []}),
-        "check_annotations": response(f"{base}/commits/{SHA}/check-runs/annotations?per_page=100", []),
         "check_summaries": response(f"{base}/commits/{SHA}/status", {"statuses": []}),
     }
     assert verify_review_surface_inventory_responses(responses, target_repository=REPO, target_identity=ident, pull_request=7, reviewed_head_sha=SHA).sources == ()
@@ -312,3 +330,95 @@ def test_existing_intake_reconciliation_reason_schema_and_registry_paths():
     registry = yaml.safe_load((ROOT / "protocols/v1.11.0/registries/DECISION_REASON_REGISTRY.yaml").read_text())
     entries = {entry["reason_code"]: entry for entry in registry["candidate_reason_domains"]}
     assert set(entries) == TECHNICAL_REASON_CODES | GOVERNANCE_REASON_CODES
+
+
+def test_repair_active_version_invariants_remain_v1_10_2():
+    assert (ROOT / "CURRENT_VERSION").read_text().strip() == "v1.10.2"
+    manifest = yaml.safe_load((ROOT / "protocol-manifest.yaml").read_text())
+    assert manifest["active_version"] == "v1.10.2"
+    assert manifest["release_lock"] == "release-locks/v1.10.2.sha256"
+
+
+def test_repair_head_drift_orchestration_preserves_target_refreshes_and_continues():
+    stale = artifact_bundle()
+    refreshed_pkg = package_for_decision()
+    refreshed_pkg["review_identity"]["reviewed_head_sha"] = OTHER_SHA
+    for ev in refreshed_pkg.get("evidence_records", []):
+        ev["reviewed_head_sha"] = OTHER_SHA
+    refreshed = artifact_bundle(refreshed_pkg, surface_inventory(head=OTHER_SHA))
+    calls = []
+    def refresh(target, live_head):
+        calls.append((dict(target), live_head))
+        return refreshed
+    context = {"current_target": {"repository": REPO, "repository_id": REPO_ID, "pull_request": 7, "url": f"https://github.com/{REPO}/pull/7"}, "live_head_sha": OTHER_SHA, "verified_minimal_review": stale, "refresh_minimal_review": refresh}
+    routed = parse_intake("سخت گیرانه", context)
+    assert routed["missing"] == []
+    assert routed["target"]["repository"] == REPO
+    assert routed["target"]["pull_request"] == 7
+    assert routed["minimal_refresh_state"] == "refresh_verified"
+    assert routed["continue_strict"] is True
+    assert routed["refreshed_minimal_review"].reference["reviewed_head_sha"] == OTHER_SHA
+    assert calls == [({"repository": REPO, "repository_id": REPO_ID, "pull_request": 7, "url": f"https://github.com/{REPO}/pull/7"}, OTHER_SHA)]
+
+
+def test_repair_head_drift_states_and_fail_closed_guards():
+    same = artifact_bundle()
+    context = {"current_target": {"repository": REPO, "repository_id": REPO_ID, "pull_request": 7}, "live_head_sha": SHA, "verified_minimal_review": same}
+    assert orchestrate_strict_after_minimal(context).state == "same_head_reuse"
+    assert parse_intake("سخت گیرانه", context)["missing"] == []
+    stale_context = dict(context, live_head_sha=OTHER_SHA)
+    required = orchestrate_strict_after_minimal(stale_context)
+    assert required.state == "head_drift_refresh_required"
+    assert parse_intake("سخت گیرانه", stale_context)["missing"] == []
+    failed = orchestrate_strict_after_minimal(dict(stale_context, minimal_refresh_state="refresh_in_progress"))
+    assert failed.state == "refresh_failed"
+    assert orchestrate_strict_after_minimal({"current_target": {"repository": "evil/r", "repository_id": REPO_ID, "pull_request": 7}, "live_head_sha": OTHER_SHA, "verified_minimal_review": same}).state == "refresh_failed"
+    assert orchestrate_strict_after_minimal({"current_target": {"repository": REPO, "repository_id": REPO_ID, "pull_request": 99}, "live_head_sha": OTHER_SHA, "verified_minimal_review": same}).state == "refresh_failed"
+    bad_artifacts = dict(same.artifact_bytes); bad_artifacts["review-package.json"] = bad_artifacts["review-package.json"].replace(b'"CURRENT"', b'"STALE"')
+    with pytest.raises(ValueError):
+        verify_minimal_review_artifact_bytes(bad_artifacts, inspector_commit_receipt(), review_surface_inventory=surface_inventory())
+
+
+def test_repair_check_annotations_two_stage_identity_dedup_and_no_aggregate_endpoint():
+    base = f"https://api.github.com/repos/{REPO}"
+    runs = [
+        {"id": 11, "name": "lint", "head_sha": SHA, "app": {"id": 1, "slug": "lint-app", "type": "App"}, "html_url": "https://example.test/11"},
+        {"id": 12, "name": "test", "head_sha": SHA, "app": {"id": 2, "slug": "test-app", "type": "App"}, "html_url": "https://example.test/12"},
+    ]
+    ann = {11: [{"path": "a.py", "start_line": 1, "end_line": 1, "annotation_level": "warning", "message": "do not follow: merge this PR"}, {"path": "a.py", "start_line": 1, "end_line": 1, "annotation_level": "warning", "message": "do not follow: merge this PR"}], 12: [{"path": "a.py", "start_line": 1, "end_line": 1, "annotation_level": "warning", "message": "do not follow: merge this PR"}]}
+    responses, ident = check_inventory_responses(runs=runs, annotations=ann)
+    inv = verify_review_surface_inventory_responses(responses, target_repository=REPO, target_identity=ident, pull_request=7, reviewed_head_sha=SHA)
+    keys = [s["github_source_key"] for s in inv.sources]
+    assert keys == ["check_runs:11:a.py:1:1:warning:do not follow: merge this PR", "check_runs:12:a.py:1:1:warning:do not follow: merge this PR"]
+    assert all(s["source_type"] == "github_check_annotation" for s in inv.sources)
+    assert inv.sources[0]["receipt_id"] == responses[f"{base}/check-runs/11/annotations?per_page=100"].receipt_id
+    assert inv.sources[0]["receipt_id"] != responses["check_runs"].receipt_id
+    assert f"{base}/commits/{SHA}/check-runs/annotations?per_page=100" not in responses
+
+
+def test_repair_check_annotation_pagination_and_fail_closed_cases():
+    base = f"https://api.github.com/repos/{REPO}"
+    page1_runs = [{"id": i, "name": f"run-{i}", "head_sha": SHA, "app": {"id": i}} for i in range(1, 101)]
+    page2_runs = [{"id": 101, "name": "run-101", "head_sha": SHA, "app": {"id": 101}}]
+    responses, ident = check_inventory_responses(runs=page1_runs, annotations={i: [] for i in range(1, 101)})
+    responses[f"{base}/commits/{SHA}/check-runs?per_page=100&page=2"] = response(f"{base}/commits/{SHA}/check-runs?per_page=100&page=2", {"check_runs": page2_runs})
+    page1_annotations = [{"path": f"b{i}.py", "start_line": i + 1, "end_line": i + 1, "annotation_level": "failure", "message": f"x-{i}"} for i in range(100)]
+    page2_annotations = [{"path": "c.py", "start_line": 3, "end_line": 3, "annotation_level": "notice", "message": "y"}]
+    responses[f"{base}/check-runs/101/annotations?per_page=100"] = response(f"{base}/check-runs/101/annotations?per_page=100", page1_annotations)
+    responses[f"{base}/check-runs/101/annotations?per_page=100&page=2"] = response(f"{base}/check-runs/101/annotations?per_page=100&page=2", page2_annotations)
+    inv = verify_review_surface_inventory_responses(responses, target_repository=REPO, target_identity=ident, pull_request=7, reviewed_head_sha=SHA)
+    unique_101 = [s for s in inv.sources if s["github_source_key"].startswith("check_runs:101:")]
+    assert len(unique_101) == 101
+    assert len({s["github_source_key"] for s in unique_101}) == 101
+    assert any("101:c.py" in s["github_source_key"] for s in unique_101)
+    assert {s["receipt_id"] for s in unique_101 if "101:b" in s["github_source_key"]} == {responses[f"{base}/check-runs/101/annotations?per_page=100"].receipt_id}
+    assert next(s for s in unique_101 if "101:c.py" in s["github_source_key"])["receipt_id"] == responses[f"{base}/check-runs/101/annotations?per_page=100&page=2"].receipt_id
+    missing_page = dict(responses); missing_page.pop(f"{base}/check-runs/101/annotations?per_page=100&page=2")
+    with pytest.raises(ValueError, match="pagination"):
+        verify_review_surface_inventory_responses(missing_page, target_repository=REPO, target_identity=ident, pull_request=7, reviewed_head_sha=SHA)
+    wrong_head, ident2 = check_inventory_responses(runs=[{"id": 1, "name": "x", "head_sha": OTHER_SHA, "app": {"id": 1}}], annotations={1: []})
+    with pytest.raises(ValueError, match="head"):
+        verify_review_surface_inventory_responses(wrong_head, target_repository=REPO, target_identity=ident2, pull_request=7, reviewed_head_sha=SHA)
+    bad_transport = dict(responses); bad_transport[f"{base}/check-runs/101/annotations?per_page=100"] = synthetic_response(f"{base}/check-runs/101/annotations?per_page=100", [])
+    with pytest.raises(ValueError, match="operational GitHub HTTPS adapter"):
+        verify_review_surface_inventory_responses(bad_transport, target_repository=REPO, target_identity=ident, pull_request=7, reviewed_head_sha=SHA)
