@@ -1371,12 +1371,17 @@
         "target_repository": {
           "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
           "type": "string"
+        },
+        "target_repository_id": {
+          "type": "integer",
+          "minimum": 1
         }
       },
       "required": [
         "inspector_repository",
         "inspector_commit_sha",
         "target_repository",
+        "target_repository_id",
         "pr_number",
         "base_branch",
         "base_sha",

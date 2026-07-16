@@ -12,8 +12,9 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
+from ._governance_transport import GitHubApiResponse, github_response_payload, is_verified_github_api_response
 from .governance import VerifiedGovernanceEvidence, is_verified_governance_evidence
-from .review_provenance import VerifiedInspectorCommit, verify_github_commit_payload
+from .review_provenance import VerifiedInspectorCommit, _VERIFIED_MARKER
 
 PR_URL_RE = re.compile(r"https://github\.com/([^/\s]+/[^/\s]+)/pull/(\d+)")
 SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -27,9 +28,6 @@ OWNER_PROFILE_COMMANDS_ARTIFACT = "OWNER_PROFILE_COMMANDS.fa.txt"
 OWNER_RESULT_ARTIFACT = "OWNER_RESULT.fa.txt"
 OWNER_CARD_ARTIFACT = "OWNER_DECISION_CARD.fa.md"
 TECHNICAL_HANDOFF_ARTIFACT = "TECHNICAL_HANDOFF.en.md"
-OWNER_RESULT_GREEN_BYTES = "🟢 وضعیت: از نظر فنی آماده\nآمادگی فنی تأیید شده؛ حفاظت ادغام در GitHub جداگانه بررسی شود.\n".encode("utf-8")
-OWNER_CARD_BYTES = b"owner\n"
-TECHNICAL_HANDOFF_BYTES = b"handoff\n"
 PROFILE_COMMANDS_BYTES = (
     "برای بررسی حفاظت‌های Merge، تأییدهای مستقل و کنترل‌های حاکمیتی بنویس: سخت گیرانه\n"
     "برای بررسی حداقلی بنویس: حداقلی و سپس آدرس PR را ارسال کن.\n"
@@ -52,7 +50,7 @@ GOVERNANCE_REASON_CODES = {
     "required_checks_not_verified", "rulesets_unavailable", "merge_queue_unavailable",
 }
 GOVERNANCE_STATUS_EFFECT = {
-    "repository_settings_not_verified": "NOT_VERIFIABLE", "merge_authorization_unverified": "NOT_VERIFIABLE",
+    "repository_settings_not_verified": "NOT_VERIFIABLE", "merge_authorization_unverified": "GAP_FOUND",
     "branch_protection_unavailable": "GAP_FOUND", "bypass_actors_unknown": "GAP_FOUND", "sequence_enforcement_missing": "GAP_FOUND",
     "required_review_enforcement_absent": "GAP_FOUND", "required_checks_not_verified": "GAP_FOUND", "rulesets_unavailable": "GAP_FOUND",
     "merge_queue_unavailable": "GAP_FOUND",
@@ -77,6 +75,8 @@ ROOT = Path(__file__).resolve().parents[1]
 _CAPABILITY_TOKEN = object()
 _REVIEW_TOKEN = object()
 _COMMIT_TOKEN = object()
+_TARGET_TOKEN = object()
+_SURFACE_TOKEN = object()
 
 
 @dataclass(frozen=True)
@@ -85,6 +85,24 @@ class CandidateVerifiedInspectorCommit:
     repository: str
     repository_id: int
     commit_sha: str
+
+
+@dataclass(frozen=True)
+class VerifiedTargetIdentity:
+    _token: object
+    repository: str
+    repository_id: int
+
+
+@dataclass(frozen=True)
+class VerifiedReviewSurfaceInventory:
+    _token: object
+    target_repository: str
+    target_repository_id: int
+    pull_request: int
+    reviewed_head_sha: str
+    sources: tuple[Mapping[str, Any], ...]
+    complete: bool
 
 
 @dataclass(frozen=True)
@@ -142,19 +160,81 @@ def is_verified_minimal_review_bundle(value: object) -> bool:
 
 
 def verify_candidate_inspector_commit_payload(repository_payload: Mapping[str, Any], commit_payload: Mapping[str, Any], expected_commit_sha: str) -> CandidateVerifiedInspectorCommit:
-    """Bind candidate reuse to the active provenance verifier's canonical GitHub checks."""
-    verified = verify_github_commit_payload(repository_payload, commit_payload, expected_commit_sha=expected_commit_sha)
-    return CandidateVerifiedInspectorCommit(_COMMIT_TOKEN, verified.repository, verified.repository_id, verified.commit_sha)
+    raise ValueError("active VerifiedInspectorCommit evidence is required; caller-authored mappings cannot mint candidate inspector provenance")
 
 
-def _verified_commit(value: object) -> CandidateVerifiedInspectorCommit:
-    if not isinstance(value, CandidateVerifiedInspectorCommit) or value._token is not _COMMIT_TOKEN:
-        raise ValueError("verified inspector commit evidence is required")
+def _verified_commit(value: object) -> VerifiedInspectorCommit:
+    if not isinstance(value, VerifiedInspectorCommit) or value._marker is not _VERIFIED_MARKER:
+        raise ValueError("active verified inspector commit evidence is required")
+    if value.repository != LOCKED_INSPECTOR_REPOSITORY or value.repository_id != LOCKED_INSPECTOR_REPOSITORY_ID:
+        raise ValueError("verified inspector commit repository identity mismatch")
+    expected_api = f"https://api.github.com/repos/{LOCKED_INSPECTOR_REPOSITORY}/commits/{value.commit_sha}"
+    expected_html = f"https://github.com/{LOCKED_INSPECTOR_REPOSITORY}/commit/{value.commit_sha}"
+    if value.api_url != expected_api or value.html_url != expected_html:
+        raise ValueError("verified inspector commit canonical URL mismatch")
     return value
 
 
 def verify_governance_payload_bundle(payload: Mapping[str, Any], *, target_repository: str, target_repository_id: int, pull_request: int, reviewed_head_sha: str, now: datetime) -> VerifiedGovernanceCapability:
     raise ValueError("sealed active GitHub governance evidence is required; caller-authored payloads cannot mint candidate governance capability")
+
+
+def verify_target_identity_response(response: GitHubApiResponse, *, expected_repository: str) -> VerifiedTargetIdentity:
+    if not is_verified_github_api_response(response):
+        raise ValueError("sealed GitHub repository response is required for target identity")
+    expected_url = f"https://api.github.com/repos/{expected_repository}"
+    if response.request_url != expected_url or response.response_url != expected_url or response.status_code != 200:
+        raise ValueError("target repository response URL/status is not authoritative")
+    payload = github_response_payload(response)
+    if not isinstance(payload, Mapping) or payload.get("full_name") != expected_repository:
+        raise ValueError("target repository response identity mismatch")
+    if payload.get("url") != expected_url or payload.get("html_url") != f"https://github.com/{expected_repository}":
+        raise ValueError("target repository canonical URL mismatch")
+    repository_id = payload.get("id")
+    if not isinstance(repository_id, int) or repository_id <= 0:
+        raise ValueError("target repository id is missing or invalid")
+    return VerifiedTargetIdentity(_TARGET_TOKEN, expected_repository, repository_id)
+
+
+def verify_review_surface_inventory_responses(responses: Mapping[str, GitHubApiResponse], *, target_repository: str, target_identity: VerifiedTargetIdentity, pull_request: int, reviewed_head_sha: str) -> VerifiedReviewSurfaceInventory:
+    if not isinstance(target_identity, VerifiedTargetIdentity) or target_identity._token is not _TARGET_TOKEN or target_identity.repository != target_repository:
+        raise ValueError("sealed target identity is required for review surface inventory")
+    required = {"review_comments", "reviews", "issue_comments", "check_runs"}
+    missing = required - set(responses)
+    if missing:
+        raise ValueError("review surface inventory endpoints are incomplete")
+    base = f"https://api.github.com/repos/{target_repository}"
+    expected_urls = {
+        "review_comments": f"{base}/pulls/{pull_request}/comments?per_page=100",
+        "reviews": f"{base}/pulls/{pull_request}/reviews?per_page=100",
+        "issue_comments": f"{base}/issues/{pull_request}/comments?per_page=100",
+        "check_runs": f"{base}/commits/{reviewed_head_sha}/check-runs?per_page=100",
+    }
+    sources: list[Mapping[str, Any]] = []
+    for key, expected_url in expected_urls.items():
+        response = responses[key]
+        if not is_verified_github_api_response(response):
+            raise ValueError("review surface response is not sealed GitHub evidence")
+        if response.request_url != expected_url or response.response_url != expected_url:
+            raise ValueError("review surface response URL does not match target")
+        if response.status_code != 200:
+            raise ValueError("review surface endpoint is inaccessible")
+        payload = github_response_payload(response)
+        if key == "check_runs":
+            payload_items = payload.get("check_runs") if isinstance(payload, Mapping) else None
+        else:
+            payload_items = payload
+        if not isinstance(payload_items, list):
+            raise ValueError("review surface payload is malformed")
+        for index, item in enumerate(payload_items):
+            if not isinstance(item, Mapping):
+                raise ValueError("review surface item is malformed")
+            author = item.get("user") or item.get("app") or {}
+            login = author.get("login") or author.get("slug") if isinstance(author, Mapping) else None
+            is_bot = bool(isinstance(login, str) and (login.endswith("[bot]") or "bot" in login.lower()))
+            if is_bot:
+                sources.append(MappingProxyType({"source_id": f"EXTSRC-{len(sources)+1:03d}", "inspected": True, "source_type": "github_pr_review_comment" if key == "review_comments" else "github_bot_comment", "author": login, "is_bot": True, "url": item.get("html_url"), "head_sha": reviewed_head_sha}))
+    return VerifiedReviewSurfaceInventory(_SURFACE_TOKEN, target_repository, target_identity.repository_id, pull_request, reviewed_head_sha, tuple(sources), True)
 
 
 def _require_mapping(value: Any, path: str) -> Mapping[str, Any]:
@@ -217,7 +297,8 @@ def classify_governance(evidence: object, *, target_repository: str | None = Non
     if not (target_repository and isinstance(target_repository_id, int) and pull_request and reviewed_head_sha):
         return {"status": "NOT_VERIFIABLE", "reason_codes": ["repository_settings_not_verified"]}
     if is_verified_governance_evidence(evidence):
-        if evidence.repository != target_repository or evidence.pull_request_number != pull_request or evidence.exact_head_sha != reviewed_head_sha:
+        evidence_repository_id = getattr(evidence, "repository_id", target_repository_id)
+        if evidence.repository != target_repository or evidence_repository_id != target_repository_id or evidence.pull_request_number != pull_request or evidence.exact_head_sha != reviewed_head_sha:
             return {"status": "NOT_VERIFIABLE", "reason_codes": ["repository_settings_not_verified"]}
         if evidence.merge_authorized:
             return {"status": "VERIFIED", "reason_codes": []}
@@ -287,9 +368,19 @@ def reconcile_bot_reviews(sources: Sequence[Mapping[str, Any]], suggestions: Seq
     return {"collection_status": "COMPLETE" if not uninspected else "INCOMPLETE", "open_bot_sources_total": len(source_ids), "inspected_total": len(inspected), "counts": counts, "uninspected_source_ids": uninspected, "valid_blocking_finding_ids": sorted(set(valid_blocking)), "suggestion_results": suggestion_results}
 
 
-def recompute_external_review_reconciliation(package: Mapping[str, Any]) -> dict[str, Any]:
+def recompute_external_review_reconciliation(package: Mapping[str, Any], review_surface_inventory: object | None = None) -> dict[str, Any]:
     intake = package.get("external_review_intake") or {}
     sources = intake.get("sources_inspected", [])
+    if isinstance(review_surface_inventory, VerifiedReviewSurfaceInventory) and review_surface_inventory._token is _SURFACE_TOKEN:
+        identity = package.get("review_identity", {})
+        if review_surface_inventory.target_repository != identity.get("target_repository") or review_surface_inventory.pull_request != identity.get("pr_number") or review_surface_inventory.reviewed_head_sha != identity.get("reviewed_head_sha"):
+            raise ValueError("review surface inventory target mismatch")
+        if not review_surface_inventory.complete:
+            raise ValueError("review surface inventory is incomplete")
+        inventory_ids = {source["source_id"] for source in review_surface_inventory.sources}
+        package_ids = {source.get("source_id") for source in sources if isinstance(source, Mapping)}
+        if inventory_ids != package_ids:
+            raise ValueError("external_review_intake disagrees with sealed review surface inventory")
     suggestions = intake.get("suggestions", [])
     findings = package.get("findings", [])
     return reconcile_bot_reviews(sources, suggestions, findings)
@@ -313,7 +404,10 @@ def collect_candidate_technical_reasons(package: Mapping[str, Any]) -> list[str]
     intent = package.get("intent_fit") or {}
     if intent.get("intent_fit_result") not in {None, "satisfied"} or intent.get("unsupported_claims"): reasons.add("incomplete_technical_scope")
     reviewed_head = identity.get("reviewed_head_sha")
-    evidence_by_id = {e.get("evidence_id"): e for e in (package.get("evidence") or package.get("evidence_records") or []) if isinstance(e, Mapping)}
+    evidence_records = [e for e in (package.get("evidence") or package.get("evidence_records") or []) if isinstance(e, Mapping)]
+    evidence_ids = [e.get("evidence_id") for e in evidence_records]
+    if len(evidence_ids) != len(set(evidence_ids)): reasons.add("incomplete_technical_scope")
+    evidence_by_id = {e.get("evidence_id"): e for e in evidence_records}
     if package.get("red_gate_flags"):
         reasons.add("required_technical_check_failed")
     for check in package.get("checks", []):
@@ -324,10 +418,12 @@ def collect_candidate_technical_reasons(package: Mapping[str, Any]) -> list[str]
         if check.get("required") is True and check.get("result") == "PASS":
             evidence_id = check.get("evidence_ref") or check.get("evidence_id")
             evidence = evidence_by_id.get(evidence_id)
-            if check.get("execution_state") in {"MENTIONED_UNVERIFIED", "UNAVAILABLE"} or evidence is None:
+            if check.get("state") not in {"EXECUTED", "CI_INSPECTED"} or evidence is None:
                 reasons.add("incomplete_technical_scope")
             elif evidence.get("reviewed_head_sha") not in {None, reviewed_head}:
                 reasons.add("stale_technical_review_identity")
+            elif evidence.get("result") != "PASS" or evidence.get("evidence_type") not in {"CI", "EXECUTION"}:
+                reasons.add("incomplete_technical_scope")
     actual_blocking = 0
     for finding in package.get("findings", []):
         if not isinstance(finding, Mapping): continue
@@ -335,6 +431,8 @@ def collect_candidate_technical_reasons(package: Mapping[str, Any]) -> list[str]
         refs = finding.get("evidence_refs", [])
         if refs and any(ref not in evidence_by_id for ref in refs): reasons.add("incomplete_technical_scope")
         if any(isinstance(evidence_by_id.get(ref), Mapping) and evidence_by_id[ref].get("reviewed_head_sha") not in {None, reviewed_head} for ref in refs): reasons.add("stale_technical_review_identity")
+        if evidence == "REPRODUCED" and not any(isinstance(evidence_by_id.get(ref), Mapping) and evidence_by_id[ref].get("evidence_type") in {"EXECUTION", "CI"} and evidence_by_id[ref].get("result") == "FAIL" for ref in refs): reasons.add("incomplete_technical_scope")
+        if evidence == "CODE_SUPPORTED" and not any(isinstance(evidence_by_id.get(ref), Mapping) and evidence_by_id[ref].get("evidence_type") == "CODE" for ref in refs): reasons.add("incomplete_technical_scope")
         if severity == "CRITICAL" and evidence in {"REPRODUCED", "CODE_SUPPORTED"}: reasons.add("critical_supported_finding")
         elif severity == "HIGH" and evidence == "REPRODUCED": reasons.add("high_reproduced_finding")
         elif severity == "HIGH" and evidence == "CODE_SUPPORTED": reasons.add("blocking_medium_finding")
@@ -353,20 +451,21 @@ def _schema_validator(name: str) -> Draft202012Validator:
     return Draft202012Validator(schema)
 
 
-def validate_candidate_package(package: Mapping[str, Any], governance_evidence: object | None = None, *, target_repository_id: int | None = None) -> list[str]:
+def validate_candidate_package(package: Mapping[str, Any], governance_evidence: object | None = None, *, review_surface_inventory: object | None = None, target_repository_id: int | None = None) -> list[str]:
     errors = [error.message for error in _schema_validator("review-package").iter_errors(package)]
     if errors: return sorted(errors)
     if package.get("external_review_intake") is None:
         errors.append("external_review_intake is required for candidate technical Green eligibility")
     else:
         try:
-            recomputed = recompute_external_review_reconciliation(package)
+            recomputed = recompute_external_review_reconciliation(package, review_surface_inventory)
             if package["external_review_reconciliation"] != recomputed: errors.append("external_review_reconciliation disagrees with recomputed bot review evidence")
         except ValueError as exc:
             errors.append(str(exc))
     technical_reasons = collect_candidate_technical_reasons(package)
     identity = package.get("review_identity", {}) if isinstance(package.get("review_identity"), Mapping) else {}
-    try: derived = project_decision(package.get("inspection_profile"), technical_reasons, governance_evidence, target_repository=identity.get("target_repository"), target_repository_id=target_repository_id, pull_request=identity.get("pr_number"), reviewed_head_sha=identity.get("reviewed_head_sha"))
+    effective_repository_id = target_repository_id if target_repository_id is not None else identity.get("target_repository_id")
+    try: derived = project_decision(package.get("inspection_profile"), technical_reasons, governance_evidence, target_repository=identity.get("target_repository"), target_repository_id=effective_repository_id, pull_request=identity.get("pr_number"), reviewed_head_sha=identity.get("reviewed_head_sha"))
     except ValueError as exc: return [str(exc)]
     for key in ["technical_decision", "governance_decision", "overall_recommendation"]:
         if package.get(key) != derived[key]: errors.append(f"{key} disagrees with authoritative candidate projection")
@@ -377,31 +476,77 @@ def validate_candidate_package(package: Mapping[str, Any], governance_evidence: 
     return sorted(set(errors))
 
 
+def render_candidate_owner_result(projection: Mapping[str, Any]) -> bytes:
+    status = projection["technical_decision"]["status"]
+    marker = {"GREEN": "🟢", "YELLOW": "🟡", "RED": "🔴"}[status]
+    second = "آمادگی فنی تأیید شده؛ حفاظت ادغام در GitHub جداگانه بررسی شود." if status == "GREEN" else "اقدام فنی لازم است؛ حفاظت ادغام در GitHub جداگانه بررسی شود."
+    return f"{marker} وضعیت فنی: {status}\n{second}\n".encode("utf-8")
+
+
+def render_candidate_owner_card(package: Mapping[str, Any], projection: Mapping[str, Any]) -> bytes:
+    return ("# Candidate owner decision card\n" f"technical_status: {projection['technical_decision']['status']}\n" f"governance_status: {projection['governance_decision']['status']}\n").encode("utf-8")
+
+
+def render_candidate_technical_handoff(package: Mapping[str, Any], projection: Mapping[str, Any]) -> bytes:
+    return ("# Candidate technical handoff\n" f"technical_reason_codes: {','.join(projection['technical_decision']['reason_codes'])}\n").encode("utf-8")
+
+
+def render_candidate_next_action_prompt(projection: Mapping[str, Any]) -> bytes | None:
+    if projection["technical_decision"]["status"] == "GREEN":
+        return None
+    return b"Repair independently validated technical findings before rereview.\n"
+
+
+def canonical_json_bytes(value: Any) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8") + b"\n"
+
+
+def build_candidate_review_artifacts(package: Mapping[str, Any], *, governance_evidence: object | None = None, review_surface_inventory: object | None = None, target_repository_id: int | None = None) -> Mapping[str, bytes]:
+    errors = validate_candidate_package(package, governance_evidence, review_surface_inventory=review_surface_inventory, target_repository_id=target_repository_id)
+    if errors:
+        raise ValueError("candidate package is semantically invalid: " + "; ".join(errors))
+    reasons = collect_candidate_technical_reasons(package)
+    identity = package["review_identity"]
+    projection = project_decision(package["inspection_profile"], reasons, governance_evidence, target_repository=identity["target_repository"], target_repository_id=identity["target_repository_id"], pull_request=identity["pr_number"], reviewed_head_sha=identity["reviewed_head_sha"])
+    artifacts: dict[str, bytes] = {
+        "review-package.json": canonical_json_bytes(package),
+        "DECISION_PROJECTION.json": canonical_json_bytes(projection),
+        OWNER_CARD_ARTIFACT: render_candidate_owner_card(package, projection),
+        TECHNICAL_HANDOFF_ARTIFACT: render_candidate_technical_handoff(package, projection),
+        OWNER_RESULT_ARTIFACT: render_candidate_owner_result(projection),
+        OWNER_PROFILE_COMMANDS_ARTIFACT: PROFILE_COMMANDS_BYTES,
+    }
+    prompt = render_candidate_next_action_prompt(projection)
+    if prompt is not None:
+        artifacts["NEXT_ACTION_PROMPT.en.md"] = prompt
+    manifest = {"schema_version": 2, "artifacts": [{"path": name, "sha256": bytes_sha256(raw)} for name, raw in sorted(artifacts.items())], "review_package_canonical_sha256": canonical_sha256(package), "review_package_file_sha256": bytes_sha256(artifacts["review-package.json"])}
+    artifacts["artifact-manifest.json"] = canonical_json_bytes(manifest)
+    return MappingProxyType(artifacts)
+
 REQUIRED_REF = {"target_repository", "pull_request", "reviewed_head_sha", "inspector_repository", "inspector_commit_sha", "review_package_sha256", "decision_projection_sha256", "artifact_manifest_sha256"}
-REQUIRED_ARTIFACTS = {"review-package.json", "DECISION_PROJECTION.json", "OWNER_DECISION_CARD.fa.md", "TECHNICAL_HANDOFF.en.md", "OWNER_RESULT.fa.txt", "artifact-manifest.json", OWNER_PROFILE_COMMANDS_ARTIFACT}
+BASE_REQUIRED_ARTIFACTS = {"review-package.json", "DECISION_PROJECTION.json", "OWNER_DECISION_CARD.fa.md", "TECHNICAL_HANDOFF.en.md", "OWNER_RESULT.fa.txt", "artifact-manifest.json", OWNER_PROFILE_COMMANDS_ARTIFACT}
 
 
-def verify_minimal_review_artifact_bytes(artifact_bytes: Mapping[str, bytes], inspector_commit: CandidateVerifiedInspectorCommit) -> VerifiedMinimalReviewBundle:
+def verify_minimal_review_artifact_bytes(artifact_bytes: Mapping[str, bytes], inspector_commit: VerifiedInspectorCommit, *, review_surface_inventory: object | None = None) -> VerifiedMinimalReviewBundle:
     commit = _verified_commit(inspector_commit)
     snapshot = MappingProxyType({name: bytes(raw) for name, raw in artifact_bytes.items()})
     package = _json_object("review-package.json", snapshot["review-package.json"])
     projection = _json_object("DECISION_PROJECTION.json", snapshot["DECISION_PROJECTION.json"])
     manifest = _json_object("artifact-manifest.json", snapshot["artifact-manifest.json"])
-    if set(snapshot) != REQUIRED_ARTIFACTS: raise ValueError("artifact set contains missing or unexpected artifacts")
-    if snapshot.get(OWNER_RESULT_ARTIFACT) != OWNER_RESULT_GREEN_BYTES: raise ValueError("OWNER_RESULT.fa.txt bytes are not canonical")
-    if snapshot.get(OWNER_CARD_ARTIFACT) != OWNER_CARD_BYTES: raise ValueError("OWNER_DECISION_CARD.fa.md bytes are not canonical")
-    if snapshot.get(TECHNICAL_HANDOFF_ARTIFACT) != TECHNICAL_HANDOFF_BYTES: raise ValueError("TECHNICAL_HANDOFF.en.md bytes are not canonical")
     if manifest.get("schema_version") != 2: raise ValueError("artifact manifest schema_version must be 2")
     if package.get("inspection_profile") != MINIMAL or projection.get("inspection_profile") != MINIMAL: raise ValueError("base review is not minimal")
     identity = package.get("review_identity", {})
     if identity.get("review_validity") != "CURRENT": raise ValueError("base review validity is not CURRENT")
     if identity.get("inspector_repository") != commit.repository or identity.get("inspector_commit_sha") != commit.commit_sha: raise ValueError("base review inspector identity mismatch")
-    errors = validate_candidate_package(package)
+    errors = validate_candidate_package(package, review_surface_inventory=review_surface_inventory)
     if errors: raise ValueError("candidate package is semantically invalid: " + "; ".join(errors))
     _schema_validator("decision-projection").validate(projection)
     derived = project_decision(MINIMAL, collect_candidate_technical_reasons(package))
     if projection != derived: raise ValueError("projection does not match authoritative candidate projection")
-    if snapshot.get(OWNER_PROFILE_COMMANDS_ARTIFACT) != PROFILE_COMMANDS_BYTES: raise ValueError("owner profile commands artifact bytes are invalid")
+    expected = build_candidate_review_artifacts(package, review_surface_inventory=review_surface_inventory)
+    if set(snapshot) != set(expected): raise ValueError("artifact set contains missing or unexpected artifacts")
+    for name, raw in expected.items():
+        if snapshot.get(name) != raw: raise ValueError(f"{name} bytes are not canonical")
     if any(b"\r\n" in raw or raw.startswith(b"\xef\xbb\xbf") for raw in snapshot.values()): raise ValueError("artifact bytes contain forbidden BOM or CRLF")
     manifest_items = manifest.get("artifacts")
     if not isinstance(manifest_items, list): raise ValueError("artifact manifest is malformed")
@@ -412,8 +557,8 @@ def verify_minimal_review_artifact_bytes(artifact_bytes: Mapping[str, bytes], in
         if path in paths: raise ValueError("artifact manifest contains duplicate path")
         if "/" in path or path.startswith("."): raise ValueError("artifact manifest path is not canonical")
         paths.add(path); manifest_hashes[path] = item.get("sha256")
-    if not REQUIRED_ARTIFACTS.issubset(set(snapshot)): raise ValueError("artifact set is incomplete")
-    for name in REQUIRED_ARTIFACTS - {"artifact-manifest.json"}:
+    if not set(expected).issubset(set(snapshot)): raise ValueError("artifact set is incomplete")
+    for name in set(expected) - {"artifact-manifest.json"}:
         if manifest_hashes.get(name) != bytes_sha256(snapshot[name]): raise ValueError("artifact manifest mismatch")
     reference = {"target_repository": package["review_identity"]["target_repository"], "target_repository_id": package["review_identity"].get("target_repository_id"), "pull_request": package["review_identity"].get("pr_number"), "reviewed_head_sha": package["review_identity"]["reviewed_head_sha"], "inspector_repository": commit.repository, "inspector_commit_sha": commit.commit_sha, "review_package_sha256": canonical_sha256(package), "decision_projection_sha256": bytes_sha256(snapshot["DECISION_PROJECTION.json"]), "artifact_manifest_sha256": bytes_sha256(snapshot["artifact-manifest.json"])}
     return VerifiedMinimalReviewBundle(_REVIEW_TOKEN, MappingProxyType(reference), snapshot, bytes_sha256(snapshot["review-package.json"]), commit)
@@ -450,14 +595,15 @@ def build_candidate_owner_delivery_artifacts(owner_result_bytes: bytes) -> Mappi
     artifacts = {OWNER_RESULT_ARTIFACT: bytes(owner_result_bytes), OWNER_PROFILE_COMMANDS_ARTIFACT: PROFILE_COMMANDS_BYTES}
     if validate_owner_profile_commands(artifacts[OWNER_PROFILE_COMMANDS_ARTIFACT]):
         raise ValueError("owner profile commands artifact is invalid")
-    if artifacts[OWNER_RESULT_ARTIFACT] != OWNER_RESULT_GREEN_BYTES:
+    if artifacts[OWNER_RESULT_ARTIFACT].startswith(b"\xef\xbb\xbf") or b"\r\n" in artifacts[OWNER_RESULT_ARTIFACT] or not artifacts[OWNER_RESULT_ARTIFACT].endswith(b"\n") or len(artifacts[OWNER_RESULT_ARTIFACT].decode("utf-8").splitlines()) != 2:
         raise ValueError("owner result artifact is invalid")
     return MappingProxyType(artifacts)
 
 
 def candidate_owner_delivery_stdout(artifacts: Mapping[str, bytes]) -> bytes:
     try:
-        if artifacts.get(OWNER_RESULT_ARTIFACT) != OWNER_RESULT_GREEN_BYTES:
+        raw_owner = artifacts.get(OWNER_RESULT_ARTIFACT, b"")
+        if raw_owner.startswith(b"\xef\xbb\xbf") or b"\r\n" in raw_owner or not raw_owner.endswith(b"\n") or len(raw_owner.decode("utf-8").splitlines()) != 2:
             return b""
         if validate_owner_profile_commands(artifacts.get(OWNER_PROFILE_COMMANDS_ARTIFACT, b"")):
             return b""
