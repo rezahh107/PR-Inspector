@@ -25,6 +25,7 @@ from pr_inspector.derived_outputs import (
     PROJECTION_NAME,
     build_review_artifacts,
 )
+from pr_inspector.render import canonical_json_bytes
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -94,6 +95,7 @@ def test_official_artifacts_always_include_hashed_profile_commands() -> None:
     artifact_bytes = {
         name: text.encode("utf-8") for name, text in artifacts.items()
     }
+    artifact_bytes["review-package.json"] = canonical_json_bytes(package)
 
     assert artifacts[PROFILE_COMMANDS_NAME] == PROFILE_COMMANDS_TEXT
     assert manifest["owner_profile_commands"] == {
