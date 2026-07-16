@@ -86,6 +86,17 @@ def test_projection_invariants_reject_contradictory_technical_decision() -> None
         validate_projection_invariants(projection)
 
 
+def test_projection_invariants_reject_unknown_governance_status() -> None:
+    projection = project_decision(_package())
+    projection["governance_decision"]["status"] = "UNKNOWN"
+
+    with pytest.raises(
+        ProjectionError,
+        match="canonical governance status is invalid",
+    ):
+        validate_projection_invariants(projection)
+
+
 def test_official_artifacts_always_include_hashed_profile_commands() -> None:
     package = _package()
     artifacts = build_review_artifacts(package)
