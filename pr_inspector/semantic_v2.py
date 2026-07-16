@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any
 
 from .constants import DOMAIN_SPECIALIST_REQUIRED, SPECIALIST_APPROVALS, STATUS_GREEN
-from .decision_projection import ProjectionError, expected_technical_status
+from .decision_projection import ProjectionError, project_decision
 from .diagnostics import Diagnostic
 from .semantic import validate_external_review_intake, validate_intent_fit, validate_repair_handoff
 
@@ -15,7 +15,7 @@ def _diag(code: str, path: str, message: str) -> Diagnostic:
 
 
 def validate_semantics(pkg: dict[str, Any]) -> list[Diagnostic]:
-    """Active v1.8 semantic validation using one canonical decision projection."""
+    """Validate active package semantics against one canonical decision projection."""
     normalized = copy.deepcopy(pkg)
     capabilities = normalized.get("capabilities", {})
     if "credential_access" in capabilities and "protected_credentials" not in capabilities:
@@ -79,12 +79,27 @@ def validate_semantics(pkg: dict[str, Any]) -> list[Diagnostic]:
     diagnostics.extend(validate_external_review_intake(normalized, evidence, checks))
 
     try:
-        expected, reason_codes = expected_technical_status(normalized)
+        projection = project_decision(normalized)
     except ProjectionError as exc:
         diagnostics.append(_diag("PRI-PROJECTION-001", "/decision", str(exc)))
     else:
+        expected = projection["technical_status"]
+        reason_codes = projection["technical_status_reason_codes"]
         if decision["technical_status"] != expected:
             diagnostics.append(_diag("PRI-STATUS-001", "/decision/technical_status", f"expected {expected}; canonical reason codes: {', '.join(reason_codes) or 'none'}"))
+        for field in (
+            "technical_decision",
+            "governance_decision",
+            "overall_recommendation",
+        ):
+            if normalized.get(field) != projection[field]:
+                diagnostics.append(
+                    _diag(
+                        "PRI-PROJECTION-005",
+                        f"/{field}",
+                        f"{field} disagrees with the authoritative v1.11 projection",
+                    )
+                )
 
     try:
         started = datetime.fromisoformat(identity["review_started"].replace("Z", "+00:00"))
