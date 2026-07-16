@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   export:
-    if: github.event.pull_request.number == 27
+    if: github.event.pull_request.number == 21
     runs-on: ubuntu-latest
     steps:
       - name: Check out exact triggering head
