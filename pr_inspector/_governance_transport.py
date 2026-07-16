@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -24,6 +25,9 @@ _UNVERIFIED_MESSAGE = (
 )
 _HUMAN_GOVERNANCE_MESSAGE = (
     "human_governance_required: specialist qualification is not authoritatively verified"
+)
+_CHECK_ANNOTATIONS_PATH = re.compile(
+    r"^/repos/[^/]+/[^/]+/check-runs/[1-9][0-9]*/annotations$"
 )
 
 
@@ -306,12 +310,60 @@ def fetch_github_api_response(
     )
 
 
+def _validate_check_annotation_payload(response: GitHubApiResponse, payload: Any) -> None:
+    parsed = urllib.parse.urlsplit(response.request_url)
+    if not _CHECK_ANNOTATIONS_PATH.fullmatch(parsed.path):
+        return
+    if response.status_code != 200:
+        return
+    if not isinstance(payload, list):
+        raise GovernanceEvidenceError("check annotation payload is malformed")
+    for index, annotation in enumerate(payload):
+        if not isinstance(annotation, Mapping):
+            raise GovernanceEvidenceError(
+                f"check annotation {index} is not an object"
+            )
+        annotation_id = annotation.get("id")
+        if annotation_id is not None and (
+            not isinstance(annotation_id, int)
+            or isinstance(annotation_id, bool)
+            or annotation_id <= 0
+        ):
+            raise GovernanceEvidenceError(
+                f"check annotation {index} identity is malformed"
+            )
+        start_line = annotation.get("start_line")
+        end_line = annotation.get("end_line")
+        for field_name, value in (
+            ("start_line", start_line),
+            ("end_line", end_line),
+        ):
+            if value is not None and (
+                not isinstance(value, int)
+                or isinstance(value, bool)
+                or value <= 0
+            ):
+                raise GovernanceEvidenceError(
+                    f"check annotation {index} {field_name} is malformed"
+                )
+        if (
+            start_line is not None
+            and end_line is not None
+            and end_line < start_line
+        ):
+            raise GovernanceEvidenceError(
+                f"check annotation {index} line range is malformed"
+            )
+
+
 def github_response_payload(response: GitHubApiResponse) -> Any:
     if not is_verified_github_api_response(response):
         raise GovernanceEvidenceError(
             "GitHub response is not a verifier-created HTTPS response capability"
         )
-    return json.loads(response.payload_json)
+    payload = json.loads(response.payload_json)
+    _validate_check_annotation_payload(response, payload)
+    return payload
 
 
 def _fresh_response(
@@ -358,4 +410,3 @@ def _payload_or_none(response: GitHubApiResponse | None) -> Any | None:
 
 def _evidence_urls(*responses: GitHubApiResponse | None) -> list[str]:
     return sorted({item.response_url for item in responses if item is not None})
-
