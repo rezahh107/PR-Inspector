@@ -325,7 +325,17 @@
         "reason_codes": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "blocking_medium_finding",
+              "bot_collection_incomplete",
+              "critical_supported_finding",
+              "high_reproduced_finding",
+              "incomplete_technical_scope",
+              "required_technical_check_failed",
+              "stale_technical_review_identity",
+              "unresolved_valid_bot_finding"
+            ]
           }
         }
       }
@@ -350,7 +360,18 @@
         "reason_codes": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "branch_protection_unavailable",
+              "bypass_actors_unknown",
+              "merge_authorization_unverified",
+              "merge_queue_unavailable",
+              "repository_settings_not_verified",
+              "required_checks_not_verified",
+              "required_review_enforcement_absent",
+              "rulesets_unavailable",
+              "sequence_enforcement_missing"
+            ]
           }
         }
       }

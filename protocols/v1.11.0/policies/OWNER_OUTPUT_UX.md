@@ -51,3 +51,8 @@ The Green result does not claim `merge_authorized`, required reviews, required c
 For prompt-required decisions, the accessor returns the exact verified Owner Result, the heading `## پرامپت اقدام`, and the complete exact verified action prompt in one call. `official_owner_result` MUST raise `CompletionError` and MUST NOT return the compact text. For no-prompt decisions, both owner accessors return the exact two-line result.
 
 The supported CLI emits the complete owner delivery on stdout and reserves stderr for technical completion and diagnostics. A delivery-verification failure emits no partial stdout.
+
+
+## Candidate profile command placement
+
+The compact `OWNER_RESULT.fa.txt` two-line byte contract remains unchanged for v1.11.0 candidate reviews. Profile-selection commands MUST NOT be appended as third or fourth lines. Candidate profile commands are delivered in the separate atomically routed `OWNER_PROFILE_COMMANDS.fa.txt` artifact, or by an owner-delivery accessor that composes verified artifacts without changing the compact Owner Result bytes.

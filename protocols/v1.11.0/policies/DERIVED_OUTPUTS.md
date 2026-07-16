@@ -72,3 +72,8 @@ Governance evidence is validated independently from `DECISION_PROJECTION.json`. 
 The active machine-readable owner-delivery contract is `policies/OWNER_DELIVERY_CONTRACT.json`. The implementation validates it against `schemas/owner-delivery-contract.schema.json` and derives the canonical accessor names, artifact names, prompt heading, composition separator, compact-access behavior, and CLI stream contract from it.
 
 All owner-facing bytes come from one fully reverified in-memory artifact snapshot. Prompt-required compact access fails closed with `CompletionError`; it is never enforced through a warning. A no-prompt delivery is byte-for-text identical to the two-line Owner Result. The CLI must finish delivery verification before writing stdout, so any failure leaves stdout empty.
+
+
+## Candidate profile commands artifact
+
+For v1.11.0 candidate reviews, profile-selection instructions are a separately hashed artifact named `OWNER_PROFILE_COMMANDS.fa.txt`. Renderers must not append those instructions to `OWNER_RESULT.fa.txt`; atomic delivery may include both artifacts only after each artifact's bytes and manifest entry are verified.

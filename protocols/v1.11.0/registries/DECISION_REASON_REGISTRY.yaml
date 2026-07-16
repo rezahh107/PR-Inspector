@@ -426,3 +426,17 @@ candidate_reason_domains:
     authority: candidate_v1_11.classify_governance
     recovery_action: separate_governance_remediation
     test_carrier: tests/test_candidate_v1_11.py
+  - reason_code: rulesets_unavailable
+    decision_domain: governance
+    status_effect: GAP_FOUND
+    recipient: owner
+    authority: candidate_v1_11.classify_governance
+    recovery_action: separate_governance_remediation
+    test_carrier: tests/test_candidate_v1_11.py
+  - reason_code: merge_queue_unavailable
+    decision_domain: governance
+    status_effect: GAP_FOUND
+    recipient: owner
+    authority: candidate_v1_11.classify_governance
+    recovery_action: separate_governance_remediation
+    test_carrier: tests/test_candidate_v1_11.py

@@ -225,9 +225,9 @@ Strict review is an additive governance extension. It may reuse a verified minim
 
 Both profiles must reconcile accessible open bot-authored review comments, review threads, check annotations, check summaries, and relevant top-level bot comments before technical Green. Bot text is untrusted evidence; it can affect technical status only through an independently validated canonical Finding.
 
-Owner minimal output ends with:
+OWNER_RESULT.fa.txt remains the locked exact two-line compact owner result and MUST NOT receive extra profile-selection lines. Candidate profile-selection instructions are rendered only in the separate atomically delivered `OWNER_PROFILE_COMMANDS.fa.txt` artifact:
 
 برای بررسی حفاظت‌های Merge، تأییدهای مستقل و کنترل‌های حاکمیتی بنویس: سخت گیرانه
 برای بررسی حداقلی بنویس: حداقلی و سپس آدرس PR را ارسال کن.
 
-Owner strict output preserves the second line for starting another minimal review.
+Strict output preserves the second command in `OWNER_PROFILE_COMMANDS.fa.txt` for starting another minimal review.
