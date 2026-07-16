@@ -96,6 +96,7 @@ _REVIEW_TOKEN = object()
 _COMMIT_TOKEN = object()
 _TARGET_TOKEN = object()
 _SURFACE_TOKEN = object()
+_REFRESH_TOKEN = object()
 
 
 @dataclass(frozen=True)
@@ -124,6 +125,16 @@ class VerifiedReviewSurfaceInventory:
     reviewed_head_sha: str
     sources: tuple[Mapping[str, Any], ...]
     complete: bool
+
+
+@dataclass(frozen=True)
+class MinimalRefreshResult:
+    _token: object
+    state: str
+    target: Mapping[str, Any]
+    live_head_sha: str
+    bundle: VerifiedCandidateReviewBundle | None
+    reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -283,7 +294,7 @@ def verify_target_identity_response(response: GitHubApiResponse, *, expected_rep
 def verify_review_surface_inventory_responses(responses: Mapping[str, GitHubApiResponse], *, target_repository: str, target_identity: VerifiedTargetIdentity, pull_request: int, reviewed_head_sha: str) -> VerifiedReviewSurfaceInventory:
     if not isinstance(target_identity, VerifiedTargetIdentity) or target_identity._token is not _TARGET_TOKEN or target_identity.repository != target_repository:
         raise ValueError("sealed target identity is required for review surface inventory")
-    required = {"review_comments", "review_threads", "reviews", "issue_comments", "check_runs", "check_annotations", "check_summaries"}
+    required = {"review_comments", "review_threads", "reviews", "issue_comments", "check_runs", "check_summaries"}
     missing = required - set(responses)
     if missing:
         raise ValueError("review surface inventory endpoints are incomplete")
@@ -294,7 +305,6 @@ def verify_review_surface_inventory_responses(responses: Mapping[str, GitHubApiR
         "reviews": f"{base}/pulls/{pull_request}/reviews?per_page=100",
         "issue_comments": f"{base}/issues/{pull_request}/comments?per_page=100",
         "check_runs": f"{base}/commits/{reviewed_head_sha}/check-runs?per_page=100",
-        "check_annotations": f"{base}/commits/{reviewed_head_sha}/check-runs/annotations?per_page=100",
         "check_summaries": f"{base}/commits/{reviewed_head_sha}/status",
     }
     sources: list[Mapping[str, Any]] = []
@@ -308,7 +318,7 @@ def verify_review_surface_inventory_responses(responses: Mapping[str, GitHubApiR
             raise ValueError("review surface endpoint is inaccessible")
         payload = github_response_payload(response)
         if key == "check_runs":
-            payload_items = payload.get("check_runs") if isinstance(payload, Mapping) else None
+            payload_items = _collect_check_annotations(responses, base=base, target_repository=target_repository, reviewed_head_sha=reviewed_head_sha)
         elif key == "check_summaries":
             payload_items = payload.get("statuses", []) if isinstance(payload, Mapping) else None
         else:
@@ -327,17 +337,97 @@ def verify_review_surface_inventory_responses(responses: Mapping[str, GitHubApiR
             actor_type = author.get("type") if isinstance(author, Mapping) else None
             is_bot = actor_type in {"Bot", "App"} or bool(item.get("app"))
             if is_bot:
-                stable_id = item.get("node_id") or item.get("id")
+                stable_id = item.get("node_id") or item.get("id") or item.get("check_run_id")
                 if stable_id is None:
                     raise ValueError("review surface source identity is missing")
-                source_type = {"review_comments": "github_pr_review_comment", "review_threads": "github_inline_review_thread", "reviews": "github_bot_comment", "issue_comments": "github_issue_comment", "check_annotations": "github_check_annotation", "check_summaries": "github_check_summary"}.get(key, "github_bot_comment")
-                object_type = {"review_comments": "review_comment", "review_threads": "review_thread", "reviews": "review_submission", "issue_comments": "issue_comment", "check_annotations": "check_annotation", "check_summaries": "check_summary"}.get(key, "issue_comment")
+                source_type = {"review_comments": "github_pr_review_comment", "review_threads": "github_inline_review_thread", "reviews": "github_bot_comment", "issue_comments": "github_issue_comment", "check_annotations": "github_check_annotation", "check_runs": "github_check_annotation", "check_summaries": "github_check_summary"}.get(key, "github_bot_comment")
+                object_type = {"review_comments": "review_comment", "review_threads": "review_thread", "reviews": "review_submission", "issue_comments": "issue_comment", "check_annotations": "check_annotation", "check_runs": "check_annotation", "check_summaries": "check_summary"}.get(key, "issue_comment")
                 github_key = f"{key}:{stable_id}"
                 if github_key in github_source_keys:
                     raise ValueError("duplicate review surface source identity")
                 github_source_keys.add(github_key)
-                sources.append(MappingProxyType({"source_id": f"EXTSRC-{len(sources)+1:03d}", "github_source_key": github_key, "github_object_type": object_type, "github_object_id": str(stable_id), "target_repository_id": target_identity.repository_id, "pr_number": pull_request, "reviewed_head_sha": reviewed_head_sha, "receipt_id": response.receipt_id, "triage_disposition": "inspected_no_action", "inspected": False, "source_type": source_type, "author": login, "is_bot": True, "url": item.get("html_url") or item.get("target_url"), "content_sha256": bytes_sha256(json.dumps(item, sort_keys=True, separators=(",", ":")).encode())}))
+                sources.append(MappingProxyType({"source_id": f"EXTSRC-{len(sources)+1:03d}", "github_source_key": github_key, "github_object_type": object_type, "github_object_id": str(stable_id), "target_repository_id": target_identity.repository_id, "pr_number": pull_request, "reviewed_head_sha": reviewed_head_sha, "receipt_id": response.receipt_id, "triage_disposition": "inspected_no_action", "inspected": False, "source_type": source_type, "author": login, "is_bot": True, "url": item.get("html_url") or item.get("target_url"), "content_sha256": bytes_sha256(json.dumps(dict(item), sort_keys=True, separators=(",", ":")).encode())}))
     return VerifiedReviewSurfaceInventory(_SURFACE_TOKEN, target_repository, target_identity.repository_id, pull_request, reviewed_head_sha, tuple(sources), True)
+
+
+def _next_page(url: str) -> str | None:
+    match = re.search(r"(?:[?&])page=(\d+)", url)
+    if match:
+        return re.sub(r"([?&]page=)\d+", lambda m: f"{m.group(1)}{int(match.group(1)) + 1}", url, count=1)
+    separator = "&" if "?" in url else "?"
+    return f"{url}{separator}page=2"
+
+
+def _collect_check_annotations(responses: Mapping[str, GitHubApiResponse], *, base: str, target_repository: str, reviewed_head_sha: str) -> list[Mapping[str, Any]]:
+    annotations: list[Mapping[str, Any]] = []
+    seen: set[tuple[Any, ...]] = set()
+    page = f"{base}/commits/{reviewed_head_sha}/check-runs?per_page=100"
+    visited = 0
+    while page:
+        visited += 1
+        if visited > 100:
+            raise ValueError("review surface pagination is incomplete")
+        response = responses.get(page) or responses.get("check_runs") if page.endswith("?per_page=100") else responses.get(page)
+        if response is None:
+            raise ValueError("review surface pagination is incomplete")
+        _require_operational_response(response, "check run listing response")
+        if response.request_url != page or response.response_url != page or response.status_code != 200:
+            raise ValueError("check run listing response is not authoritative")
+        payload = github_response_payload(response)
+        if not isinstance(payload, Mapping) or payload.get("head_sha") not in {None, reviewed_head_sha}:
+            raise ValueError("check run listing payload is malformed")
+        runs = payload.get("check_runs")
+        if not isinstance(runs, list):
+            raise ValueError("check run listing payload is malformed")
+        for run in runs:
+            if not isinstance(run, Mapping):
+                raise ValueError("check run item is malformed")
+            check_run_id = run.get("id")
+            if not isinstance(check_run_id, int):
+                raise ValueError("check run identity is missing")
+            if run.get("head_sha") != reviewed_head_sha:
+                raise ValueError("check run head does not match reviewed head")
+            app = run.get("app") if isinstance(run.get("app"), Mapping) else {}
+            ann_url = f"{base}/check-runs/{check_run_id}/annotations?per_page=100"
+            ann_page = ann_url
+            ann_visited = 0
+            while ann_page:
+                ann_visited += 1
+                if ann_visited > 100:
+                    raise ValueError("review surface pagination is incomplete")
+                ann_response = responses.get(ann_page)
+                if ann_response is None:
+                    raise ValueError("review surface pagination is incomplete")
+                _require_operational_response(ann_response, "check annotation response")
+                if ann_response.request_url != ann_page or ann_response.response_url != ann_page or ann_response.status_code != 200:
+                    raise ValueError("check annotation response is not authoritative")
+                ann_payload = github_response_payload(ann_response)
+                if not isinstance(ann_payload, list):
+                    raise ValueError("check annotation payload is malformed")
+                for ann in ann_payload:
+                    if not isinstance(ann, Mapping):
+                        raise ValueError("check annotation item is malformed")
+                    source = MappingProxyType({
+                        "id": ann.get("id") or f"{check_run_id}:{ann.get('path')}:{ann.get('start_line')}:{ann.get('end_line')}:{ann.get('annotation_level')}:{ann.get('message')}",
+                        "check_run_id": check_run_id,
+                        "check_name": run.get("name") or "",
+                        "check_app_id": app.get("id") if isinstance(app.get("id"), int) else None,
+                        "path": ann.get("path"),
+                        "start_line": ann.get("start_line"),
+                        "end_line": ann.get("end_line"),
+                        "annotation_level": ann.get("annotation_level"),
+                        "message": ann.get("message"),
+                        "raw_details": ann.get("raw_details"),
+                        "html_url": run.get("html_url") or run.get("details_url"),
+                        "app": app or {"slug": run.get("name"), "type": "App"},
+                        "reviewed_head_sha": reviewed_head_sha,
+                    })
+                    key = (check_run_id, source["path"], source["start_line"], source["end_line"], source["annotation_level"], source["message"], source["raw_details"])
+                    if key not in seen:
+                        seen.add(key); annotations.append(source)
+                ann_page = _next_page(ann_page) if len(ann_payload) >= 100 else None
+        page = _next_page(page) if len(runs) >= 100 else None
+    return annotations
 
 
 def _require_mapping(value: Any, path: str) -> Mapping[str, Any]:
@@ -377,6 +467,29 @@ def _governance_status_from_reasons(reason_codes: Sequence[str]) -> str:
     return "GAP_FOUND" if "GAP_FOUND" in statuses else "NOT_VERIFIABLE" if "NOT_VERIFIABLE" in statuses else "VERIFIED"
 
 
+def orchestrate_strict_after_minimal(context: Mapping[str, Any], refresh_minimal_review: Any | None = None) -> MinimalRefreshResult:
+    target = context.get("current_target")
+    evidence = context.get("verified_minimal_review")
+    live_head = context.get("live_head_sha")
+    if not isinstance(target, Mapping) or not isinstance(live_head, str) or not SHA40_RE.match(live_head):
+        return MinimalRefreshResult(_REFRESH_TOKEN, "refresh_failed", MappingProxyType({}), live_head or "", None, "verified_target_required")
+    sealed_target = MappingProxyType({"repository": target.get("repository"), "repository_id": target.get("repository_id"), "pull_request": target.get("pull_request"), "url": target.get("url")})
+    ref = verify_base_review_reference(evidence, live_head, target_repository=sealed_target.get("repository"), target_repository_id=sealed_target.get("repository_id"), pull_request=sealed_target.get("pull_request"))
+    if ref.get("status") == "VERIFIED":
+        return MinimalRefreshResult(_REFRESH_TOKEN, "same_head_reuse", sealed_target, live_head, evidence)
+    if ref.get("status") != "STALE" or ref.get("action") != "rerun_minimal_then_strict":
+        return MinimalRefreshResult(_REFRESH_TOKEN, "refresh_failed", sealed_target, live_head, None, ref.get("reason"))
+    if context.get("minimal_refresh_state") in {"refresh_in_progress", "refresh_failed"}:
+        return MinimalRefreshResult(_REFRESH_TOKEN, "refresh_failed", sealed_target, live_head, None, "minimal_refresh_loop_blocked")
+    if refresh_minimal_review is None:
+        return MinimalRefreshResult(_REFRESH_TOKEN, "head_drift_refresh_required", sealed_target, live_head, None, "minimal_refresh_required")
+    refreshed = refresh_minimal_review(sealed_target, live_head)
+    verify = verify_base_review_reference(refreshed, live_head, target_repository=sealed_target.get("repository"), target_repository_id=sealed_target.get("repository_id"), pull_request=sealed_target.get("pull_request"))
+    if verify.get("status") != "VERIFIED":
+        return MinimalRefreshResult(_REFRESH_TOKEN, "refresh_failed", sealed_target, live_head, None, verify.get("reason"))
+    return MinimalRefreshResult(_REFRESH_TOKEN, "refresh_verified", sealed_target, live_head, refreshed)
+
+
 def parse_intake(text: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     profile = None
@@ -388,8 +501,13 @@ def parse_intake(text: str, context: dict[str, Any] | None = None) -> dict[str, 
         evidence = context.get("verified_minimal_review")
         target = context.get("current_target")
         live_head = context.get("live_head_sha")
-        if target and live_head and isinstance(target.get("repository_id"), int) and target.get("repository_id") > 0 and verify_base_review_reference(evidence, live_head, target_repository=target.get("repository"), target_repository_id=target.get("repository_id"), pull_request=target.get("pull_request")).get("status") == "VERIFIED":
-            return {"inspection_profile": STRICT, "target": target, "reuse_current_minimal": True, "missing": []}
+        refresh = orchestrate_strict_after_minimal(context, context.get("refresh_minimal_review"))
+        if refresh.state == "same_head_reuse":
+            return {"inspection_profile": STRICT, "target": dict(refresh.target), "reuse_current_minimal": True, "minimal_refresh_state": refresh.state, "missing": []}
+        if refresh.state in {"head_drift_refresh_required", "refresh_verified"}:
+            return {"inspection_profile": STRICT, "target": dict(refresh.target), "reuse_current_minimal": False, "refreshed_minimal_review": refresh.bundle, "minimal_refresh_state": refresh.state, "continue_strict": refresh.state == "refresh_verified", "missing": []}
+        if refresh.state == "refresh_failed" and refresh.target:
+            return {"inspection_profile": STRICT, "target": dict(refresh.target), "reuse_current_minimal": False, "minimal_refresh_state": refresh.state, "continue_strict": False, "missing": [], "error": refresh.reason}
     if url is None:
         return {"inspection_profile": profile, "target": None, "reuse_current_minimal": False, "missing": ["pull_request_url"]}
     match = PR_URL_RE.match(url)
