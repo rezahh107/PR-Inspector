@@ -44,6 +44,12 @@
     },
     "schema_version": {
       "const": 1
+    },
+    "profile_commands_name": {
+      "const": "OWNER_PROFILE_COMMANDS.fa.txt"
+    },
+    "profile_commands_behavior": {
+      "const": "always_generated_separate_verified_artifact"
     }
   },
   "required": [
@@ -60,7 +66,9 @@
     "no_prompt_delivery_behavior",
     "cli_stdout_behavior",
     "cli_stderr_behavior",
-    "delivery_failure_stdout_behavior"
+    "delivery_failure_stdout_behavior",
+    "profile_commands_name",
+    "profile_commands_behavior"
   ],
   "title": "PR Inspector Atomic Owner Delivery Contract v1.11.0",
   "type": "object"

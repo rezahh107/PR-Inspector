@@ -12,5 +12,7 @@
   "prompt_required_compact_behavior": "completion_error",
   "prompt_separator_template": "\n{heading}\n\n",
   "protocol_version": "v1.11.0",
-  "schema_version": 1
+  "schema_version": 1,
+  "profile_commands_name": "OWNER_PROFILE_COMMANDS.fa.txt",
+  "profile_commands_behavior": "always_generated_separate_verified_artifact"
 }
