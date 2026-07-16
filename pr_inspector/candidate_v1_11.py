@@ -5,6 +5,11 @@ from types import MappingProxyType
 from typing import Any, Callable, Mapping
 
 from .candidate_v1_11_base import *  # noqa: F401,F403
+from .candidate_v1_11_base import (
+    _TARGET_TOKEN,
+    _json_object,
+    verify_base_review_reference as _base_verify_base_review_reference,
+)
 from .candidate_v1_11_repair import (
     ORCHESTRATION_STATES,
     StrictOrchestrationResult,
@@ -72,29 +77,6 @@ def _reference_hashes_are_current(bundle: object) -> tuple[bool, str | None]:
     if reference.get("artifact_manifest_sha256") != bytes_sha256(manifest_raw):
         return False, "artifact_manifest_hash_mismatch"
     return True, None
-
-
-def verify_base_review_reference(
-    evidence: object,
-    live_head_sha: str,
-    *,
-    target_repository: str | None = None,
-    target_repository_id: int | None = None,
-    pull_request: int | None = None,
-) -> dict[str, Any]:
-    valid, reason = _reference_hashes_are_current(evidence)
-    if not valid:
-        return {"status": "INVALID", "reason": reason}
-    return _base_verify_base_review_reference(
-        evidence,
-        live_head_sha,
-        target_repository=target_repository,
-        target_repository_id=target_repository_id,
-        pull_request=pull_request,
-    )
-
-
-_base_verify_base_review_reference = globals()["verify_base_review_reference"]
 
 
 def verify_base_review_reference(
