@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -15,14 +14,17 @@ from pr_inspector._governance_transport import (
 )
 from pr_inspector._official_bundle import artifact_hashes
 from pr_inspector._official_head import CompletionError
-from pr_inspector.decision_projection import project_decision
+from pr_inspector.decision_projection import (
+    ProjectionError,
+    project_decision,
+    validate_projection_invariants,
+)
 from pr_inspector.derived_outputs import (
     PROFILE_COMMANDS_NAME,
     PROFILE_COMMANDS_TEXT,
     PROJECTION_NAME,
     build_review_artifacts,
 )
-from pr_inspector.validation_v2 import validate_package
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -68,28 +70,19 @@ def test_active_projection_derives_v1_11_decisions_from_canonical_evidence() -> 
     }
 
 
-def test_semantic_validation_rejects_package_projection_drift() -> None:
-    package = _package()
-    canonical = project_decision(package)
-    package["decision"]["technical_status"] = canonical["technical_status"]
-    package["technical_decision"] = deepcopy(canonical["technical_decision"])
-    package["governance_decision"] = deepcopy(canonical["governance_decision"])
-    package["overall_recommendation"] = deepcopy(
-        canonical["overall_recommendation"]
-    )
-    package["technical_decision"]["status"] = (
+def test_projection_invariants_reject_contradictory_technical_decision() -> None:
+    projection = project_decision(_package())
+    projection["technical_decision"]["status"] = (
         "GREEN"
-        if canonical["technical_decision"]["status"] != "GREEN"
+        if projection["technical_decision"]["status"] != "GREEN"
         else "YELLOW"
     )
 
-    diagnostics = validate_package(package)
-
-    assert any(
-        item.code == "PRI-PROJECTION-005"
-        and item.path == "/technical_decision"
-        for item in diagnostics
-    )
+    with pytest.raises(
+        ProjectionError,
+        match="technical_decision contradicts canonical technical status",
+    ):
+        validate_projection_invariants(projection)
 
 
 def test_official_artifacts_always_include_hashed_profile_commands() -> None:
