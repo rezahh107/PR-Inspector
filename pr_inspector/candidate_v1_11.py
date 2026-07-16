@@ -14,7 +14,9 @@ from .candidate_v1_11_repair import (
     ORCHESTRATION_STATES,
     StrictOrchestrationResult,
     VerifiedPullRequestHead,
+    collect_check_run_annotation_responses,
     verify_pull_request_head_response,
+    verify_review_surface_inventory_responses,
 )
 
 
