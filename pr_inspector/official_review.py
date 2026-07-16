@@ -26,7 +26,11 @@ from ._official_head import (
 )
 from .evidence_context import evidence_scope
 from .governance import VerifiedGovernanceEvidence
-from .owner_delivery import official_owner_delivery, official_owner_result
+from .owner_delivery import (
+    official_owner_delivery,
+    official_owner_profile_commands,
+    official_owner_result,
+)
 from .sequence_enforcement import VerifiedSequenceEnforcement
 
 _BOUND_EVIDENCE: weakref.WeakKeyDictionary[
@@ -109,6 +113,7 @@ __all__ = [
     "is_verified_review_completion",
     "official_next_action_prompt",
     "official_owner_delivery",
+    "official_owner_profile_commands",
     "official_owner_result",
     "official_technical_handoff",
     "verify_completed_review",
