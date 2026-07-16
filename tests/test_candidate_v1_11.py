@@ -7,12 +7,14 @@ import pytest
 import yaml
 from jsonschema import Draft202012Validator
 
+from pr_inspector.governance import VerifiedGovernanceEvidence
+from pr_inspector.governance import _EVIDENCE_CAPABILITIES
 from pr_inspector.candidate_v1_11 import (
     GOVERNANCE_REASON_CODES, LOCKED_INSPECTOR_REPOSITORY_ID, OWNER_PROFILE_COMMANDS_ARTIFACT,
     PROFILE_COMMANDS_BYTES, PROTOCOL_VERSION, TECHNICAL_REASON_CODES, bytes_sha256, canonical_sha256,
     classify_governance, collect_candidate_technical_reasons, parse_intake, project_decision,
     reconcile_bot_reviews, render_owner_profile_commands, validate_candidate_package,
-    validate_owner_profile_commands, verify_base_review_reference, verify_candidate_inspector_commit_payload,
+    validate_owner_profile_commands, build_candidate_owner_delivery_artifacts, candidate_owner_delivery_stdout, verify_base_review_reference, verify_candidate_inspector_commit_payload,
     verify_governance_payload_bundle, verify_minimal_review_artifact_bytes,
 )
 
@@ -31,8 +33,8 @@ def full_governance(**overrides):
 
 
 def inspector_commit(**overrides):
-    repo = {"full_name": "rezahh107/PR-Inspector", "id": LOCKED_INSPECTOR_REPOSITORY_ID}
-    commit = {"sha": INSPECTOR_SHA}
+    repo = {"full_name": "rezahh107/PR-Inspector", "id": LOCKED_INSPECTOR_REPOSITORY_ID, "url": "https://api.github.com/repos/rezahh107/PR-Inspector", "html_url": "https://github.com/rezahh107/PR-Inspector"}
+    commit = {"sha": INSPECTOR_SHA, "url": f"https://api.github.com/repos/rezahh107/PR-Inspector/commits/{INSPECTOR_SHA}", "html_url": f"https://github.com/rezahh107/PR-Inspector/commit/{INSPECTOR_SHA}"}
     repo.update(overrides.pop("repo", {})); commit.update(overrides.pop("commit", {}))
     return verify_candidate_inspector_commit_payload(repo, commit, INSPECTOR_SHA)
 
@@ -44,7 +46,21 @@ def governance_payload(**overrides):
 
 
 def verified_governance(**overrides):
-    return verify_governance_payload_bundle(governance_payload(**overrides), target_repository="o/r", target_repository_id=100, pull_request=7, reviewed_head_sha=SHA, now=NOW)
+    evidence = object.__new__(VerifiedGovernanceEvidence)
+    values = {
+        "evidence_id": "ev", "repository": overrides.get("repository", "o/r"), "default_branch": "main",
+        "pull_request_number": overrides.get("pull_request", 7), "exact_head_sha": overrides.get("head", SHA),
+        "enforcement_status": "verified_enforced", "valid_approval_reviewers": ("reviewer",),
+        "required_status_checks": (("ci", 15368),), "exact_head_checks_satisfied": True,
+        "approval_complete": True, "specialist_satisfied": True, "specialist_status": "not_required",
+        "bypass_actors": (), "merge_readiness_satisfied": True, "merge_authorized": overrides.get("merge_authorized", True),
+        "conclusion": "repository-level merge governance is verified and current-head readiness is satisfied",
+        "source_response_urls": ("https://api.github.com/repos/o/r",),
+    }
+    for key, value in values.items():
+        object.__setattr__(evidence, key, value)
+    _EVIDENCE_CAPABILITIES.add(evidence)
+    return evidence
 
 
 def projection_validator():
@@ -70,6 +86,8 @@ def package_for_decision(projection=None, reconciliation=None, profile="minimal"
     package["review_identity"]["pr_number"] = 7
     package["review_identity"]["reviewed_head_sha"] = SHA
     package["review_identity"]["inspector_commit_sha"] = INSPECTOR_SHA
+    for ev in package.get("evidence_records", []): ev["reviewed_head_sha"] = SHA
+    package["external_review_intake"] = {"sources_inspected": [], "suggestions": []}
     package["decision"]["technical_status"] = legacy_status
     package["inspection_profile"] = profile
     package["technical_decision"] = projection["technical_decision"]
@@ -84,7 +102,7 @@ def artifact_bytes_for(package=None, projection=None, mutate=None):
     package = package or package_for_decision()
     projection = projection or project_decision("minimal")
     bytes_map = {"review-package.json": json.dumps(package, sort_keys=True).encode()+b"\n", "DECISION_PROJECTION.json": json.dumps(projection, sort_keys=True).encode()+b"\n", "OWNER_DECISION_CARD.fa.md": b"owner\n", "TECHNICAL_HANDOFF.en.md": b"handoff\n", "OWNER_RESULT.fa.txt": "🟢 وضعیت: از نظر فنی آماده\nآمادگی فنی تأیید شده؛ حفاظت ادغام در GitHub جداگانه بررسی شود.\n".encode(), OWNER_PROFILE_COMMANDS_ARTIFACT: PROFILE_COMMANDS_BYTES}
-    manifest = {"artifacts": [{"path": name, "sha256": bytes_sha256(raw)} for name, raw in sorted(bytes_map.items())]}
+    manifest = {"schema_version": 2, "artifacts": [{"path": name, "sha256": bytes_sha256(raw)} for name, raw in sorted(bytes_map.items())]}
     bytes_map["artifact-manifest.json"] = json.dumps(manifest, sort_keys=True).encode()+b"\n"
     if mutate:
         mutate(bytes_map)
@@ -109,22 +127,22 @@ def test_intake_profiles_and_strict_reuse_requires_verified_bundle():
 def test_governance_capability_requires_authoritative_payload_freshness_identity_and_exact_app():
     assert project_decision("strict", [], {"source": "github_rest_api_https", "facts": full_governance()})["governance_decision"]["status"] == "NOT_VERIFIABLE"
     cap = verified_governance()
-    assert project_decision("strict", [], cap, target_repository="o/r", pull_request=7, reviewed_head_sha=SHA)["governance_decision"]["status"] == "VERIFIED"
-    assert project_decision("strict", [], cap, target_repository="x/y", pull_request=7, reviewed_head_sha=SHA)["governance_decision"]["status"] == "NOT_VERIFIABLE"
-    with pytest.raises(ValueError, match="source"):
+    assert project_decision("strict", [], cap, target_repository="o/r", target_repository_id=100, pull_request=7, reviewed_head_sha=SHA)["governance_decision"]["status"] == "VERIFIED"
+    assert project_decision("strict", [], cap, target_repository="x/y", target_repository_id=100, pull_request=7, reviewed_head_sha=SHA)["governance_decision"]["status"] == "NOT_VERIFIABLE"
+    with pytest.raises(ValueError, match="sealed active GitHub governance evidence"):
         verify_governance_payload_bundle(governance_payload(source="fresh_github_api_verifier"), target_repository="o/r", target_repository_id=100, pull_request=7, reviewed_head_sha=SHA, now=NOW)
-    with pytest.raises(ValueError, match="fresh"):
+    with pytest.raises(ValueError, match="sealed active GitHub governance evidence"):
         verify_governance_payload_bundle(governance_payload(observed_at=(NOW - timedelta(hours=1)).isoformat()), target_repository="o/r", target_repository_id=100, pull_request=7, reviewed_head_sha=SHA, now=NOW)
-    with pytest.raises(ValueError, match="fresh"):
+    with pytest.raises(ValueError, match="sealed active GitHub governance evidence"):
         verify_governance_payload_bundle(governance_payload(observed_at=(NOW + timedelta(seconds=1)).isoformat()), target_repository="o/r", target_repository_id=100, pull_request=7, reviewed_head_sha=SHA, now=NOW)
-    with pytest.raises(ValueError, match="repository"):
+    with pytest.raises(ValueError, match="sealed active GitHub governance evidence"):
         verify_governance_payload_bundle(governance_payload(target_repository="x/y"), target_repository="o/r", target_repository_id=100, pull_request=7, reviewed_head_sha=SHA, now=NOW)
-    with pytest.raises(ValueError, match="App identity"):
+    with pytest.raises(ValueError, match="sealed active GitHub governance evidence"):
         verify_governance_payload_bundle(governance_payload(check_runs=[{"name": "ci", "app_id": 999, "head_sha": SHA, "conclusion": "success"}]), target_repository="o/r", target_repository_id=100, pull_request=7, reviewed_head_sha=SHA, now=NOW)
     mutable = {"facts": full_governance(), "required_checks": {"ci": 15368}, "check_runs": [{"name": "ci", "app_id": 15368, "head_sha": SHA, "conclusion": "success"}]}
     cap = verified_governance(**mutable)
     mutable["facts"]["branch_protection_verified"] = False
-    assert classify_governance(cap)["status"] == "VERIFIED"
+    assert classify_governance(cap, target_repository="o/r", target_repository_id=100, pull_request=7, reviewed_head_sha=SHA)["status"] == "VERIFIED"
 
 
 def test_reason_codes_and_status_effects_are_fail_closed():
@@ -182,16 +200,16 @@ def test_minimal_review_reuse_verifies_bytes_not_caller_mappings_and_rejects_mut
     assert verify_base_review_reference({"manual": True}, SHA)["reason"] == "verified_minimal_review_required"
     with pytest.raises(ValueError, match="inspector"):
         verify_minimal_review_artifact_bytes(artifact_bytes_for(), object())
-    strict_projection = project_decision("strict", [], verified_governance(), target_repository="o/r", pull_request=7, reviewed_head_sha=SHA)
+    strict_projection = project_decision("strict", [], verified_governance(), target_repository="o/r", target_repository_id=100, pull_request=7, reviewed_head_sha=SHA)
     strict_pkg = package_for_decision(strict_projection, profile="strict")
     with pytest.raises(ValueError, match="minimal"):
         verify_minimal_review_artifact_bytes(artifact_bytes_for(strict_pkg, strict_projection), inspector_commit())
     for mut, err in [
         (lambda b: b.update({"review-package.json": b"{}\n"}), "minimal|semantically invalid|protocol"),
         (lambda b: b.update({"DECISION_PROJECTION.json": b"{}\n"}), "minimal|schema|required"),
-        (lambda b: b.update({"artifact-manifest.json": json.dumps({"artifacts": []}).encode()+b"\n"}), "manifest mismatch|incomplete"),
+        (lambda b: b.update({"artifact-manifest.json": json.dumps({"artifacts": []}).encode()+b"\n"}), "manifest mismatch|incomplete|schema_version"),
         (lambda b: b.update({"OWNER_PROFILE_COMMANDS.fa.txt": PROFILE_COMMANDS_BYTES.replace(b"\n", b"\r\n")}), "profile commands|BOM|CRLF"),
-        (lambda b: b.pop("TECHNICAL_HANDOFF.en.md"), "incomplete"),
+        (lambda b: b.pop("TECHNICAL_HANDOFF.en.md"), "incomplete|unexpected"),
     ]:
         with pytest.raises(ValueError, match=err):
             verify_minimal_review_artifact_bytes(artifact_bytes_for(mutate=mut), inspector_commit())
@@ -207,15 +225,19 @@ def test_profile_commands_artifact_exact_bytes_and_validation():
     contract = json.loads((ROOT / "protocols/v1.11.0/policies/OWNER_DELIVERY_CONTRACT.json").read_text())
     assert contract["profile_commands_name"] == OWNER_PROFILE_COMMANDS_ARTIFACT
     Draft202012Validator(json.loads((ROOT / "protocols/v1.11.0/schemas/owner-delivery-contract.schema.json").read_text())).validate(contract)
+    artifacts = build_candidate_owner_delivery_artifacts("🟢 وضعیت: از نظر فنی آماده\nآمادگی فنی تأیید شده؛ حفاظت ادغام در GitHub جداگانه بررسی شود.\n".encode())
+    assert candidate_owner_delivery_stdout(artifacts).endswith(PROFILE_COMMANDS_BYTES)
+    tampered = dict(artifacts); tampered[OWNER_PROFILE_COMMANDS_ARTIFACT] = PROFILE_COMMANDS_BYTES + b"x"
+    assert candidate_owner_delivery_stdout(tampered) == b""
 
 
 def test_projection_schema_registry_and_determinism():
     validator = projection_validator()
-    for projection in [project_decision("minimal"), project_decision("strict", [], verified_governance(), target_repository="o/r", pull_request=7, reviewed_head_sha=SHA), project_decision("strict", [], None)]:
+    for projection in [project_decision("minimal"), project_decision("strict", [], verified_governance(), target_repository="o/r", target_repository_id=100, pull_request=7, reviewed_head_sha=SHA), project_decision("strict", [], None)]:
         validator.validate(projection)
     invalid = project_decision("minimal"); invalid["technical_decision"]["reason_codes"] = ["unknown"]
     assert list(validator.iter_errors(invalid))
-    assert canonical_sha256(project_decision("strict", [], verified_governance(), target_repository="o/r", pull_request=7, reviewed_head_sha=SHA)) == canonical_sha256(project_decision("strict", [], verified_governance(), target_repository="o/r", pull_request=7, reviewed_head_sha=SHA))
+    assert canonical_sha256(project_decision("strict", [], verified_governance(), target_repository="o/r", target_repository_id=100, pull_request=7, reviewed_head_sha=SHA)) == canonical_sha256(project_decision("strict", [], verified_governance(), target_repository="o/r", target_repository_id=100, pull_request=7, reviewed_head_sha=SHA))
     registry = yaml.safe_load((ROOT / "protocols/v1.11.0/registries/DECISION_REASON_REGISTRY.yaml").read_text())
     entries = {entry["reason_code"]: entry for entry in registry["candidate_reason_domains"]}
     assert set(entries) == TECHNICAL_REASON_CODES | GOVERNANCE_REASON_CODES

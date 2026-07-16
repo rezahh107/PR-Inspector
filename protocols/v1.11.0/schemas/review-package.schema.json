@@ -24,6 +24,7 @@
     "technical_decision",
     "governance_decision",
     "overall_recommendation",
+    "external_review_intake",
     "external_review_reconciliation"
   ],
   "properties": {
