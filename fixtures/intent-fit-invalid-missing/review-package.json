@@ -61,8 +61,39 @@
       "source": "src/a.py"
     }
   ],
+  "external_review_intake": {
+    "sources_inspected": [],
+    "suggestions": []
+  },
+  "external_review_reconciliation": {
+    "collection_status": "COMPLETE",
+    "counts": {
+      "accepted": 0,
+      "deferred": 0,
+      "duplicate": 0,
+      "false_positive": 0,
+      "insufficient_evidence": 0,
+      "out_of_scope": 0,
+      "resolved": 0,
+      "stale": 0
+    },
+    "inspected_total": 0,
+    "open_bot_sources_total": 0,
+    "suggestion_results": [],
+    "uninspected_source_ids": [],
+    "valid_blocking_finding_ids": []
+  },
   "findings": [],
+  "governance_decision": {
+    "reason_codes": [],
+    "status": "NOT_REQUESTED"
+  },
+  "inspection_profile": "minimal",
   "out_of_scope_observations": [],
+  "overall_recommendation": {
+    "merge_governance_verified": false,
+    "technical_ready": true
+  },
   "owner_card": {
     "checked": "تغییرات کد، مسیر فراخوانی، نسبت آن با هدف PR و نتیجهٔ تست‌های متصل به نسخهٔ بررسی‌شده کنترل شد.",
     "mental_model": null,
@@ -71,7 +102,7 @@
     "summary": "این تغییر قالب جدیدی را به پردازشگر اضافه می‌کند و سازگاری قبلی را حفظ می‌کند.",
     "unknown": "مورد مهمی در دامنهٔ بررسی باقی نمانده است."
   },
-  "protocol_version": "v1.10.2",
+  "protocol_version": "v1.11.0",
   "red_gate_flags": [],
   "required_actions": [],
   "review_identity": {
@@ -88,7 +119,8 @@
     "review_started": "2026-07-03T10:00:00Z",
     "review_validity": "CURRENT",
     "reviewed_head_sha": "1111111111111111111111111111111111111111",
-    "target_repository": "example/project"
+    "target_repository": "example/project",
+    "target_repository_id": 4242
   },
   "schema_version": 1,
   "scope": {
@@ -118,6 +150,10 @@
     "profile_name": "personal_ai_operated_strong_governance_minimum_security",
     "security_activation_trigger": false,
     "sequence_ci_enforced": true
+  },
+  "technical_decision": {
+    "reason_codes": [],
+    "status": "GREEN"
   },
   "unverified_areas": []
 }

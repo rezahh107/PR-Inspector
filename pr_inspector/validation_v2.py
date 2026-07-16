@@ -37,16 +37,17 @@ def validate_package(
     governance_evidence: VerifiedGovernanceEvidence | None = None,
     sequence_enforcement: VerifiedSequenceEnforcement | None = None,
 ) -> list[Diagnostic]:
-    """Validate v1.10.2 as a strict extension of immutable v1.10.1."""
+    """Validate the active protocol package schema and semantic gates."""
 
     with evidence_scope(governance_evidence, sequence_enforcement):
         diagnostics = _schema_diagnostics(pkg, EXTENSION_SCHEMA)
         if diagnostics:
             return sorted(set(diagnostics))
 
-        base_value = copy.deepcopy(pkg)
-        base_value["protocol_version"] = "v1.10.1"
-        diagnostics.extend(_schema_diagnostics(base_value, BASE_SCHEMA))
+        if CURRENT_VERSION in {"v1.10.1", "v1.10.2"}:
+            base_value = copy.deepcopy(pkg)
+            base_value["protocol_version"] = "v1.10.1"
+            diagnostics.extend(_schema_diagnostics(base_value, BASE_SCHEMA))
         if not diagnostics:
             diagnostics.extend(validate_semantics(pkg))
         return sorted(set(diagnostics))

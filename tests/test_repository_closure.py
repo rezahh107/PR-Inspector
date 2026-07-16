@@ -275,7 +275,7 @@ def test_active_version_declarations_and_paths_are_aligned():
     assert project_version_match is not None
     project_version = project_version_match.group(1)
 
-    assert current == "v1.10.2"
+    assert current == "v1.11.0"
     assert manifest["active_version"] == current
     assert manifest["status"] == "active"
     assert manifest["release_lock"] == f"release-locks/{current}.sha256"
@@ -293,8 +293,8 @@ def test_current_status_statement_is_explicit_and_truthful():
         encoding="utf-8"
     )
     required = (
-        "active_protocol: v1.10.2",
-        "implementation_state: v1.10.2_atomic_owner_delivery_pending_independent_review",
+        "active_protocol: v1.11.0",
+        "implementation_state: v1.11.0_atomic_owner_delivery_pending_independent_review",
         "canonical_output_boundary: implemented",
         "publication_commit_point: implemented",
         "verified_byte_snapshot_accessors: implemented",
