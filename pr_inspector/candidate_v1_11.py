@@ -127,6 +127,26 @@ class VerifiedReviewSurfaceInventory:
     complete: bool
 
 
+
+
+@dataclass(frozen=True)
+class VerifiedLivePrHead:
+    _token: object
+    repository: str
+    repository_id: int
+    pull_request: int
+    head_sha: str
+    receipt_id: str
+
+
+@dataclass(frozen=True)
+class CheckAnnotationCollection:
+    items: tuple[Mapping[str, Any], ...]
+    pagination_complete: bool
+    pages_fetched: int
+    check_runs_fetched: int
+    annotation_pages_fetched: int
+
 @dataclass(frozen=True)
 class MinimalRefreshResult:
     _token: object
@@ -292,6 +312,8 @@ def verify_target_identity_response(response: GitHubApiResponse, *, expected_rep
 
 
 def verify_review_surface_inventory_responses(responses: Mapping[str, GitHubApiResponse], *, target_repository: str, target_identity: VerifiedTargetIdentity, pull_request: int, reviewed_head_sha: str) -> VerifiedReviewSurfaceInventory:
+    if not isinstance(responses, Mapping):
+        raise ValueError("review surface responses must be a mapping")
     if not isinstance(target_identity, VerifiedTargetIdentity) or target_identity._token is not _TARGET_TOKEN or target_identity.repository != target_repository:
         raise ValueError("sealed target identity is required for review surface inventory")
     required = {"review_comments", "review_threads", "reviews", "issue_comments", "check_runs", "check_summaries"}
@@ -318,7 +340,10 @@ def verify_review_surface_inventory_responses(responses: Mapping[str, GitHubApiR
             raise ValueError("review surface endpoint is inaccessible")
         payload = github_response_payload(response)
         if key == "check_runs":
-            payload_items = _collect_check_annotations(responses, base=base, target_repository=target_repository, reviewed_head_sha=reviewed_head_sha)
+            collection = _collect_check_annotations(responses, base=base, target_repository=target_repository, reviewed_head_sha=reviewed_head_sha)
+            if not collection.pagination_complete:
+                raise ValueError("review surface pagination is incomplete")
+            payload_items = list(collection.items)
         elif key == "check_summaries":
             payload_items = payload.get("statuses", []) if isinstance(payload, Mapping) else None
         else:
@@ -358,80 +383,96 @@ def _next_page(url: str) -> str | None:
     return f"{url}{separator}page=2"
 
 
-def _collect_check_annotations(responses: Mapping[str, GitHubApiResponse], *, base: str, target_repository: str, reviewed_head_sha: str) -> list[Mapping[str, Any]]:
+def _validate_annotation_metadata(ann: Mapping[str, Any]) -> None:
+    path = ann.get("path")
+    if path is not None and (not isinstance(path, str) or not path):
+        raise ValueError("check annotation path is malformed")
+    start_line = ann.get("start_line")
+    end_line = ann.get("end_line")
+    for name, value in (("start_line", start_line), ("end_line", end_line)):
+        if value is not None and (not isinstance(value, int) or isinstance(value, bool)):
+            raise ValueError(f"check annotation {name} is malformed")
+    if start_line is not None and end_line is not None and end_line < start_line:
+        raise ValueError("check annotation line range is malformed")
+    level = ann.get("annotation_level")
+    if not isinstance(level, str) or not level:
+        raise ValueError("check annotation level is malformed")
+
+
+def _collect_check_annotations(responses: Mapping[str, GitHubApiResponse], *, base: str, target_repository: str, reviewed_head_sha: str) -> CheckAnnotationCollection:
     annotations: list[Mapping[str, Any]] = []
     seen: set[tuple[Any, ...]] = set()
+    pages_fetched = 0
+    annotation_pages_fetched = 0
+    check_runs_fetched = 0
     page = f"{base}/commits/{reviewed_head_sha}/check-runs?per_page=100"
-    visited = 0
+    visited_pages: set[str] = set()
     while page:
-        visited += 1
-        if visited > 100:
+        if page in visited_pages or len(visited_pages) >= 100:
             raise ValueError("review surface pagination is incomplete")
-        response = responses.get(page) or responses.get("check_runs") if page.endswith("?per_page=100") else responses.get(page)
+        visited_pages.add(page)
+        response = (responses.get("check_runs") if page.endswith("?per_page=100") else responses.get(page))
         if response is None:
             raise ValueError("review surface pagination is incomplete")
         _require_operational_response(response, "check run listing response")
         if response.request_url != page or response.response_url != page or response.status_code != 200:
             raise ValueError("check run listing response is not authoritative")
+        pages_fetched += 1
         payload = github_response_payload(response)
         if not isinstance(payload, Mapping) or payload.get("head_sha") not in {None, reviewed_head_sha}:
             raise ValueError("check run listing payload is malformed")
         runs = payload.get("check_runs")
         if not isinstance(runs, list):
             raise ValueError("check run listing payload is malformed")
+        check_runs_fetched += len(runs)
         for run in runs:
             if not isinstance(run, Mapping):
                 raise ValueError("check run item is malformed")
             check_run_id = run.get("id")
-            if not isinstance(check_run_id, int):
+            if not isinstance(check_run_id, int) or isinstance(check_run_id, bool):
                 raise ValueError("check run identity is missing")
             if run.get("head_sha") != reviewed_head_sha:
                 raise ValueError("check run head does not match reviewed head")
             app = run.get("app") if isinstance(run.get("app"), Mapping) else {}
-            ann_url = f"{base}/check-runs/{check_run_id}/annotations?per_page=100"
-            ann_page = ann_url
-            ann_visited = 0
+            ann_page = f"{base}/check-runs/{check_run_id}/annotations?per_page=100"
+            ann_visited: set[str] = set()
             while ann_page:
-                ann_visited += 1
-                if ann_visited > 100:
+                if ann_page in ann_visited or len(ann_visited) >= 100:
                     raise ValueError("review surface pagination is incomplete")
+                ann_visited.add(ann_page)
                 ann_response = responses.get(ann_page)
                 if ann_response is None:
                     raise ValueError("review surface pagination is incomplete")
                 _require_operational_response(ann_response, "check annotation response")
                 if ann_response.request_url != ann_page or ann_response.response_url != ann_page or ann_response.status_code != 200:
                     raise ValueError("check annotation response is not authoritative")
+                annotation_pages_fetched += 1
                 ann_payload = github_response_payload(ann_response)
                 if not isinstance(ann_payload, list):
                     raise ValueError("check annotation payload is malformed")
                 for ann in ann_payload:
                     if not isinstance(ann, Mapping):
                         raise ValueError("check annotation item is malformed")
+                    _validate_annotation_metadata(ann)
+                    content = {"message": ann.get("message"), "raw_details": ann.get("raw_details")}
                     source = MappingProxyType({
                         "id": ann.get("id") or f"{check_run_id}:{ann.get('path')}:{ann.get('start_line')}:{ann.get('end_line')}:{ann.get('annotation_level')}:{ann.get('message')}",
-                        "check_run_id": check_run_id,
-                        "check_name": run.get("name") or "",
-                        "check_app_id": app.get("id") if isinstance(app.get("id"), int) else None,
-                        "path": ann.get("path"),
-                        "start_line": ann.get("start_line"),
-                        "end_line": ann.get("end_line"),
-                        "annotation_level": ann.get("annotation_level"),
-                        "message": ann.get("message"),
-                        "raw_details": ann.get("raw_details"),
-                        "html_url": run.get("html_url") or run.get("details_url"),
-                        "app": app or {"slug": run.get("name"), "type": "App"},
-                        "reviewed_head_sha": reviewed_head_sha,
-                        "receipt_id": ann_response.receipt_id,
+                        "check_run_id": check_run_id, "check_name": run.get("name") or "",
+                        "check_app_id": app.get("id") if isinstance(app.get("id"), int) and not isinstance(app.get("id"), bool) else None,
+                        "path": ann.get("path"), "start_line": ann.get("start_line"), "end_line": ann.get("end_line"),
+                        "annotation_level": ann.get("annotation_level"), "message": ann.get("message"), "raw_details": ann.get("raw_details"),
+                        "html_url": run.get("html_url") or run.get("details_url"), "target_url": ann_page,
+                        "app": app or {"slug": run.get("name"), "type": "App"}, "reviewed_head_sha": reviewed_head_sha,
+                        "receipt_id": ann_response.receipt_id, "annotation_response_receipt_id": ann_response.receipt_id,
+                        "annotation_endpoint_url": ann_page, "content_sha256": bytes_sha256(json.dumps(content, sort_keys=True, separators=(",", ":")).encode()),
                     })
                     key = (check_run_id, source["path"], source["start_line"], source["end_line"], source["annotation_level"], source["message"], source["raw_details"])
                     if key not in seen:
-                        seen.add(key); annotations.append(source)
+                        seen.add(key)
+                        annotations.append(source)
                 ann_page = _next_page(ann_page) if len(ann_payload) >= 100 else None
         page = _next_page(page) if len(runs) >= 100 else None
-    class _BypassLenList(list):
-        def __len__(self) -> int:
-            return 0
-    return _BypassLenList(annotations)
+    return CheckAnnotationCollection(tuple(annotations), True, pages_fetched, check_runs_fetched, annotation_pages_fetched)
 
 
 def _require_mapping(value: Any, path: str) -> Mapping[str, Any]:
@@ -471,13 +512,73 @@ def _governance_status_from_reasons(reason_codes: Sequence[str]) -> str:
     return "GAP_FOUND" if "GAP_FOUND" in statuses else "NOT_VERIFIABLE" if "NOT_VERIFIABLE" in statuses else "VERIFIED"
 
 
+def verify_live_pr_head_response(response: GitHubApiResponse, *, target_repository: str, target_repository_id: int, pull_request: int) -> VerifiedLivePrHead:
+    if not isinstance(target_repository, str) or not target_repository or not isinstance(target_repository_id, int) or target_repository_id <= 0 or not isinstance(pull_request, int) or pull_request <= 0:
+        raise ValueError("verified target is required for live PR head")
+    _require_operational_response(response, "live PR head response")
+    expected = f"https://api.github.com/repos/{target_repository}/pulls/{pull_request}"
+    if response.request_url != expected or response.response_url != expected or response.status_code != 200:
+        raise ValueError("live PR head response is not authoritative")
+    payload = github_response_payload(response)
+    if not isinstance(payload, Mapping):
+        raise ValueError("live PR payload is malformed")
+    if payload.get("number") != pull_request:
+        raise ValueError("live PR number mismatch")
+    base = payload.get("base")
+    repo_payload = base.get("repo") if isinstance(base, Mapping) and isinstance(base.get("repo"), Mapping) else payload.get("repository")
+    if isinstance(repo_payload, Mapping):
+        if repo_payload.get("full_name") not in {None, target_repository} or repo_payload.get("id") not in {None, target_repository_id}:
+            raise ValueError("live PR repository identity mismatch")
+    head = payload.get("head")
+    if not isinstance(head, Mapping):
+        raise ValueError("live PR head is malformed")
+    head_sha = head.get("sha")
+    if not isinstance(head_sha, str) or not SHA40_RE.match(head_sha):
+        raise ValueError("live PR head SHA is malformed")
+    head_repo = head.get("repo")
+    if isinstance(head_repo, Mapping) and head_repo.get("full_name") == target_repository and head_repo.get("id") not in {None, target_repository_id}:
+        raise ValueError("live PR head repository identity mismatch")
+    return VerifiedLivePrHead(_TARGET_TOKEN, target_repository, target_repository_id, pull_request, head_sha, response.receipt_id)
+
+
+def _target_from_verified_minimal(evidence: object) -> Mapping[str, Any]:
+    if not is_verified_minimal_review_bundle(evidence):
+        raise ValueError("verified_minimal_review_required")
+    ref = evidence.reference
+    repo, repo_id, pr = ref.get("target_repository"), ref.get("target_repository_id"), ref.get("pull_request")
+    if not isinstance(repo, str) or not repo or not isinstance(repo_id, int) or repo_id <= 0 or not isinstance(pr, int) or pr <= 0:
+        raise ValueError("verified minimal target identity is malformed")
+    return MappingProxyType({"repository": repo, "repository_id": repo_id, "pull_request": pr, "url": f"https://github.com/{repo}/pull/{pr}"})
+
+
+def _assert_caller_target_consistent(caller: object, sealed: Mapping[str, Any]) -> None:
+    if caller is None:
+        return
+    if not isinstance(caller, Mapping):
+        raise ValueError("current_target is malformed")
+    allowed = {"repository", "repository_id", "pull_request", "url"}
+    if any(k in caller and k in allowed and caller.get(k) != sealed.get(k) for k in allowed):
+        raise ValueError("current_target does not match verified minimal bundle")
+
+
 def orchestrate_strict_after_minimal(context: Mapping[str, Any], refresh_minimal_review: Any | None = None) -> MinimalRefreshResult:
-    target = context.get("current_target")
+    if not isinstance(context, Mapping):
+        return MinimalRefreshResult(_REFRESH_TOKEN, "refresh_failed", MappingProxyType({}), "", None, "context_malformed")
     evidence = context.get("verified_minimal_review")
-    live_head = context.get("live_head_sha")
-    if not isinstance(target, Mapping) or not isinstance(live_head, str) or not SHA40_RE.match(live_head):
-        return MinimalRefreshResult(_REFRESH_TOKEN, "refresh_failed", MappingProxyType({}), live_head or "", None, "verified_target_required")
-    sealed_target = MappingProxyType({"repository": target.get("repository"), "repository_id": target.get("repository_id"), "pull_request": target.get("pull_request"), "url": target.get("url")})
+    try:
+        sealed_target = _target_from_verified_minimal(evidence)
+        _assert_caller_target_consistent(context.get("current_target"), sealed_target)
+        live = context.get("verified_live_pr_head")
+        if not isinstance(live, VerifiedLivePrHead) or live._token is not _TARGET_TOKEN:
+            response = context.get("live_pr_response")
+            if response is None:
+                return MinimalRefreshResult(_REFRESH_TOKEN, "refresh_failed", sealed_target, "", None, "sealed_live_pr_head_required")
+            live = verify_live_pr_head_response(response, target_repository=sealed_target["repository"], target_repository_id=sealed_target["repository_id"], pull_request=sealed_target["pull_request"])
+        if live.repository != sealed_target["repository"] or live.repository_id != sealed_target["repository_id"] or live.pull_request != sealed_target["pull_request"]:
+            return MinimalRefreshResult(_REFRESH_TOKEN, "refresh_failed", sealed_target, "", None, "live_head_target_mismatch")
+        live_head = live.head_sha
+    except ValueError as exc:
+        return MinimalRefreshResult(_REFRESH_TOKEN, "refresh_failed", MappingProxyType({}), "", None, str(exc))
     ref = verify_base_review_reference(evidence, live_head, target_repository=sealed_target.get("repository"), target_repository_id=sealed_target.get("repository_id"), pull_request=sealed_target.get("pull_request"))
     if ref.get("status") == "VERIFIED":
         return MinimalRefreshResult(_REFRESH_TOKEN, "same_head_reuse", sealed_target, live_head, evidence)
@@ -495,6 +596,8 @@ def orchestrate_strict_after_minimal(context: Mapping[str, Any], refresh_minimal
 
 
 def parse_intake(text: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
+    if context is not None and not isinstance(context, Mapping):
+        return {"inspection_profile": MINIMAL, "target": None, "reuse_current_minimal": False, "missing": ["valid_context"], "error": "context_malformed"}
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     profile = None
     if lines and lines[0] == "حداقلی": profile = MINIMAL; lines = lines[1:]
