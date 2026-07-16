@@ -87,19 +87,6 @@ def validate_semantics(pkg: dict[str, Any]) -> list[Diagnostic]:
         reason_codes = projection["technical_status_reason_codes"]
         if decision["technical_status"] != expected:
             diagnostics.append(_diag("PRI-STATUS-001", "/decision/technical_status", f"expected {expected}; canonical reason codes: {', '.join(reason_codes) or 'none'}"))
-        for field in (
-            "technical_decision",
-            "governance_decision",
-            "overall_recommendation",
-        ):
-            if normalized.get(field) != projection[field]:
-                diagnostics.append(
-                    _diag(
-                        "PRI-PROJECTION-005",
-                        f"/{field}",
-                        f"{field} disagrees with the authoritative v1.11 projection",
-                    )
-                )
 
     try:
         started = datetime.fromisoformat(identity["review_started"].replace("Z", "+00:00"))
