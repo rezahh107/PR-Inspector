@@ -267,7 +267,7 @@ def validate_projection_invariants(projection: dict[str, Any]) -> None:
     inspection_profile = projection.get("inspection_profile")
     if inspection_profile not in {_MINIMAL, _STRICT}:
         raise ProjectionError("canonical inspection profile is invalid")
-    expected_candidate_status = _CANDIDATE_STATUS_BY_TENICAL_STATUS.get(
+    expected_candidate_status = _CANDIDATE_STATUS_BY_TECHNICAL_STATUS.get(
         projection.get("technical_status")
     )
     technical_decision = projection.get("technical_decision")
