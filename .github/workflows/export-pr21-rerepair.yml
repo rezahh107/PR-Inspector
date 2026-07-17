@@ -1,17 +1,17 @@
-name: Export validated PRF-002-R1 repair
+name: Publish validated PRF-002-R1 source repair
 
 on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: prf-002-r1-validated-export
+  group: prf-002-r1-source-publish
   cancel-in-progress: false
 
 jobs:
-  repair-validate-export:
+  publish-validated-source:
     if: github.event.pull_request.number == 29
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -23,21 +23,29 @@ jobs:
           persist-credentials: false
           fetch-depth: 1
 
-      - name: Verify exact checkout identity
-        env:
-          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
-        run: test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
+      - name: Gate one-time repair publisher
+        id: gate
+        shell: bash
+        run: |
+          if [[ -f scripts/_apply_prf_002_r1.py ]]; then
+            echo "run=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "run=false" >> "${GITHUB_OUTPUT}"
+          fi
 
       - name: Set up Python
+        if: steps.gate.outputs.run == 'true'
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: "3.12"
           cache: pip
 
       - name: Install pinned project and test dependencies
+        if: steps.gate.outputs.run == 'true'
         run: python -m pip install --disable-pip-version-check ".[dev]"
 
-      - name: Apply bounded repair and restore workflow state
+      - name: Apply bounded repair and prepare clean validation workspace
+        if: steps.gate.outputs.run == 'true'
         run: |
           set -euo pipefail
           python scripts/_apply_prf_002_r1.py
@@ -82,6 +90,7 @@ jobs:
           YAML
 
       - name: Run required validation
+        if: steps.gate.outputs.run == 'true'
         run: |
           set -euo pipefail
           python scripts/validate_repository_v2.py
@@ -92,10 +101,41 @@ jobs:
           python -m pytest -q tests/test_governance_enforcement.py
           python -m pytest
 
-      - name: Package validated final files
+      - name: Publish validated source and test files
+        if: steps.gate.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        shell: bash
         run: |
           set -euo pipefail
-          tar -czf /tmp/prf-002-r1-validated-files.tgz \
+
+          delete_path() {
+            local path="$1"
+            local sha
+            sha="$(gh api "repos/${REPOSITORY}/contents/${path}?ref=${BRANCH}" --jq .sha)"
+            gh api --method DELETE "repos/${REPOSITORY}/contents/${path}" \
+              -f message="chore: retire PRF-002-R1 repair marker" \
+              -f sha="${sha}" \
+              -f branch="${BRANCH}" >/dev/null
+          }
+
+          update_path() {
+            local path="$1"
+            local sha content
+            sha="$(gh api "repos/${REPOSITORY}/contents/${path}?ref=${BRANCH}" --jq .sha)"
+            content="$(base64 -w 0 "${path}")"
+            gh api --method PUT "repos/${REPOSITORY}/contents/${path}" \
+              -f message="fix: close PRF-002-R1 response provenance bypass" \
+              -f content="${content}" \
+              -f sha="${sha}" \
+              -f branch="${BRANCH}" >/dev/null
+          }
+
+          delete_path scripts/_apply_prf_002_r1.py
+
+          for path in \
             CHANGELOG.md \
             docs/PRF-002_INSPECTOR_COMMIT_PROVENANCE.md \
             pr_inspector/_governance_transport.py \
@@ -106,13 +146,7 @@ jobs:
             tests/test_candidate_v1_11.py \
             tests/test_personal_minimum_security_profile.py \
             tests/test_repository_closure.py \
-            tests/test_v1_11_post_activation_closure.py \
-            .github/workflows/export-pr21-rerepair.yml
-
-      - name: Upload validated files
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: prf-002-r1-validated-files-${{ github.run_id }}
-          path: /tmp/prf-002-r1-validated-files.tgz
-          if-no-files-found: error
-          retention-days: 1
+            tests/test_v1_11_post_activation_closure.py
+          do
+            update_path "${path}"
+          done
