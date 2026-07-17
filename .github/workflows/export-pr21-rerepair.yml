@@ -1,4 +1,4 @@
-name: Export PR29 repair workspace
+name: Export PR21 rerepair workspace
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   export:
-    if: github.event.pull_request.number == 29
+    if: github.event.pull_request.number == 21
     runs-on: ubuntu-latest
     steps:
       - name: Check out exact triggering head
@@ -24,12 +24,12 @@ jobs:
         run: test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
 
       - name: Create workspace archive
-        run: tar --exclude=.git -czf /tmp/pr29-repair-workspace.tgz .
+        run: tar --exclude=.git -czf /tmp/pr21-rerepair-workspace.tgz .
 
       - name: Upload workspace archive
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: pr29-repair-workspace-${{ github.run_id }}
-          path: /tmp/pr29-repair-workspace.tgz
+          name: pr21-rerepair-workspace-${{ github.run_id }}
+          path: /tmp/pr21-rerepair-workspace.tgz
           if-no-files-found: error
           retention-days: 1
