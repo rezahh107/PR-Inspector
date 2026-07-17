@@ -1,0 +1,20 @@
+{
+  "$id": "https://github.com/rezahh107/PR-Inspector/protocols/v1.11.0/schemas/ci-identity.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "claim_exact_head": {"type": "boolean"},
+    "exact_head_match": {"type": "boolean"},
+    "job_ids": {"items": {"minLength": 1, "type": "string"}, "type": "array", "uniqueItems": true},
+    "reviewed_head_sha": {"pattern": "^(UNKNOWN|[0-9a-f]{40})$", "type": "string"},
+    "schema_version": {"const": 1},
+    "synthetic_merge": {"type": "boolean"},
+    "tested_ref_type": {"enum": ["pull_request_head", "pull_request_merge", "push_or_dispatch", "unknown"]},
+    "tested_sha": {"pattern": "^[0-9a-f]{40}$", "type": "string"},
+    "tested_tree_sha": {"pattern": "^[0-9a-f]{40}$", "type": ["string", "null"]},
+    "workflow_run_id": {"minimum": 1, "type": ["integer", "null"]}
+  },
+  "required": ["schema_version", "tested_ref_type", "tested_sha", "tested_tree_sha", "reviewed_head_sha", "exact_head_match", "synthetic_merge", "claim_exact_head", "workflow_run_id", "job_ids"],
+  "title": "PR Inspector CI Object Identity Record v1.11.0",
+  "type": "object"
+}

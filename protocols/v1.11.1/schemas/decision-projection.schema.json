@@ -1,0 +1,26 @@
+{
+  "$id": "https://github.com/rezahh107/PR-Inspector/protocols/v1.11.1/schemas/decision-projection.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": 1},
+    "protocol_version": {"const": "v1.11.1"},
+    "inspection_profile": {"enum": ["minimal", "strict"]},
+    "technical_status": {"enum": ["GREEN_TECHNICALLY_READY", "YELLOW_CHANGES_OR_VERIFICATION_REQUIRED", "RED_DO_NOT_MERGE"]},
+    "technical_status_reason_codes": {"type": "array", "items": {"type": "string", "pattern": "^RSN-[A-Z0-9-]+$"}, "uniqueItems": true},
+    "approval_requirement": {"enum": ["NO_ADDITIONAL_TECHNICAL_APPROVAL", "PROJECT_OWNER_CONFIRMATION", "HUMAN_TECHNICAL_REVIEW_REQUIRED", "SECURITY_OR_DOMAIN_SPECIALIST_REQUIRED"]},
+    "technical_decision": {"type": "object", "additionalProperties": false, "required": ["status", "reason_codes"], "properties": {"status": {"enum": ["GREEN", "YELLOW", "RED"]}, "reason_codes": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}}},
+    "governance_decision": {"type": "object", "additionalProperties": false, "required": ["status", "reason_codes"], "properties": {"status": {"enum": ["NOT_REQUESTED", "VERIFIED", "GAP_FOUND", "NOT_VERIFIABLE"]}, "reason_codes": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}}},
+    "overall_recommendation": {"type": "object", "additionalProperties": false, "required": ["technical_ready", "merge_governance_verified"], "properties": {"technical_ready": {"type": "boolean"}, "merge_governance_verified": {"type": "boolean"}}},
+    "governance_follow_up": {"type": "object", "additionalProperties": false, "required": ["kind", "may_modify_code", "prompt_required"], "properties": {"kind": {"enum": ["none", "informational_gap", "access_limitation"]}, "may_modify_code": {"const": false}, "prompt_required": {"const": false}}},
+    "owner_readiness": {"type": "object"},
+    "next_action": {"type": "object"},
+    "review_identity": {"type": "object"},
+    "reason_details": {"type": "array"},
+    "required_actions": {"type": "array"},
+    "security_profile": {"type": "object"}
+  },
+  "required": ["schema_version", "protocol_version", "inspection_profile", "technical_decision", "governance_decision", "overall_recommendation", "governance_follow_up", "technical_status", "technical_status_reason_codes", "approval_requirement", "owner_readiness", "next_action", "security_profile", "review_identity", "reason_details", "required_actions"],
+  "title": "PR Inspector Canonical Decision Projection v1.11.1",
+  "type": "object"
+}
