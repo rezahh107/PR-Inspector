@@ -12,7 +12,7 @@ Every completed review validates one canonical package and computes one canonica
 
 Repository code validates artifacts, provenance, identities, lifecycle sequences, and prompt semantic completeness. Human or specialist reviewers supply judgment. PR Inspector records evidence but never approves or merges.
 
-Repository authority is determined from live `main`. A completed integration must consume `VerifiedReviewCompletion` and return owner-facing output through `official_owner_delivery`; manual concatenation and reconstructed Candidate output are unsupported.
+Repository authority is determined from live `main`. A post-package integration must consume `VerifiedReviewCompletion` and return owner-facing output through `official_owner_delivery`; manual concatenation and reconstructed Candidate output are unsupported. Profile-selection commands remain a separate verified artifact.
 
 ## Current v1.11.1 status
 
