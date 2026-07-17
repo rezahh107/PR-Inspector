@@ -166,6 +166,7 @@ jobs:
               encoding="utf-8",
           )
           PY
+          rm .github/workflows/complete-pr29-repair.yml
 
       - name: Validate completed repair
         run: |
@@ -176,12 +177,11 @@ jobs:
           python -m pytest -q tests/test_v1_11_1_output_authority.py
           python -m pytest -q
 
-      - name: Commit validated repair and remove temporary workflow
+      - name: Commit validated repair
         env:
           BRANCH: fix/v1-11-1-output-authority-consolidation
         run: |
           set -euo pipefail
-          rm .github/workflows/complete-pr29-repair.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
