@@ -1,3 +1,8 @@
+"""Compatibility-only v1.11 intake and evidence helpers.
+
+After a canonical review package exists, callers must use the official projection,
+artifact, verification, completion, and owner-delivery APIs.
+"""
 from __future__ import annotations
 
 import hashlib
@@ -8,95 +13,66 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Callable
 
-from jsonschema import Draft202012Validator
+from ._governance_transport import (
+    GitHubApiResponse,
+    VerifiedGitHubGovernanceSource,
+    github_response_payload,
+    is_verified_github_api_response,
+)
+from ._official_bundle import VerifiedReviewCompletion, is_verified_review_completion
+from .derived_outputs import (
+    PROFILE_COMMANDS_NAME,
+    PROFILE_COMMANDS_TEXT,
+    render_owner_profile_commands as _official_profile_commands,
+)
+from .governance import (
+    VerifiedGovernanceEvidence,
+    is_verified_governance_evidence,
+    is_verified_github_governance_source,
+)
+from .validation_v2 import validate_package as _official_validate_package
 
-from ._governance_transport import GitHubApiResponse, VerifiedGitHubGovernanceSource, github_response_payload, is_verified_github_api_response
-from .governance import VerifiedGovernanceEvidence, is_verified_governance_evidence, is_verified_github_governance_source
-from .review_provenance import VerifiedInspectorCommit, _VERIFIED_MARKER
-
+ROOT = Path(__file__).resolve().parents[1]
+PROTOCOL_VERSION = (ROOT / "CURRENT_VERSION").read_text(encoding="utf-8").strip()
 PR_URL_RE = re.compile(r"https://github\.com/([^/\s]+/[^/\s]+)/pull/(\d+)")
 SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
-SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
-MINIMAL = "minimal"
-STRICT = "strict"
-PROTOCOL_VERSION = "v1.11.0"
+MINIMAL, STRICT = "minimal", "strict"
 LOCKED_INSPECTOR_REPOSITORY = "rezahh107/PR-Inspector"
 LOCKED_INSPECTOR_REPOSITORY_ID = 1288323264
-OWNER_PROFILE_COMMANDS_ARTIFACT = "OWNER_PROFILE_COMMANDS.fa.txt"
-OWNER_RESULT_ARTIFACT = "OWNER_RESULT.fa.txt"
-OWNER_CARD_ARTIFACT = "OWNER_DECISION_CARD.fa.md"
-TECHNICAL_HANDOFF_ARTIFACT = "TECHNICAL_HANDOFF.en.md"
-PROFILE_COMMANDS_BYTES = (
-    "Ø¨Ø±Ø§ÛŒ Ø¨Ø±Ø±Ø³ÛŒ Ø­ÙØ§Ø¸Øªâ€ŒÙ‡Ø§ÛŒ MergeØŒ ØªØ£ÛŒÛŒØ¯Ù‡Ø§ÛŒ Ù…Ø³ØªÙ‚Ù„ Ùˆ Ú©Ù†ØªØ±Ù„â€ŒÙ‡Ø§ÛŒ Ø­Ø§Ú©Ù…ÛŒØªÛŒ Ø¨Ù†ÙˆÛŒØ³: Ø³Ø®Øª Ú¯ÛŒØ±Ø§Ù†Ù‡\n"
-    "Ø¨Ø±Ø§ÛŒ Ø¨Ø±Ø±Ø³ÛŒ Ø­Ø¯Ø§Ù‚Ù„ÛŒ Ø¨Ù†ÙˆÛŒØ³: Ø­Ø¯Ø§Ù‚Ù„ÛŒ Ùˆ Ø³Ù¾Ø³ Ø¢Ø¯Ø±Ø³ PR Ø±Ø§ Ø§Ø±Ø³Ø§Ù„ Ú©Ù†.\n"
-).encode("utf-8")
+OWNER_PROFILE_COMMANDS_ARTIFACT = PROFILE_COMMANDS_NAME
+PROFILE_COMMANDS_BYTES = PROFILE_COMMANDS_TEXT.encode("utf-8")
 GOVERNANCE_FRESHNESS = timedelta(minutes=15)
-OWNER_MESSAGE_REGISTRY = {
-    "technical_green": ("ğŸŸ¢ ÙˆØ¶Ø¹ÛŒØª: Ø§Ø² Ù†Ø¸Ø± ÙÙ†ÛŒ Ø¢Ù…Ø§Ø¯Ù‡", "Ø¢Ù…Ø§Ø¯Ú¯ÛŒ ÙÙ†ÛŒ ØªØ£ÛŒÛŒØ¯ Ø´Ø¯Ù‡Ø› Ø­ÙØ§Ø¸Øª Ø§Ø¯ØºØ§Ù… Ø¯Ø± GitHub Ø¬Ø¯Ø§Ú¯Ø§Ù†Ù‡ Ø¨Ø±Ø±Ø³ÛŒ Ø´ÙˆØ¯."),
-    "technical_yellow_repair": ("ğŸŸ¡ ÙˆØ¶Ø¹ÛŒØª: Ù†ÛŒØ§Ø²Ù…Ù†Ø¯ Ø§Ù‚Ø¯Ø§Ù…", "Ù¾Ø±Ø§Ù…Ù¾Øª Ø§Ù‚Ø¯Ø§Ù… ÙÙ†ÛŒ Ø¢Ù…Ø§Ø¯Ù‡ Ø§Ø³ØªØ› Ù¾Ø³ Ø§Ø² Ø§ØµÙ„Ø§Ø­ØŒ Ø¨Ø§Ø²Ø¨ÛŒÙ†ÛŒ ØªØ§Ø²Ù‡ Ù„Ø§Ø²Ù… Ø§Ø³Øª."),
-    "technical_red_repair": ("ğŸ”´ ÙˆØ¶Ø¹ÛŒØª: Ø¢Ù…Ø§Ø¯Ù‡ Ø§Ø¯ØºØ§Ù… Ù†ÛŒØ³Øª", "Ù¾Ø±Ø§Ù…Ù¾Øª Ø§ØµÙ„Ø§Ø­ ÙÙ†ÛŒ Ø¢Ù…Ø§Ø¯Ù‡ Ø§Ø³ØªØ› ØªØ§ Ø±ÙØ¹ Ù…ÙˆØ§Ø±Ø¯ Ø¨Ø­Ø±Ø§Ù†ÛŒ Ø§Ø¯ØºØ§Ù… Ù†Ú©Ù†ÛŒØ¯."),
-}
-
 TECHNICAL_REASON_CODES = {
-    "required_technical_check_failed", "critical_supported_finding", "high_reproduced_finding",
-    "blocking_medium_finding", "incomplete_technical_scope", "unresolved_valid_bot_finding",
+    "required_technical_check_failed", "critical_supported_finding",
+    "high_reproduced_finding", "blocking_medium_finding",
+    "incomplete_technical_scope", "unresolved_valid_bot_finding",
     "stale_technical_review_identity", "bot_collection_incomplete",
 }
-TECHNICAL_STATUS_EFFECT = {
-    "required_technical_check_failed": "RED", "critical_supported_finding": "RED", "high_reproduced_finding": "RED",
-    "blocking_medium_finding": "YELLOW", "incomplete_technical_scope": "YELLOW", "unresolved_valid_bot_finding": "YELLOW",
-    "stale_technical_review_identity": "YELLOW", "bot_collection_incomplete": "YELLOW",
-}
 GOVERNANCE_REASON_CODES = {
-    "repository_settings_not_verified", "branch_protection_unavailable", "bypass_actors_unknown",
-    "sequence_enforcement_missing", "required_review_enforcement_absent", "merge_authorization_unverified",
-    "required_checks_not_verified", "rulesets_unavailable", "merge_queue_unavailable",
+    "repository_settings_not_verified", "branch_protection_unavailable",
+    "bypass_actors_unknown", "sequence_enforcement_missing",
+    "required_review_enforcement_absent", "merge_authorization_unverified",
+    "required_checks_not_verified", "rulesets_unavailable",
+    "merge_queue_unavailable",
 }
 GOVERNANCE_STATUS_EFFECT = {
-    "repository_settings_not_verified": "NOT_VERIFIABLE", "merge_authorization_unverified": "GAP_FOUND",
-    "branch_protection_unavailable": "GAP_FOUND", "bypass_actors_unknown": "GAP_FOUND", "sequence_enforcement_missing": "GAP_FOUND",
-    "required_review_enforcement_absent": "GAP_FOUND", "required_checks_not_verified": "GAP_FOUND", "rulesets_unavailable": "GAP_FOUND",
-    "merge_queue_unavailable": "GAP_FOUND",
+    code: ("NOT_VERIFIABLE" if code == "repository_settings_not_verified" else "GAP_FOUND")
+    for code in GOVERNANCE_REASON_CODES
 }
-REQUIRED_GOVERNANCE_FACTS = {
-    "branch_protection_verified", "rulesets_verified", "required_status_checks_verified", "required_check_app_identities_verified",
-    "approvals_verified", "pr_author_reviewer_independent", "bypass_actors_verified", "merge_queue_verified", "rereview_sequence_verified",
-}
-GOVERNANCE_GAP_FIELDS = {
-    "branch_protection_verified": "branch_protection_unavailable", "rulesets_verified": "rulesets_unavailable",
-    "required_status_checks_verified": "required_checks_not_verified", "required_check_app_identities_verified": "required_checks_not_verified",
-    "approvals_verified": "required_review_enforcement_absent", "pr_author_reviewer_independent": "required_review_enforcement_absent",
-    "bypass_actors_verified": "bypass_actors_unknown", "merge_queue_verified": "merge_queue_unavailable", "rereview_sequence_verified": "sequence_enforcement_missing",
-}
-
-CANDIDATE_REASON_TO_CANONICAL = {
-    "stale_technical_review_identity": "RSN-REVIEW-NOT-CURRENT",
-    "required_technical_check_failed": "RSN-REQUIRED-CHECK-FAILED",
-    "critical_supported_finding": "RSN-CRITICAL-SUPPORTED-FINDING",
-    "high_reproduced_finding": "RSN-HIGH-REPRODUCED-FINDING",
-    "blocking_medium_finding": "RSN-BLOCKING-MEDIUM-SUPPORTED",
-    "incomplete_technical_scope": "RSN-COVERAGE-INCOMPLETE",
-    "bot_collection_incomplete": "RSN-REQUIRED-CHECK-UNRESOLVED",
-    "unresolved_valid_bot_finding": "RSN-HIGH-CODE-SUPPORTED-FINDING",
-}
-REPAIR_REASONS = {"required_technical_check_failed", "critical_supported_finding", "high_reproduced_finding", "blocking_medium_finding", "unresolved_valid_bot_finding"}
-VERIFY_REASONS = {"incomplete_technical_scope", "bot_collection_incomplete"}
-RERUN_REASONS = {"stale_technical_review_identity"}
 TRIAGE_TO_RECONCILIATION = {
-    "accepted": "accepted", "resolved": "resolved", "stale": "stale", "false_positive": "false_positive", "duplicate": "duplicate",
-    "insufficient_evidence": "insufficient_evidence", "deferred": "deferred", "out_of_scope": "out_of_scope", "rejected": "false_positive",
+    "accepted": "accepted", "resolved": "resolved", "stale": "stale",
+    "false_positive": "false_positive", "duplicate": "duplicate",
+    "insufficient_evidence": "insufficient_evidence", "deferred": "deferred",
+    "out_of_scope": "out_of_scope", "rejected": "false_positive",
 }
-BLOCKING_FINDING_SEVERITIES = {"CRITICAL", "HIGH"}
-MEDIUM_FINDING_SEVERITY = "MEDIUM"
-ROOT = Path(__file__).resolve().parents[1]
-_CAPABILITY_TOKEN = object()
-_REVIEW_TOKEN = object()
-_COMMIT_TOKEN = object()
-_TARGET_TOKEN = object()
-_SURFACE_TOKEN = object()
-_REFRESH_TOKEN = object()
+_CAPABILITY_TOKEN, _COMMIT_TOKEN, _TARGET_TOKEN = object(), object(), object()
+_SURFACE_TOKEN, _REFRESH_TOKEN, _REFERENCE_TOKEN = object(), object(), object()
+
+
+class CandidateOutputMigrationError(RuntimeError):
+    """A removed Candidate output authority was invoked."""
 
 
 @dataclass(frozen=True)
@@ -127,8 +103,6 @@ class VerifiedReviewSurfaceInventory:
     complete: bool
 
 
-
-
 @dataclass(frozen=True)
 class VerifiedLivePrHead:
     _token: object
@@ -147,15 +121,6 @@ class CheckAnnotationCollection:
     check_runs_fetched: int
     annotation_pages_fetched: int
 
-@dataclass(frozen=True)
-class MinimalRefreshResult:
-    _token: object
-    state: str
-    target: Mapping[str, Any]
-    live_head_sha: str
-    bundle: VerifiedCandidateReviewBundle | None
-    reason: str | None = None
-
 
 @dataclass(frozen=True)
 class CandidateGovernanceEvidence:
@@ -166,29 +131,21 @@ class CandidateGovernanceEvidence:
 
 
 @dataclass(frozen=True)
-class VerifiedGovernanceCapability:
+class VerifiedMinimalReviewReference:
     _token: object
-    target_repository: str
+    completion: VerifiedReviewCompletion
     target_repository_id: int
-    pull_request: int
-    reviewed_head_sha: str
-    inspector_repository: str
-    inspector_repository_id: int
-    verified_at: str
-    facts: Mapping[str, bool]
-    required_check_app_ids: Mapping[str, int]
-
-
-@dataclass(frozen=True)
-class VerifiedCandidateReviewBundle:
-    _token: object
-    reference: Mapping[str, Any]
-    artifact_bytes: Mapping[str, bytes]
-    package_file_sha256: str
     inspector_commit: CandidateVerifiedInspectorCommit
 
 
-VerifiedMinimalReviewBundle = VerifiedCandidateReviewBundle
+@dataclass(frozen=True)
+class MinimalRefreshResult:
+    _token: object
+    state: str
+    target: Mapping[str, Any]
+    live_head_sha: str
+    bundle: VerifiedMinimalReviewReference | None
+    reason: str | None = None
 
 
 def canonical_sha256(value: Any) -> str:
@@ -199,803 +156,256 @@ def bytes_sha256(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
-def _immutable_mapping(value: Mapping[str, Any]) -> Mapping[str, Any]:
-    return MappingProxyType(dict(value))
-
-
-def _json_object(name: str, raw: bytes) -> dict[str, Any]:
-    if raw.startswith(b"\xef\xbb\xbf"):
-        raise ValueError(f"{name}: UTF-8 BOM is forbidden")
-    if b"\r\n" in raw:
-        raise ValueError(f"{name}: CRLF is forbidden")
-    value = json.loads(raw.decode("utf-8"))
-    if not isinstance(value, dict):
-        raise ValueError(f"{name}: expected JSON object")
-    return value
-
-
-def is_verified_governance_capability(value: object) -> bool:
-    return isinstance(value, VerifiedGovernanceCapability) and value._token is _CAPABILITY_TOKEN
-
-
-def is_verified_candidate_review_bundle(value: object) -> bool:
-    return isinstance(value, VerifiedCandidateReviewBundle) and value._token is _REVIEW_TOKEN
-
-
-def is_verified_minimal_review_bundle(value: object) -> bool:
-    return is_verified_candidate_review_bundle(value) and value.reference.get("inspection_profile") == MINIMAL
-
-
-def verify_candidate_inspector_commit_payload(repository_payload: Mapping[str, Any], commit_payload: Mapping[str, Any], expected_commit_sha: str) -> CandidateVerifiedInspectorCommit:
-    raise ValueError("sealed GitHub API response receipts are required; caller-authored mappings cannot mint candidate inspector provenance")
-
-
-def _require_operational_response(response: GitHubApiResponse, label: str) -> None:
-    if not is_verified_github_api_response(response):
-        raise ValueError(f"{label} is not a sealed GitHub API response receipt")
-    if getattr(response, "transport_origin", None) != "github_https":
-        raise ValueError(f"{label} was not produced by the operational GitHub HTTPS adapter")
-    _fresh_response(response)
-
-
-def verify_candidate_inspector_commit_responses(repository_response: GitHubApiResponse, commit_response: GitHubApiResponse, *, expected_commit_sha: str) -> CandidateVerifiedInspectorCommit:
-    _require_operational_response(repository_response, "inspector repository response")
-    _require_operational_response(commit_response, "inspector commit response")
-    repo_url = f"https://api.github.com/repos/{LOCKED_INSPECTOR_REPOSITORY}"
-    commit_url = f"{repo_url}/commits/{expected_commit_sha}"
-    if repository_response.request_url != repo_url or repository_response.response_url != repo_url or repository_response.status_code != 200:
-        raise ValueError("inspector repository response is not authoritative")
-    if commit_response.request_url != commit_url or commit_response.response_url != commit_url or commit_response.status_code != 200:
-        raise ValueError("inspector commit response is not authoritative")
-    repo_payload = github_response_payload(repository_response)
-    commit_payload = github_response_payload(commit_response)
-    if not isinstance(repo_payload, Mapping) or repo_payload.get("full_name") != LOCKED_INSPECTOR_REPOSITORY or repo_payload.get("id") != LOCKED_INSPECTOR_REPOSITORY_ID:
-        raise ValueError("inspector repository identity mismatch")
-    if repo_payload.get("url") != repo_url or repo_payload.get("html_url") != f"https://github.com/{LOCKED_INSPECTOR_REPOSITORY}":
-        raise ValueError("inspector repository canonical URL mismatch")
-    if not isinstance(commit_payload, Mapping) or commit_payload.get("sha") != expected_commit_sha:
-        raise ValueError("inspector commit SHA mismatch")
-    if commit_payload.get("url") != commit_url or commit_payload.get("html_url") != f"https://github.com/{LOCKED_INSPECTOR_REPOSITORY}/commit/{expected_commit_sha}":
-        raise ValueError("inspector commit canonical URL mismatch")
-    return CandidateVerifiedInspectorCommit(_COMMIT_TOKEN, LOCKED_INSPECTOR_REPOSITORY, LOCKED_INSPECTOR_REPOSITORY_ID, expected_commit_sha, repository_response.receipt_id, commit_response.receipt_id)
-
-
-def _verified_commit(value: object) -> CandidateVerifiedInspectorCommit:
-    if not isinstance(value, CandidateVerifiedInspectorCommit) or value._token is not _COMMIT_TOKEN:
-        raise ValueError("candidate inspector commit receipt capability is required")
-    if value.repository != LOCKED_INSPECTOR_REPOSITORY or value.repository_id != LOCKED_INSPECTOR_REPOSITORY_ID:
-        raise ValueError("verified inspector commit repository identity mismatch")
-    if not value.repository_receipt_id or not value.commit_receipt_id:
-        raise ValueError("inspector commit receipt identity is missing")
-    return value
-
-
-def verify_governance_payload_bundle(payload: Mapping[str, Any], *, target_repository: str, target_repository_id: int, pull_request: int, reviewed_head_sha: str, now: datetime) -> VerifiedGovernanceCapability:
-    raise ValueError("sealed active GitHub governance evidence is required; caller-authored payloads cannot mint candidate governance capability")
-
-
-def bind_candidate_governance_evidence(evidence: VerifiedGovernanceEvidence, governance_source: VerifiedGitHubGovernanceSource, target_identity: VerifiedTargetIdentity) -> CandidateGovernanceEvidence:
-    if not is_verified_governance_evidence(evidence):
-        raise ValueError("sealed active governance evidence is required")
-    if not is_verified_github_governance_source(governance_source):
-        raise ValueError("sealed governance source with repository identity is required")
-    if not isinstance(target_identity, VerifiedTargetIdentity) or target_identity._token is not _TARGET_TOKEN:
-        raise ValueError("sealed target identity is required")
-    if evidence.repository != target_identity.repository or governance_source.repository != target_identity.repository:
-        raise ValueError("governance evidence repository mismatch")
-    if governance_source.repository_id != target_identity.repository_id:
-        raise ValueError("governance source repository id mismatch")
-    return CandidateGovernanceEvidence(_CAPABILITY_TOKEN, evidence, governance_source, target_identity)
-
-
-def _fresh_response(response: GitHubApiResponse) -> None:
+def _fresh(response: GitHubApiResponse) -> None:
     observed = datetime.fromisoformat(response.fetched_at.replace("Z", "+00:00"))
     now = datetime.now(timezone.utc)
     if observed > now + timedelta(seconds=30) or now - observed > GOVERNANCE_FRESHNESS:
         raise ValueError("GitHub response receipt is not fresh")
 
 
+def _operational(response: GitHubApiResponse, label: str) -> None:
+    if not is_verified_github_api_response(response):
+        raise ValueError(f"{label} is not a sealed GitHub API response receipt")
+    if getattr(response, "transport_origin", None) != "github_https":
+        raise ValueError(f"{label} was not produced by the operational GitHub HTTPS adapter")
+    _fresh(response)
+
+
+def verify_candidate_inspector_commit_payload(*args: Any, **kwargs: Any) -> None:
+    raise ValueError("sealed GitHub API response receipts are required; caller mappings cannot mint inspector provenance")
+
+
+def verify_candidate_inspector_commit_responses(
+    repository_response: GitHubApiResponse,
+    commit_response: GitHubApiResponse,
+    *, expected_commit_sha: str,
+) -> CandidateVerifiedInspectorCommit:
+    _operational(repository_response, "inspector repository response")
+    _operational(commit_response, "inspector commit response")
+    repo_url = f"https://api.github.com/repos/{LOCKED_INSPECTOR_REPOSITORY}"
+    commit_url = f"{repo_url}/commits/{expected_commit_sha}"
+    if (repository_response.request_url, repository_response.response_url, repository_response.status_code) != (repo_url, repo_url, 200):
+        raise ValueError("inspector repository response is not authoritative")
+    if (commit_response.request_url, commit_response.response_url, commit_response.status_code) != (commit_url, commit_url, 200):
+        raise ValueError("inspector commit response is not authoritative")
+    repo, commit = github_response_payload(repository_response), github_response_payload(commit_response)
+    if not isinstance(repo, Mapping) or repo.get("full_name") != LOCKED_INSPECTOR_REPOSITORY or repo.get("id") != LOCKED_INSPECTOR_REPOSITORY_ID:
+        raise ValueError("inspector repository identity mismatch")
+    if not isinstance(commit, Mapping) or commit.get("sha") != expected_commit_sha or not SHA40_RE.fullmatch(expected_commit_sha):
+        raise ValueError("inspector commit SHA mismatch")
+    return CandidateVerifiedInspectorCommit(
+        _COMMIT_TOKEN, LOCKED_INSPECTOR_REPOSITORY, LOCKED_INSPECTOR_REPOSITORY_ID,
+        expected_commit_sha, repository_response.receipt_id, commit_response.receipt_id,
+    )
+
+
+def _verified_commit(value: object) -> CandidateVerifiedInspectorCommit:
+    if not isinstance(value, CandidateVerifiedInspectorCommit) or value._token is not _COMMIT_TOKEN:
+        raise ValueError("candidate inspector commit receipt capability is required")
+    return value
+
+
 def verify_target_identity_response(response: GitHubApiResponse, *, expected_repository: str) -> VerifiedTargetIdentity:
-    _require_operational_response(response, "target repository response")
+    _operational(response, "target repository response")
     expected_url = f"https://api.github.com/repos/{expected_repository}"
-    if response.request_url != expected_url or response.response_url != expected_url or response.status_code != 200:
-        raise ValueError("target repository response URL/status is not authoritative")
+    if (response.request_url, response.response_url, response.status_code) != (expected_url, expected_url, 200):
+        raise ValueError("target repository response is not authoritative")
     payload = github_response_payload(response)
     if not isinstance(payload, Mapping) or payload.get("full_name") != expected_repository:
-        raise ValueError("target repository response identity mismatch")
-    if payload.get("url") != expected_url or payload.get("html_url") != f"https://github.com/{expected_repository}":
-        raise ValueError("target repository canonical URL mismatch")
+        raise ValueError("target repository identity mismatch")
     repository_id = payload.get("id")
-    if not isinstance(repository_id, int) or repository_id <= 0:
+    if not isinstance(repository_id, int) or isinstance(repository_id, bool) or repository_id <= 0:
         raise ValueError("target repository id is missing or invalid")
     return VerifiedTargetIdentity(_TARGET_TOKEN, expected_repository, repository_id)
 
 
+def verify_live_pr_head_response(response: GitHubApiResponse, *, target_repository: str, target_repository_id: int, pull_request: int) -> VerifiedLivePrHead:
+    if not target_repository or not isinstance(target_repository_id, int) or isinstance(target_repository_id, bool) or target_repository_id <= 0 or not isinstance(pull_request, int) or pull_request <= 0:
+        raise ValueError("verified target is required for live PR head")
+    _operational(response, "live PR head response")
+    expected = f"https://api.github.com/repos/{target_repository}/pulls/{pull_request}"
+    if (response.request_url, response.response_url, response.status_code) != (expected, expected, 200):
+        raise ValueError("live PR head response is not authoritative")
+    payload = github_response_payload(response)
+    if not isinstance(payload, Mapping) or payload.get("number") != pull_request:
+        raise ValueError("live PR identity mismatch")
+    head = payload.get("head")
+    if not isinstance(head, Mapping) or not isinstance(head.get("sha"), str) or not SHA40_RE.fullmatch(head["sha"]):
+        raise ValueError("live PR head is malformed")
+    base = payload.get("base")
+    repo = base.get("repo") if isinstance(base, Mapping) else None
+    if isinstance(repo, Mapping):
+        if repo.get("full_name") not in {None, target_repository} or repo.get("id") not in {None, target_repository_id}:
+            raise ValueError("live PR repository identity mismatch")
+    return VerifiedLivePrHead(_TARGET_TOKEN, target_repository, target_repository_id, pull_request, head["sha"], response.receipt_id)
+
+
+def _next_page(url: str) -> str | None:
+    match = re.search(r"(?:[?&])page=(\d+)", url)
+    if match:
+        return re.sub(r"([&?]page=)\d+", lambda m: f"{m.group(1)}{int(match.group(1)) + 1}", url, count=1)
+    return f"{url}{'&' if '?' in url else '?'}page=2"
+
+
+def _annotation_items(responses: Mapping[str, GitHubApiResponse], *, base: str, reviewed_head_sha: str) -> CheckAnnotationCollection:
+    items: list[Mapping[str, Any]] = []
+    seen: set[tuple[Any, ...]] = set()
+    run_page, pages, runs and f"{base}/commits/{reviewed_head_sha}/check-runs?per_page=100", 0, 0
+    visited: set[str] = set()
+    while run_page:
+        if run_page in visited or len(visited) >= 100: raise ValueError("review surface pagination is incomplete")
+        visited.add(run_page)
+        response = responses.get("check_runs") if run_page.endswith("?per_page=100") els`responses.get(run_page)
+        if response is None: raise ValueError("review surface pagination is incomplete")
+        _operational(response, "check run listing response")
+        if (response.request_url, response.response_url, response.status_code) != (run_page, run_page, 200): raise ValueError("check run listing response is not authoritative")
+        payload = github_response_payload(response)
+        run_list = payload.get("check_runs") if isinstance(payload, Mapping) else None
+        if not isinstance(run_list, list): raise ValueError("check run listing payload is malformed")
+        pages += 1; runs += len(run_list)
+        for run in run_list:
+            if not isinstance(run, Mapping): raise ValueError("check run item is malformed")
+            run_id = run.get("id")
+            if not isinstance(run_id, int) or isinstance(run_id, bool) or run_id <= 0: raise ValueError("check run identity is missing")
+            if run.get("head_sha") != reviewed_head_sha: raise ValueError("check run head does not match reviewed head")
+            ann_page = f"{base}/check-runs/{run_id}/annotations?per_page=100"; ann_visited: set[str] = set()
+            while ann_page:
+                if ann_page in ann_visited or len(ann_visited) >= 100: raise ValueError("review surface pagination is incomplete")
+                ann_visited.add(ann_page)
+                ann_response = responses.get(ann_page)
+                if ann_response is None: raise ValueError("review surface pagination is incomplete")
+                _operational(ann_response, "check annotation response")
+                if (ann_response.request_url, ann_response.response_url, ann_response.status_code) != (ann_page, ann_page, 200): raise ValueError("check annotation response is not authoritative")
+                annotations = github_response_payload(ann_response)
+                if not isinstance(annotations, list): raise ValueError("check annotation payload is malformed")
+                for ann in annotations:
+                    if not isinstance(ann, Mapping): raise ValueError("check annotation item is malformed")
+                    start, end = ann.get("start_line"), ann.get("end_line")
+                    for name, value in (("start_line", start), ("end_line", end)):
+                        if value is not None and (not isinstance(value, int) or isinstance(value, bool) or value <= 0): raise ValueError(f"check annotation {name} is malformed")
+                    if start is not None and end is not None and end < start: raise ValueError("check annotation line range is malformed")
+                    level = ann.get("annotation_level")
+                    if not isinstance(level, str) or not level: raise ValueError("check annotation level is malformed")
+                    key = (run_id, ann.get("path"), start, end, level, ann.get("message"), ann.get("raw_details"))
+                    if key in seen: continue
+                    seen.add(key)
+                    payload_item = {
+                        "check_run_id": run_id, "path": ann.get("path"), "start_line": start, "end_line": end,
+                        "annotation_level": level, "message": ann.get("message"), "raw_details": ann.get("raw_details"),
+                        "id": ann.get("id") or f"{run_id}:{ann.get('path')}:{start}:{end}:{level}:{ann.get('message')}",
+                        "app": run.get("app") or {"slug": run.get("name"), "type": "App"},
+                        "html_url": run.get("html_url") or run.get("details_url"), "target_url": ann_page,
+                        "receipt_id": ann_response.receipt_id,
+                    }
+                    items.append(MappingProxyType(payload_item))
+                ann_page = _next_page(ann_page) if len(annotations) >= 100 else None
+        run_page = _next_page(run_page) if len(run_list) >= 100 else None
+    return CheckAnnotationCollection(tuple(items), True, pages, runs, sum(len(1) for _ in items))
+
+
 def verify_review_surface_inventory_responses(responses: Mapping[str, GitHubApiResponse], *, target_repository: str, target_identity: VerifiedTargetIdentity, pull_request: int, reviewed_head_sha: str) -> VerifiedReviewSurfaceInventory:
-    if not isinstance(responses, Mapping):
-        raise ValueError("review surface responses must be a mapping")
     if not isinstance(target_identity, VerifiedTargetIdentity) or target_identity._token is not _TARGET_TOKEN or target_identity.repository != target_repository:
-        raise ValueError("sealed target identity is required for review surface inventory")
-    required = {"review_comments", "review_threads", "reviews", "issue_comments", "check_runs", "check_summaries"}
-    missing = required - set(responses)
-    if missing:
-        raise ValueError("review surface inventory endpoints are incomplete")
+        raise ValueError("sealed target identity is required")
     base = f"https://api.github.com/repos/{target_repository}"
-    expected_urls = {
+    expected = {
         "review_comments": f"{base}/pulls/{pull_request}/comments?per_page=100",
         "review_threads": f"{base}/pulls/{pull_request}/threads?per_page=100",
         "reviews": f"{base}/pulls/{pull_request}/reviews?per_page=100",
         "issue_comments": f"{base}/issues/{pull_request}/comments?per_page=100",
-        "check_runs": f"{base}/commits/{reviewed_head_sha}/check-runs?per_page=100",
         "check_summaries": f"{base}/commits/{reviewed_head_sha}/status",
     }
+    missing = (set(expected) |  {"check_runs"}) - set(responses)
+    if missing: raise ValueError("review surface inventory endpoints are incomplete")
+    annotations = _annotation_items(responses, base=base, reviewed_head_sha=reviewed_head_sha)
     sources: list[Mapping[str, Any]] = []
-    github_source_keys: set[str] = set()
-    for key, expected_url in expected_urls.items():
-        response = responses[key]
-        _require_operational_response(response, "review surface response")
-        if response.request_url != expected_url or response.response_url != expected_url:
-            raise ValueError("review surface response URL does not match target")
-        if response.status_code != 200:
-            raise ValueError("review surface endpoint is inaccessible")
+    for key, url in expected.items():
+        response = responses[key]; _operational(response, "review surface response")
+        if (response.request_url, response.response_url, response.status_code) != (url, url, 200): raise ValueError("review surface response URL0/status is not authoritative")
         payload = github_response_payload(response)
-        if key == "check_runs":
-            collection = _collect_check_annotations(responses, base=base, target_repository=target_repository, reviewed_head_sha=reviewed_head_sha)
-            if not collection.pagination_complete:
-                raise ValueError("review surface pagination is incomplete")
-            payload_items = list(collection.items)
-        elif key == "check_summaries":
-            payload_items = payload.get("statuses", []) if isinstance(payload, Mapping) else None
-        else:
-            payload_items = payload
-        if isinstance(payload, Mapping) and payload.get("incomplete_pagination") is True:
-            raise ValueError("review surface pagination is incomplete")
-        if not isinstance(payload_items, list):
-            raise ValueError("review surface payload is malformed")
-        if key != "check_runs" and len(payload_items) >= 100:
-            raise ValueError("review surface pagination is incomplete")
-        for index, item in enumerate(payload_items):
-            if not isinstance(item, Mapping):
-                raise ValueError("review surface item is malformed")
+        items = payload.get("statuses", []) if key == "check_summaries" and isinstance(payload, Mapping) else payload
+        if not isinstance(items, list) or len(items) >= 100: raise ValueError("review surface payload/pagination is incomplete")
+        for item in items:
+            if not isinstance(item, Mapping): raise ValueError("review surface item is malformed")
             author = item.get("user") or item.get("app") or {}
-            login = author.get("login") or author.get("slug") if isinstance(author, Mapping) else None
-            actor_type = author.get("type") if isinstance(author, Mapping) else None
-            is_bot = actor_type in {"Bot", "App"} or bool(item.get("app"))
-            if is_bot:
-                stable_id = item.get("node_id") or item.get("id") or item.get("check_run_id")
-                if stable_id is None:
-                    raise ValueError("review surface source identity is missing")
-                source_type = {"review_comments": "github_pr_review_comment", "review_threads": "github_inline_review_thread", "reviews": "github_bot_comment", "issue_comments": "github_issue_comment", "check_annotations": "github_check_annotation", "check_runs": "github_check_annotation", "check_summaries": "github_check_summary"}.get(key, "github_bot_comment")
-                object_type = {"review_comments": "review_comment", "review_threads": "review_thread", "reviews": "review_submission", "issue_comments": "issue_comment", "check_annotations": "check_annotation", "check_runs": "check_annotation", "check_summaries": "check_summary"}.get(key, "issue_comment")
-                github_key = f"{key}:{stable_id}"
-                if github_key in github_source_keys:
-                    raise ValueError("duplicate review surface source identity")
-                github_source_keys.add(github_key)
-                sources.append(MappingProxyType({"source_id": f"EXTSRC-{len(sources)+1:03d}", "github_source_key": github_key, "github_object_type": object_type, "github_object_id": str(stable_id), "target_repository_id": target_identity.repository_id, "pr_number": pull_request, "reviewed_head_sha": reviewed_head_sha, "receipt_id": item["receipt_id"] if key == "check_runs" else response.receipt_id, "triage_disposition": "inspected_no_action", "inspected": False, "source_type": source_type, "author": login, "is_bot": True, "url": item.get("html_url") or item.get("target_url"), "content_sha256": bytes_sha256(json.dumps(dict(item), sort_keys=True, separators=(",", ":")).encode())}))
+            is_bot = isinstance(author, Mapping) and (author.get("type") in {"Bot", "App"} or bool(item.get("app")))
+            if not is_bot: continue
+            stable = item.get("node_id") or item.get("id")
+            if stable is None: raise ValueError("review surface source identity is missing")
+            sources.append(MappingProxyType({
+                "source_id": f"EXTSRC-{len(sources)+1:03d}", "github_source_key": f"{key}:{stable}",
+                "github_object_type": key, "github_object_id": str(stable), "target_repository_id": target_identity.repository_id,
+                "pr_number": pull_request, "reviewed_head_sha": reviewed_head_sha, "receipt_id": response.receipt_id,
+                "triage_disposition": "inspected_no_action", "inspected": False, "source_type": key,
+                "author": author.get("login") or author.get("slug"), "is_bot": True, "url": item.get("html_url") or item.get("target_url"),
+                "content_sha256": bytes_sha256(json.dumps(dict(item), sort_keys=True, separators=(",", ":")).encode()),
+            }))
+    for ann in annotations.items:
+        sources.append(MappingProxyType({
+            "source_id": f"EXTSRC-{len(sources)+1:03d}", "github_source_key": f"check_runs:{ann['check_run_id']}:{ann['path']}:{ann['start_line']}:{ann['end_line']}:{ann['annotation_level']}:{ann['message']}",
+            "github_object_type": "check_annotation", "github_object_id": str(ann["id"]), "target_repository_id": target_identity.repository_id,
+            "pr_number": pull_request, "reviewed_head_sha": reviewed_head_sha, "receipt_id": ann["receipt_id"],
+            "triage_disposition": "inspected_no_action", "inspected": False, "source_type": "github_check_annotation",
+            "author": (ann["app"] or {}).get("slug"), "is_bot": True, "url": ann.get("html_url"), "content_sha256": bytes_sha256(json.dumps(dict(ann), sort_keys=True, separators=(",", ":")).encode()),
+        }))
     return VerifiedReviewSurfaceInventory(_SURFACE_TOKEN, target_repository, target_identity.repository_id, pull_request, reviewed_head_sha, tuple(sources), True)
 
 
-def _next_page(url: str) -> str | None:
-    match = re.search(r"(?:[?&])page=(\d+)", url)
-    if match:
-        return re.sub(r"([?&]page=)\d+", lambda m: f"{m.group(1)}{int(match.group(1)) + 1}", url, count=1)
-    separator = "&" if "?" in url else "?"
-    return f"{url}{separator}page=2"
+def bind_candidate_governance_evidence(evidence: VerifiedGovernanceEvidence, governance_source: VerifiedGitHubGovernanceSource, target_identity: VerifiedTargetIdentity) -> CandidateGovernanceEvidence:
+    if not is_verified_governance_evidence(evidence) or not is_verified_github_governance_source(governance_source):
+        raise ValueError("sealed governance evidence and source are required")
+    if not isinstance(target_identity, VerifiedTargetIdentity) or target_identity._token is not _TARGET_TOKEN:
+        raise ValueError("sealed target identity is required")
+    if evidence.repository != target_identity.repository or governance_source.repository_id != target_identity.repository_id:
+        raise ValueError("governance evidence target identity mismatch")
+    return CandidateGovernanceEvidence(_CAPABILITY_TOKEN, evidence, governance_source, target_identity)
 
 
-def _validate_annotation_metadata(ann: Mapping[str, Any]) -> None:
-    path = ann.get("path")
-    if path is not None and (not isinstance(path, str) or not path):
-        raise ValueError("check annotation path is malformed")
-    start_line = ann.get("start_line")
-    end_line = ann.get("end_line")
-    for name, value in (("start_line", start_line), ("end_line", end_line)):
-        if value is not None and (not isinstance(value, int) or isinstance(value, bool)):
-            raise ValueError(f"check annotation {name} is malformed")
-    if start_line is not None and end_line is not None and end_line < start_line:
-        raise ValueError("check annotation line range is malformed")
-    level = ann.get("annotation_level")
-    if not isinstance(level, str) or not level:
-        raise ValueError("check annotation level is malformed")
+def official_governance_evidence(value: object) -> VerifiedGovernanceEvidence | None:
+    return value.evidence if isinstance(value, CandidateGovernanceEvidence) and value._token is _CAPABILITY_TOKEN else None
 
 
-def _collect_check_annotations(responses: Mapping[str, GitHubApiResponse], *, base: str, target_repository: str, reviewed_head_sha: str) -> CheckAnnotationCollection:
-    annotations: list[Mapping[str, Any]] = []
-    seen: set[tuple[Any, ...]] = set()
-    pages_fetched = 0
-    annotation_pages_fetched = 0
-    check_runs_fetched = 0
-    page = f"{base}/commits/{reviewed_head_sha}/check-runs?per_page=100"
-    visited_pages: set[str] = set()
-    while page:
-        if page in visited_pages or len(visited_pages) >= 100:
-            raise ValueError("review surface pagination is incomplete")
-        visited_pages.add(page)
-        response = (responses.get("check_runs") if page.endswith("?per_page=100") else responses.get(page))
-        if response is None:
-            raise ValueError("review surface pagination is incomplete")
-        _require_operational_response(response, "check run listing response")
-        if response.request_url != page or response.response_url != page or response.status_code != 200:
-            raise ValueError("check run listing response is not authoritative")
-        pages_fetched += 1
-        payload = github_response_payload(response)
-        if not isinstance(payload, Mapping) or payload.get("head_sha") not in {None, reviewed_head_sha}:
-            raise ValueError("check run listing payload is malformed")
-        runs = payload.get("check_runs")
-        if not isinstance(runs, list):
-            raise ValueError("check run listing payload is malformed")
-        check_runs_fetched += len(runs)
-        for run in runs:
-            if not isinstance(run, Mapping):
-                raise ValueError("check run item is malformed")
-            check_run_id = run.get("id")
-            if not isinstance(check_run_id, int) or isinstance(check_run_id, bool):
-                raise ValueError("check run identity is missing")
-            if run.get("head_sha") != reviewed_head_sha:
-                raise ValueError("check run head does not match reviewed head")
-            app = run.get("app") if isinstance(run.get("app"), Mapping) else {}
-            ann_page = f"{base}/check-runs/{check_run_id}/annotations?per_page=100"
-            ann_visited: set[str] = set()
-            while ann_page:
-                if ann_page in ann_visited or len(ann_visited) >= 100:
-                    raise ValueError("review surface pagination is incomplete")
-                ann_visited.add(ann_page)
-                ann_response = responses.get(ann_page)
-                if ann_response is None:
-                    raise ValueError("review surface pagination is incomplete")
-                _require_operational_response(ann_response, "check annotation response")
-                if ann_response.request_url != ann_page or ann_response.response_url != ann_page or ann_response.status_code != 200:
-                    raise ValueError("check annotation response is not authoritative")
-                annotation_pages_fetched += 1
-                ann_payload = github_response_payload(ann_response)
-                if not isinstance(ann_payload, list):
-                    raise ValueError("check annotation payload is malformed")
-                for ann in ann_payload:
-                    if not isinstance(ann, Mapping):
-                        raise ValueError("check annotation item is malformed")
-                    _validate_annotation_metadata(ann)
-                    content = {"message": ann.get("message"), "raw_details": ann.get("raw_details")}
-                    source = MappingProxyType({
-                        "id": ann.get("id") or f"{check_run_id}:{ann.get('path')}:{ann.get('start_line')}:{ann.get('end_line')}:{ann.get('annotation_level')}:{ann.get('message')}",
-                        "check_run_id": check_run_id, "check_name": run.get("name") or "",
-                        "check_app_id": app.get("id") if isinstance(app.get("id"), int) and not isinstance(app.get("id"), bool) else None,
-                        "path": ann.get("path"), "start_line": ann.get("start_line"), "end_line": ann.get("end_line"),
-                        "annotation_level": ann.get("annotation_level"), "message": ann.get("message"), "raw_details": ann.get("raw_details"),
-                        "html_url": run.get("html_url") or run.get("details_url"), "target_url": ann_page,
-                        "app": app or {"slug": run.get("name"), "type": "App"}, "reviewed_head_sha": reviewed_head_sha,
-                        "receipt_id": ann_response.receipt_id, "annotation_response_receipt_id": ann_response.receipt_id,
-                        "annotation_endpoint_url": ann_page, "content_sha256": bytes_sha256(json.dumps(content, sort_keys=True, separators=(",", ":")).encode()),
-                    })
-                    key = (check_run_id, source["path"], source["start_line"], source["end_line"], source["annotation_level"], source["message"], source["raw_details"])
-                    if key not in seen:
-                        seen.add(key)
-                        annotations.append(source)
-                ann_page = _next_page(ann_page) if len(ann_payload) >= 100 else None
-        page = _next_page(page) if len(runs) >= 100 else None
-    return CheckAnnotationCollection(tuple(annotations), True, pages_fetched, check_runs_fetched, annotation_pages_fetched)
-
-
-def _require_mapping(value: Any, path: str) -> Mapping[str, Any]:
-    if not isinstance(value, Mapping):
-        raise ValueError(f"{path}: expected object")
-    return value
-
-
-def _require_key(value: Mapping[str, Any], key: str, path: str) -> Any:
-    if key not in value:
-        raise ValueError(f"{path}: missing required key {key}")
-    return value[key]
-
-
-def _validate_reason_codes(reason_codes: Sequence[str], domain: str) -> list[str]:
-    if not isinstance(reason_codes, Sequence) or isinstance(reason_codes, (str, bytes)):
-        raise ValueError(f"{domain} reason_codes must be an array")
-    allowed = TECHNICAL_REASON_CODES if domain == "technical" else GOVERNANCE_REASON_CODES
-    other = GOVERNANCE_REASON_CODES if domain == "technical" else TECHNICAL_REASON_CODES
-    seen: set[str] = set(); out: list[str] = []
-    for code in reason_codes:
-        if not isinstance(code, str) or not code: raise ValueError(f"{domain} reason code is malformed")
-        if code in seen: raise ValueError(f"duplicate {domain} reason code: {code}")
-        if code in other: raise ValueError(f"cross-domain {domain} reason code: {code}")
-        if code not in allowed: raise ValueError(f"unknown {domain} reason code: {code}")
-        seen.add(code); out.append(code)
-    return out
-
-
-def _technical_status_from_reasons(reason_codes: Sequence[str]) -> str:
-    statuses = {TECHNICAL_STATUS_EFFECT[code] for code in reason_codes}
-    return "RED" if "RED" in statuses else "YELLOW" if "YELLOW" in statuses else "GREEN"
-
-
-def _governance_status_from_reasons(reason_codes: Sequence[str]) -> str:
-    statuses = {GOVERNANCE_STATUS_EFFECT[code] for code in reason_codes}
-    return "GAP_FOUND" if "GAP_FOUND" in statuses else "NOT_VERIFIABLE" if "NOT_VERIFIABLE" in statuses else "VERIFIED"
-
-
-def verify_live_pr_head_response(response: GitHubApiResponse, *, target_repository: str, target_repository_id: int, pull_request: int) -> VerifiedLivePrHead:
-    if not isinstance(target_repository, str) or not target_repository or not isinstance(target_repository_id, int) or target_repository_id <= 0 or not isinstance(pull_request, int) or pull_request <= 0:
-        raise ValueError("verified target is required for live PR head")
-    _require_operational_response(response, "live PR head response")
-    expected = f"https://api.github.com/repos/{target_repository}/pulls/{pull_request}"
-    if response.request_url != expected or response.response_url != expected or response.status_code != 200:
-        raise ValueError("live PR head response is not authoritative")
-    payload = github_response_payload(response)
-    if not isinstance(payload, Mapping):
-        raise ValueError("live PR payload is malformed")
-    if payload.get("number") != pull_request:
-        raise ValueError("live PR number mismatch")
-    base = payload.get("base")
-    repo_payload = base.get("repo") if isinstance(base, Mapping) and isinstance(base.get("repo"), Mapping) else payload.get("repository")
-    if isinstance(repo_payload, Mapping):
-        if repo_payload.get("full_name") not in {None, target_repository} or repo_payload.get("id") not in {None, target_repository_id}:
-            raise ValueError("live PR repository identity mismatch")
-    head = payload.get("head")
-    if not isinstance(head, Mapping):
-        raise ValueError("live PR head is malformed")
-    head_sha = head.get("sha")
-    if not isinstance(head_sha, str) or not SHA40_RE.match(head_sha):
-        raise ValueError("live PR head SHA is malformed")
-    head_repo = head.get("repo")
-    if isinstance(head_repo, Mapping) and head_repo.get("full_name") == target_repository and head_repo.get("id") not in {None, target_repository_id}:
-        raise ValueError("live PR head repository identity mismatch")
-    return VerifiedLivePrHead(_TARGET_TOKEN, target_repository, target_repository_id, pull_request, head_sha, response.receipt_id)
-
-
-def _target_from_verified_minimal(evidence: object) -> Mapping[str, Any]:
-    if not is_verified_minimal_review_bundle(evidence):
-        raise ValueError("verified_minimal_review_required")
-    ref = evidence.reference
-    repo, repo_id, pr = ref.get("target_repository"), ref.get("target_repository_id"), ref.get("pull_request")
-    if not isinstance(repo, str) or not repo or not isinstance(repo_id, int) or repo_id <= 0 or not isinstance(pr, int) or pr <= 0:
-        raise ValueError("verified minimal target identity is malformed")
-    return MappingProxyType({"repository": repo, "repository_id": repo_id, "pull_request": pr, "url": f"https://github.com/{repo}/pull/{pr}"})
-
-
-def _assert_caller_target_consistent(caller: object, sealed: Mapping[str, Any]) -> None:
-    if caller is None:
-        return
-    if not isinstance(caller, Mapping):
-        raise ValueError("current_target is malformed")
-    allowed = {"repository", "repository_id", "pull_request", "url"}
-    if any(k in caller and k in allowed and caller.get(k) != sealed.get(k) for k in allowed):
-        raise ValueError("current_target does not match verified minimal bundle")
-
-
-def orchestrate_strict_after_minimal(context: Mapping[str, Any], refresh_minimal_review: Any | None = None) -> MinimalRefreshResult:
-    if not isinstance(context, Mapping):
-        return MinimalRefreshResult(_REFRESH_TOKEN, "refresh_failed", MappingProxyType({}), "", None, "context_malformed")
-    evidence = context.get("verified_minimal_review")
-    try:
-        sealed_target = _target_from_verified_minimal(evidence)
-        _assert_caller_target_consistent(context.get("current_target"), sealed_target)
-        live = context.get("verified_live_pr_head")
-        if not isinstance(live, VerifiedLivePrHead) or live._token is not _TARGET_TOKEN:
-            response = context.get("live_pr_response")
-            if response is None:
-                return MinimalRefreshResult(_REFRESH_TOKEN, "refresh_failed", sealed_target, "", None, "sealed_live_pr_head_required")
-            live = verify_live_pr_head_response(response, target_repository=sealed_target["repository"], target_repository_id=sealed_target["repository_id"], pull_request=sealed_target["pull_request"])
-        if live.repository != sealed_target["repository"] or live.repository_id != sealed_target["repository_id"] or live.pull_request != sealed_target["pull_request"]:
-            return MinimalRefreshResult(_REFRESH_TOKEN, "refresh_failed", sealed_target, "", None, "live_head_target_mismatch")
-        live_head = live.head_sha
-    except ValueError as exc:
-        return MinimalRefreshResult(_REFRESH_TOKEN, "refresh_failed", MappingProxyType({}), "", None, str(exc))
-    ref = verify_base_review_reference(evidence, live_head, target_repository=sealed_target.get("repository"), target_repository_id=sealed_target.get("repository_id"), pull_request=sealed_target.get("pull_request"))
-    if ref.get("status") == "VERIFIED":
-        return MinimalRefreshResult(_REFRESH_TOKEN, "same_head_reuse", sealed_target, live_head, evidence)
-    if ref.get("status") != "STALE" or ref.get("action") != "rerun_minimal_then_strict":
-        return MinimalRefreshResult(_REFRESH_TOKEN, "refresh_failed", sealed_target, live_head, None, ref.get("reason"))
-    if context.get("minimal_refresh_state") in {"refresh_in_progress", "refresh_failed"}:
-        return MinimalRefreshResult(_REFRESH_TOKEN, "refresh_failed", sealed_target, live_head, None, "minimal_refresh_loop_blocked")
-    if refresh_minimal_review is None:
-        return MinimalRefreshResult(_REFRESH_TOKEN, "head_drift_refresh_required", sealed_target, live_head, None, "minimal_refresh_required")
-    refreshed = refresh_minimal_review(sealed_target, live_head)
-    verify = verify_base_review_reference(refreshed, live_head, target_repository=sealed_target.get("repository"), target_repository_id=sealed_target.get("repository_id"), pull_request=sealed_target.get("pull_request"))
-    if verify.get("status") != "VERIFIED":
-        return MinimalRefreshResult(_REFRESH_TOKEN, "refresh_failed", sealed_target, live_head, None, verify.get("reason"))
-    return MinimalRefreshResult(_REFRESH_TOKEN, "refresh_verified", sealed_target, live_head, refreshed)
-
-
-def parse_intake(text: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
-    if context is not None and not isinstance(context, Mapping):
-        return {"inspection_profile": MINIMAL, "target": None, "reuse_current_minimal": False, "missing": ["valid_context"], "error": "context_malformed"}
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    profile = None
-    if lines and lines[0] == "Ø­Ø¯Ø§Ù‚Ù„ÛŒ": profile = MINIMAL; lines = lines[1:]
-    elif lines and lines[0] == "Ø³Ø®Øª Ú¯ÛŒØ±Ø§Ù†Ù‡": profile = STRICT; lines = lines[1:]
-    url = next((line for line in lines if PR_URL_RE.match(line)), None)
-    if profile is None: profile = MINIMAL
-    if profile == STRICT and url is None and context:
-        evidence = context.get("verified_minimal_review")
-        target = context.get("current_target")
-        live_head = context.get("live_head_sha")
-        refresh = orchestrate_strict_after_minimal(context, context.get("refresh_minimal_review"))
-        if refresh.state == "same_head_reuse":
-            return {"inspection_profile": STRICT, "target": dict(refresh.target), "reuse_current_minimal": True, "minimal_refresh_state": refresh.state, "missing": []}
-        if refresh.state in {"head_drift_refresh_required", "refresh_verified"}:
-            return {"inspection_profile": STRICT, "target": dict(refresh.target), "reuse_current_minimal": False, "refreshed_minimal_review": refresh.bundle, "minimal_refresh_state": refresh.state, "continue_strict": refresh.state == "refresh_verified", "missing": []}
-        if refresh.state == "refresh_failed" and refresh.target:
-            return {"inspection_profile": STRICT, "target": dict(refresh.target), "reuse_current_minimal": False, "minimal_refresh_state": refresh.state, "continue_strict": False, "missing": [], "error": refresh.reason}
-    if url is None:
-        return {"inspection_profile": profile, "target": None, "reuse_current_minimal": False, "missing": ["pull_request_url"]}
-    match = PR_URL_RE.match(url)
-    return {"inspection_profile": profile, "target": {"repository": match.group(1), "pull_request": int(match.group(2)), "url": url}, "reuse_current_minimal": False, "missing": []}
+def verify_governance_payload_bundle(*args: Any, **kwargs: Any) -> None:
+    raise ValueError("sealed active GitHub governance evidence is required; caller payloads cannot mint governance capability")
 
 
 def classify_governance(evidence: object, *, target_repository: str | None = None, target_repository_id: int | None = None, pull_request: int | None = None, reviewed_head_sha: str | None = None) -> dict[str, Any]:
-    if not (target_repository and isinstance(target_repository_id, int) and pull_request and reviewed_head_sha):
+    sealed = official_governance_evidence(evidence)
+    if not (target_repository and isinstance(target_repository_id, int) and pull_request and reviewed_head_sha) or sealed is None:
         return {"status": "NOT_VERIFIABLE", "reason_codes": ["repository_settings_not_verified"]}
-    if isinstance(evidence, CandidateGovernanceEvidence) and evidence._token is _CAPABILITY_TOKEN:
-        sealed = evidence.evidence
-        if evidence.target_identity.repository != target_repository or evidence.target_identity.repository_id != target_repository_id or evidence.governance_source.repository_id != target_repository_id or sealed.repository != target_repository or sealed.pull_request_number != pull_request or sealed.exact_head_sha != reviewed_head_sha:
-            return {"status": "NOT_VERIFIABLE", "reason_codes": ["repository_settings_not_verified"]}
-        if sealed.merge_authorized:
-            return {"status": "VERIFIED", "reason_codes": []}
-        return {"status": "GAP_FOUND", "reason_codes": ["merge_authorization_unverified"]}
-    if not is_verified_governance_capability(evidence):
+    if sealed.repository != target_repository or sealed.pull_request_number != pull_request or sealed.exact_head_sha != reviewed_head_sha:
         return {"status": "NOT_VERIFIABLE", "reason_codes": ["repository_settings_not_verified"]}
-    if evidence.target_repository != target_repository or evidence.target_repository_id != target_repository_id or evidence.pull_request != pull_request or evidence.reviewed_head_sha != reviewed_head_sha:
-        return {"status": "NOT_VERIFIABLE", "reason_codes": ["repository_settings_not_verified"]}
-    gap_codes = sorted({GOVERNANCE_GAP_FIELDS[field] for field in REQUIRED_GOVERNANCE_FACTS if evidence.facts[field] is False})
-    return {"status": "GAP_FOUND", "reason_codes": gap_codes} if gap_codes else {"status": "VERIFIED", "reason_codes": []}
-
-
-def project_decision(inspection_profile: str, technical_reason_codes: list[str] | None = None, governance_evidence: object | None = None, *, target_repository: str | None = None, target_repository_id: int | None = None, pull_request: int | None = None, reviewed_head_sha: str | None = None) -> dict[str, Any]:
-    technical_reason_codes = _validate_reason_codes(technical_reason_codes or [], "technical")
-    tech_status = _technical_status_from_reasons(technical_reason_codes)
-    if inspection_profile == MINIMAL: governance = {"status": "NOT_REQUESTED", "reason_codes": []}
-    elif inspection_profile == STRICT: governance = classify_governance(governance_evidence, target_repository=target_repository, target_repository_id=target_repository_id, pull_request=pull_request, reviewed_head_sha=reviewed_head_sha)
-    else: raise ValueError("unknown inspection_profile")
-    governance["reason_codes"] = _validate_reason_codes(governance["reason_codes"], "governance")
-    if governance["reason_codes"] and governance["status"] != _governance_status_from_reasons(governance["reason_codes"]):
-        raise ValueError("governance status disagrees with registered reason effects")
-    canonical_reasons = sorted(CANDIDATE_REASON_TO_CANONICAL[code] for code in technical_reason_codes)
-    has_repair = bool(REPAIR_REASONS.intersection(technical_reason_codes))
-    has_verify = bool(VERIFY_REASONS.intersection(technical_reason_codes))
-    has_rerun = bool(RERUN_REASONS.intersection(technical_reason_codes))
-    if tech_status == "GREEN":
-        next_action_kind = "owner_confirmation"; recipient = "project_owner"; may_modify = False; prompt_kind = None
-    elif has_rerun and not has_repair:
-        next_action_kind = "rerun_review"; recipient = "reviewer_model"; may_modify = False; prompt_kind = "fresh_review_prompt"
-    elif has_repair and has_verify:
-        next_action_kind = "repair_and_verify"; recipient = "implementer_model"; may_modify = True; prompt_kind = "implementer_repair_prompt"
-    elif has_repair:
-        next_action_kind = "repair"; recipient = "implementer_model"; may_modify = True; prompt_kind = "implementer_repair_prompt"
-    else:
-        next_action_kind = "verify"; recipient = "reviewer_model"; may_modify = False; prompt_kind = "verification_prompt"
-    owner_key = "technical_green" if tech_status == "GREEN" else ("technical_red_repair" if tech_status == "RED" else "technical_yellow_repair")
-    prompt_required = tech_status != "GREEN"
-    owner_color = "GREEN" if tech_status == "GREEN" else ("RED" if tech_status == "RED" else "YELLOW")
-    approval_requirement = "NO_ADDITIONAL_TECHNICAL_APPROVAL" if tech_status == "GREEN" else ("HUMAN_TECHNICAL_REVIEW_REQUIRED" if next_action_kind in {"verify", "rerun_review"} else "PROJECT_OWNER_CONFIRMATION")
-    return {"schema_version": 1, "protocol_version": PROTOCOL_VERSION, "inspection_profile": inspection_profile, "technical_decision": {"status": tech_status, "reason_codes": technical_reason_codes}, "governance_decision": governance, "overall_recommendation": {"technical_ready": tech_status == "GREEN", "merge_governance_verified": governance["status"] == "VERIFIED"}, "owner_readiness": {"color": owner_color, "action_kind": next_action_kind, "message_key": owner_key, "reason_codes": canonical_reasons}, "next_action": {"kind": next_action_kind, "recipient": recipient, "may_modify_code": may_modify, "prompt_required": prompt_required, "prompt_kind": prompt_kind, "reason_codes": canonical_reasons}, "approval_requirement": approval_requirement, "security_profile": {"name": "personal_ai_operated_strong_governance_minimum_security", "security_level": "minimum_security", "sequence_ci_enforced": False, "repository_hosted_requirement": "required", "repository_hosted_enforcement": "not_verified", "github_app_exact_source_enforcement": "required", "repository_settings_enforced": "not_claimed", "merge_authorized": "not_claimed", "governance_evidence_status": "not_provided", "governance_evidence_id": None, "blocks_green_merge_recommendation": False, "reason_codes": [], "controls": []}, "governance_follow_up": {"kind": "none" if governance["status"] in {"NOT_REQUESTED", "VERIFIED"} else ("access_limitation" if governance["status"] == "NOT_VERIFIABLE" else "informational_gap"), "may_modify_code": False, "prompt_required": False}, "review_identity": {"validity": "CURRENT" if reviewed_head_sha else "UNKNOWN", "reviewed_head_sha": reviewed_head_sha or "UNKNOWN"}}
-
-
-def _reject_duplicate(value: str, seen: set[str], path: str) -> None:
-    if value in seen: raise ValueError(f"{path}: duplicate id {value}")
-    seen.add(value)
+    if sealed.merge_authorized: return {"status": "VERIFIED", "reason_codes": []}
+    return {"status": "GAP_FOUND", "reason_codes": ["merge_authorization_unverified"]}
 
 
 def reconcile_bot_reviews(sources: Sequence[Mapping[str, Any]], suggestions: Sequence[Mapping[str, Any]], findings: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     source_ids: set[str] = set(); inspected: set[str] = set()
-    for index, raw_source in enumerate(sources):
-        source = _require_mapping(raw_source, f"sources/{index}"); source_id = _require_key(source, "source_id", f"sources/{index}")
-        if not isinstance(source_id, str) or not source_id: raise ValueError(f"sources/{index}/source_id: expected non-empty string")
-        _reject_duplicate(source_id, source_ids, f"sources/{index}/source_id")
-        if source.get("inspected") is True: inspected.add(source_id)
-    finding_ids: set[str] = set(); finding_by_id: dict[str, Mapping[str, Any]] = {}
-    for index, raw_finding in enumerate(findings):
-        finding = _require_mapping(raw_finding, f"findings/{index}"); finding_id = _require_key(finding, "finding_id", f"findings/{index}")
-        if not isinstance(finding_id, str) or not finding_id: raise ValueError(f"findings/{index}/finding_id: expected non-empty string")
-        _reject_duplicate(finding_id, finding_ids, f"findings/{index}/finding_id"); finding_by_id[finding_id] = finding
-    counts = {key: 0 for key in ["accepted", "resolved", "stale", "false_positive", "duplicate", "insufficient_evidence", "deferred", "out_of_scope"]}
-    uninspected = sorted(source_ids - inspected); valid_blocking: list[str] = []; seen_claims: set[tuple[Any, tuple[str, ...]]] = set(); seen_suggestions: set[str] = set(); suggestion_results: list[dict[str, Any]] = []
-    for index, raw_item in enumerate(suggestions):
-        item = _require_mapping(raw_item, f"suggestions/{index}"); source_id = _require_key(item, "source_id", f"suggestions/{index}")
-        if source_id not in source_ids: raise ValueError(f"suggestions/{index}/source_id: unknown source")
-        suggestion_id = item.get("suggestion_id") or item.get("external_suggestion_id")
-        if suggestion_id is not None:
-            if not isinstance(suggestion_id, str) or not suggestion_id: raise ValueError(f"suggestions/{index}/suggestion_id: expected non-empty string")
-            _reject_duplicate(suggestion_id, seen_suggestions, f"suggestions/{index}/suggestion_id")
-        raw_classification = item.get("triage_decision", item.get("classification"))
-        if not isinstance(raw_classification, str): raise ValueError(f"suggestions/{index}/triage_decision: expected string")
-        classification = TRIAGE_TO_RECONCILIATION.get(raw_classification)
-        if classification is None: raise ValueError(f"suggestions/{index}/triage_decision: invalid classification")
+    for source in sources:
+        sid = source.get("source_id")
+        if not isinstance(sid, str) or not sid or sid in source_ids: raise ValueError("source identity is missing or duplicate")
+        source_ids.add(sid)
+        if source.get("inspected") is True: inspected.add(sid)
+    finding_by_id: {str, Mapping[str, Any]} = {}
+    for finding in findings:
+        fid = finding.get("finding_id")
+        if not isinstance(fid, str) or not fid or fid in finding_by_id: raise ValueError("finding identity is missing or duplicate")
+        finding_by_id[fid] = finding
+    counts = {key: 0 for key in {"accepted", "resolved", "stale", "false_positive", "duplicate", "insufficient_evidence", "deferred", "out_of_scope"}}
+    valid_blocking: list[str] = []; results: list[dict[str, Any]] = []; seen = set()
+    for suggestion in suggestions:
+        sid = suggestion.get("source_id")
+        if sid not in source_ids: raise ValueError("suggestion references unknown source")
+        suggestion_id = suggestion.get("suggestion_id") or suggestion.get("external_suggestion_id")
+        if suggestion_id is in seen: raise ValueError("duplicate suggestion identity")
+        seen.add(suggestion_id)
+      raw = suggestion.get("triage_decision", suggestion.get("classification"))
+        classification = TRIAGE_TO_RECONCILIATION.get(raw)
+        if classification is None: raise ValueError("invalid suggestion classification")
+        linked = suggestion.get("linked_finding_ids", [])
+        if not isinstance(linked, list) or any(not isinstance(fid, str) for fid in linked): raise ValueError("linked_finding_ids must be a string array")
+        if any(fid not in finding_by_id for fid in linked): raise ValueError("suggestion references unknown finding")
         counts[classification] += 1
-        linked = item.get("linked_finding_ids", [])
-        if not isinstance(linked, list) or not all(isinstance(fid, str) for fid in linked): raise ValueError(f"suggestions/{index}/linked_finding_ids: expected string array")
+        repair = classification == "accepted" and bool(linked)
         for fid in linked:
-            if fid not in finding_ids: raise ValueError(f"suggestions/{index}/linked_finding_ids: unknown finding {fid}")
-        linked_tuple = tuple(linked); claim_key = (item.get("claim_summary"), linked_tuple); duplicate_confirmed = classification == "duplicate" and claim_key in seen_claims; seen_claims.add(claim_key)
-        repair_authorized = classification == "accepted" and bool(linked)
-        if classification == "accepted" and linked:
-            for fid in linked:
-                finding = finding_by_id[fid]; severity = finding.get("severity")
-                if severity in BLOCKING_FINDING_SEVERITIES or (severity == MEDIUM_FINDING_SEVERITY and finding.get("blocking") is True): valid_blocking.append(fid)
-        suggestion_results.append({"source_id": source_id, "classification": classification, "linked_finding_ids": linked, "repair_authorized": repair_authorized, "duplicate_confirmed": duplicate_confirmed})
-    return {"collection_status": "COMPLETE" if not uninspected else "INCOMPLETE", "open_bot_sources_total": len(source_ids), "inspected_total": len(inspected), "counts": counts, "uninspected_source_ids": uninspected, "valid_blocking_finding_ids": sorted(set(valid_blocking)), "suggestion_results": suggestion_results}
-
-
-def recompute_external_review_reconciliation(package: Mapping[str, Any], review_surface_inventory: object | None = None) -> dict[str, Any]:
-    intake = package.get("external_review_intake") or {}
-    sources = intake.get("sources_inspected", [])
-    if isinstance(review_surface_inventory, VerifiedReviewSurfaceInventory) and review_surface_inventory._token is _SURFACE_TOKEN:
-        identity = package.get("review_identity", {})
-        if review_surface_inventory.target_repository != identity.get("target_repository") or review_surface_inventory.target_repository_id != identity.get("target_repository_id") or review_surface_inventory.pull_request != identity.get("pr_number") or review_surface_inventory.reviewed_head_sha != identity.get("reviewed_head_sha"):
-            raise ValueError("review surface inventory target mismatch")
-        if not review_surface_inventory.complete:
-            raise ValueError("review surface inventory is incomplete")
-        inventory_by_id = {source["source_id"]: source for source in review_surface_inventory.sources}
-        package_by_id = {source.get("source_id"): source for source in sources if isinstance(source, Mapping)}
-        if set(inventory_by_id) != set(package_by_id):
-            raise ValueError("external_review_intake disagrees with sealed review surface inventory")
-        for source_id, inventory_source in inventory_by_id.items():
-            package_source = package_by_id[source_id]
-            for field in ("source_type", "author", "is_bot", "url", "github_source_key", "github_object_type", "github_object_id", "target_repository_id", "pr_number", "reviewed_head_sha", "content_sha256", "receipt_id"):
-                if package_source.get(field) != inventory_source.get(field):
-                    raise ValueError("external_review_intake source identity mismatch")
-            if package_source.get("inspected") is not True or not package_source.get("triage_disposition"):
-                raise ValueError("external_review_intake source requires explicit inspected disposition")
-    suggestions = intake.get("suggestions", [])
-    findings = package.get("findings", [])
-    return reconcile_bot_reviews(sources, suggestions, findings)
-
-
-def technical_reasons_from_reconciliation(reconciliation: Mapping[str, Any]) -> list[str]:
-    reasons = []
-    if reconciliation["collection_status"] != "COMPLETE": reasons.append("bot_collection_incomplete")
-    if reconciliation.get("valid_blocking_finding_ids"): reasons.append("unresolved_valid_bot_finding")
-    return reasons
-
-
-def collect_candidate_technical_reasons(package: Mapping[str, Any]) -> list[str]:
-    reasons: set[str] = set(technical_reasons_from_reconciliation(package["external_review_reconciliation"]))
-    identity = package.get("review_identity", {})
-    if identity.get("review_validity") != "CURRENT": reasons.add("stale_technical_review_identity")
-    if identity.get("review_mode") == "PARTIAL": reasons.add("incomplete_technical_scope")
-    scope = package.get("scope", {})
-    if scope.get("coverage_complete") is False or scope.get("high_risk_areas_not_reviewed"): reasons.add("incomplete_technical_scope")
-    if package.get("unverified_areas") or package.get("required_actions"): reasons.add("incomplete_technical_scope")
-    intent = package.get("intent_fit") or {}
-    if intent.get("intent_fit_result") not in {None, "satisfied"} or intent.get("unsupported_claims"): reasons.add("incomplete_technical_scope")
-    reviewed_head = identity.get("reviewed_head_sha")
-    evidence_records = [e for e in (package.get("evidence") or package.get("evidence_records") or []) if isinstance(e, Mapping)]
-    evidence_ids = [e.get("evidence_id") for e in evidence_records]
-    if len(evidence_ids) != len(set(evidence_ids)): reasons.add("incomplete_technical_scope")
-    evidence_by_id = {e.get("evidence_id"): e for e in evidence_records}
-    if package.get("red_gate_flags"):
-        reasons.add("required_technical_check_failed")
-    for check in package.get("checks", []):
-        if not isinstance(check, Mapping):
-            continue
-        if check.get("required") is True and check.get("result") == "FAIL": reasons.add("required_technical_check_failed")
-        elif check.get("required") is True and check.get("result") in {"UNKNOWN", "NOT_RUN", None}: reasons.add("incomplete_technical_scope")
-        if check.get("required") is True and check.get("result") == "PASS":
-            evidence_id = check.get("evidence_ref") or check.get("evidence_id")
-            evidence = evidence_by_id.get(evidence_id)
-            if check.get("state") not in {"EXECUTED", "CI_INSPECTED"} or evidence is None:
-                reasons.add("incomplete_technical_scope")
-            elif evidence.get("reviewed_head_sha") not in {None, reviewed_head}:
-                reasons.add("stale_technical_review_identity")
-            elif evidence.get("result") != "PASS" or evidence.get("evidence_type") not in {"CI", "EXECUTION"}:
-                reasons.add("incomplete_technical_scope")
-    actual_blocking = 0
-    for finding in package.get("findings", []):
-        if not isinstance(finding, Mapping): continue
-        severity = finding.get("severity"); evidence = finding.get("evidence_label")
-        refs = finding.get("evidence_refs", [])
-        if refs and any(ref not in evidence_by_id for ref in refs): reasons.add("incomplete_technical_scope")
-        if any(isinstance(evidence_by_id.get(ref), Mapping) and evidence_by_id[ref].get("reviewed_head_sha") not in {None, reviewed_head} for ref in refs): reasons.add("stale_technical_review_identity")
-        if evidence == "REPRODUCED" and not any(isinstance(evidence_by_id.get(ref), Mapping) and evidence_by_id[ref].get("evidence_type") in {"EXECUTION", "CI"} and evidence_by_id[ref].get("result") == "FAIL" for ref in refs): reasons.add("incomplete_technical_scope")
-        if evidence == "CODE_SUPPORTED" and not any(isinstance(evidence_by_id.get(ref), Mapping) and evidence_by_id[ref].get("evidence_type") == "CODE" for ref in refs): reasons.add("incomplete_technical_scope")
-        if severity == "CRITICAL" and evidence in {"REPRODUCED", "CODE_SUPPORTED"}: reasons.add("critical_supported_finding")
-        elif severity == "HIGH" and evidence == "REPRODUCED": reasons.add("high_reproduced_finding")
-        elif severity == "HIGH" and evidence == "CODE_SUPPORTED": reasons.add("blocking_medium_finding")
-        elif severity in {"CRITICAL", "HIGH"} and evidence in {"HYPOTHESIS", "NOT_ASSESSABLE"}: reasons.add("incomplete_technical_scope")
-        elif severity == "MEDIUM" and finding.get("blocking") is True: reasons.add("blocking_medium_finding")
-        if finding.get("blocking") is True: actual_blocking += 1
-    declared_blocking = package.get("decision", {}).get("blocking_findings_count") if isinstance(package.get("decision"), Mapping) else None
-    if isinstance(declared_blocking, int) and declared_blocking != actual_blocking: reasons.add("incomplete_technical_scope")
-    if package.get("repair_handoff", {}).get("affected_findings"):
-        reasons.add("incomplete_technical_scope")
-    return sorted(reasons)
-
-
-def _schema_validator(name: str) -> Draft202012Validator:
-    schema = json.loads((ROOT / f"protocols/{PROTOCOL_VERSION}/schemas/{name}.schema.json").read_text(encoding="utf-8"))
-    return Draft202012Validator(schema)
-
-
-def validate_candidate_package(package: Mapping[str, Any], governance_evidence: object | None = None, *, review_surface_inventory: object | None = None, target_repository_id: int | None = None) -> list[str]:
-    errors = [error.message for error in _schema_validator("review-package").iter_errors(package)]
-    if errors: return sorted(errors)
-    if not isinstance(review_surface_inventory, VerifiedReviewSurfaceInventory) or review_surface_inventory._token is not _SURFACE_TOKEN:
-        errors.append("sealed review surface inventory is required for candidate technical Green eligibility")
-    if package.get("external_review_intake") is None:
-        errors.append("external_review_intake is required for candidate technical Green eligibility")
-    else:
-        try:
-            recomputed = recompute_external_review_reconciliation(package, review_surface_inventory)
-            if package["external_review_reconciliation"] != recomputed: errors.append("external_review_reconciliation disagrees with recomputed bot review evidence")
-        except ValueError as exc:
-            errors.append(str(exc))
-    technical_reasons = collect_candidate_technical_reasons(package)
-    identity = package.get("review_identity", {}) if isinstance(package.get("review_identity"), Mapping) else {}
-    effective_repository_id = target_repository_id if target_repository_id is not None else identity.get("target_repository_id")
-    try: derived = project_decision(package.get("inspection_profile"), technical_reasons, governance_evidence, target_repository=identity.get("target_repository"), target_repository_id=effective_repository_id, pull_request=identity.get("pr_number"), reviewed_head_sha=identity.get("reviewed_head_sha"))
-    except ValueError as exc: return [str(exc)]
-    for key in ["technical_decision", "governance_decision", "overall_recommendation"]:
-        if package.get(key) != derived[key]: errors.append(f"{key} disagrees with authoritative candidate projection")
-    legacy_status = package.get("decision", {}).get("technical_status") if isinstance(package.get("decision"), Mapping) else None
-    if legacy_status == "GREEN_TECHNICALLY_READY" and derived["technical_decision"]["status"] != "GREEN": errors.append("legacy technical_status GREEN conflicts with derived candidate status")
-    if legacy_status == "RED_DO_NOT_MERGE" and derived["technical_decision"]["status"] != "RED": errors.append("legacy technical_status RED conflicts with derived candidate status")
-    if legacy_status == "YELLOW_CHANGES_OR_VERIFICATION_REQUIRED" and derived["technical_decision"]["status"] != "YELLOW": errors.append("legacy technical_status YELLOW conflicts with derived candidate status")
-    return sorted(set(errors))
-
-
-def render_candidate_owner_result(projection: Mapping[str, Any]) -> bytes:
-    message_key = projection["owner_readiness"]["message_key"]
-    first, second = OWNER_MESSAGE_REGISTRY[message_key]
-    return f"{first}\n{second}\n".encode("utf-8")
-
-
-def render_candidate_owner_card(package: Mapping[str, Any], projection: Mapping[str, Any]) -> bytes:
-    return ("# Candidate owner decision card\n" f"technical_status: {projection['technical_decision']['status']}\n" f"governance_status: {projection['governance_decision']['status']}\n").encode("utf-8")
-
-
-def render_candidate_technical_handoff(package: Mapping[str, Any], projection: Mapping[str, Any]) -> bytes:
-    return ("# Candidate technical handoff\n" f"technical_reason_codes: {','.join(projection['technical_decision']['reason_codes'])}\n").encode("utf-8")
-
-
-def render_candidate_next_action_prompt(projection: Mapping[str, Any]) -> bytes | None:
-    if not projection["next_action"]["prompt_required"]:
-        return None
-    return b"Repair independently validated technical findings before rereview.\n"
-
-
-def canonical_json_bytes(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8") + b"\n"
-
-
-def build_candidate_review_artifacts(package: Mapping[str, Any], *, governance_evidence: object | None = None, review_surface_inventory: object | None = None, target_repository_id: int | None = None) -> Mapping[str, bytes]:
-    errors = validate_candidate_package(package, governance_evidence, review_surface_inventory=review_surface_inventory, target_repository_id=target_repository_id)
-    if errors:
-        raise ValueError("candidate package is semantically invalid: " + "; ".join(errors))
-    reasons = collect_candidate_technical_reasons(package)
-    identity = package["review_identity"]
-    projection = project_decision(package["inspection_profile"], reasons, governance_evidence, target_repository=identity["target_repository"], target_repository_id=identity["target_repository_id"], pull_request=identity["pr_number"], reviewed_head_sha=identity["reviewed_head_sha"])
-    artifacts: dict[str, bytes] = {
-        "review-package.json": canonical_json_bytes(package),
-        "DECISION_PROJECTION.json": canonical_json_bytes(projection),
-        OWNER_CARD_ARTIFACT: render_candidate_owner_card(package, projection),
-        TECHNICAL_HANDOFF_ARTIFACT: render_candidate_technical_handoff(package, projection),
-        OWNER_RESULT_ARTIFACT: render_candidate_owner_result(projection),
-        OWNER_PROFILE_COMMANDS_ARTIFACT: PROFILE_COMMANDS_BYTES,
-    }
-    prompt = render_candidate_next_action_prompt(projection)
-    if prompt is not None:
-        artifacts["NEXT_ACTION_PROMPT.en.md"] = prompt
-    manifest = {"schema_version": 2, "artifacts": [{"path": name, "sha256": bytes_sha256(raw)} for name, raw in sorted(artifacts.items())], "review_package_canonical_sha256": canonical_sha256(package), "review_package_file_sha256": bytes_sha256(artifacts["review-package.json"])}
-    artifacts["artifact-manifest.json"] = canonical_json_bytes(manifest)
-    return MappingProxyType(artifacts)
-
-REQUIRED_REF = {"target_repository", "target_repository_id", "pull_request", "reviewed_head_sha", "inspector_repository", "inspector_commit_sha", "review_package_sha256", "decision_projection_sha256", "artifact_manifest_sha256"}
-BASE_REQUIRED_ARTIFACTS = {"review-package.json", "DECISION_PROJECTION.json", "OWNER_DECISION_CARD.fa.md", "TECHNICAL_HANDOFF.en.md", "OWNER_RESULT.fa.txt", "artifact-manifest.json", OWNER_PROFILE_COMMANDS_ARTIFACT}
-
-
-def verify_candidate_review_artifact_bytes(artifact_bytes: Mapping[str, bytes], inspector_commit: VerifiedInspectorCommit, *, governance_evidence: object | None = None, review_surface_inventory: object | None = None, live_head_sha: str | None = None) -> VerifiedCandidateReviewBundle:
-    commit = _verified_commit(inspector_commit)
-    snapshot = MappingProxyType({name: bytes(raw) for name, raw in artifact_bytes.items()})
-    package = _json_object("review-package.json", snapshot["review-package.json"])
-    projection = _json_object("DECISION_PROJECTION.json", snapshot["DECISION_PROJECTION.json"])
-    manifest = _json_object("artifact-manifest.json", snapshot["artifact-manifest.json"])
-    if manifest.get("schema_version") != 2: raise ValueError("artifact manifest schema_version must be 2")
-    if package.get("inspection_profile") not in {MINIMAL, STRICT} or projection.get("inspection_profile") != package.get("inspection_profile"): raise ValueError("review profile mismatch")
-    identity = package.get("review_identity", {})
-    if identity.get("review_validity") != "CURRENT": raise ValueError("base review validity is not CURRENT")
-    if identity.get("inspector_repository") != commit.repository or identity.get("inspector_commit_sha") != commit.commit_sha: raise ValueError("base review inspector identity mismatch")
-    if live_head_sha is not None and identity.get("reviewed_head_sha") != live_head_sha: raise ValueError("reviewed head is stale at access time")
-    errors = validate_candidate_package(package, governance_evidence, review_surface_inventory=review_surface_inventory)
-    if errors: raise ValueError("candidate package is semantically invalid: " + "; ".join(errors))
-    _schema_validator("decision-projection").validate(projection)
-    derived = project_decision(package["inspection_profile"], collect_candidate_technical_reasons(package), governance_evidence, target_repository=identity.get("target_repository"), target_repository_id=identity.get("target_repository_id"), pull_request=identity.get("pr_number"), reviewed_head_sha=identity.get("reviewed_head_sha"))
-    if projection != derived: raise ValueError("projection does not match authoritative candidate projection")
-    expected = build_candidate_review_artifacts(package, governance_evidence=governance_evidence, review_surface_inventory=review_surface_inventory)
-    if set(snapshot) != set(expected): raise ValueError("artifact set contains missing or unexpected artifacts")
-    for name, raw in expected.items():
-        if snapshot.get(name) != raw: raise ValueError(f"{name} bytes are not canonical")
-    if any(b"\r\n" in raw or raw.startswith(b"\xef\xbb\xbf") for raw in snapshot.values()): raise ValueError("artifact bytes contain forbidden BOM or CRLF")
-    manifest_items = manifest.get("artifacts")
-    if not isinstance(manifest_items, list): raise ValueError("artifact manifest is malformed")
-    paths: set[str] = set(); manifest_hashes: dict[str, str] = {}
-    for item in manifest_items:
-        if not isinstance(item, Mapping) or not isinstance(item.get("path"), str): raise ValueError("artifact manifest entry is malformed")
-        path = item["path"]
-        if path in paths: raise ValueError("artifact manifest contains duplicate path")
-        if "/" in path or path.startswith("."): raise ValueError("artifact manifest path is not canonical")
-        paths.add(path); manifest_hashes[path] = item.get("sha256")
-    if not set(expected).issubset(set(snapshot)): raise ValueError("artifact set is incomplete")
-    for name in set(expected) - {"artifact-manifest.json"}:
-        if manifest_hashes.get(name) != bytes_sha256(snapshot[name]): raise ValueError("artifact manifest mismatch")
-    reference = {"inspection_profile": package["inspection_profile"], "target_repository": package["review_identity"]["target_repository"], "target_repository_id": package["review_identity"].get("target_repository_id"), "pull_request": package["review_identity"].get("pr_number"), "reviewed_head_sha": package["review_identity"]["reviewed_head_sha"], "inspector_repository": commit.repository, "inspector_commit_sha": commit.commit_sha, "review_package_sha256": canonical_sha256(package), "decision_projection_sha256": bytes_sha256(snapshot["DECISION_PROJECTION.json"]), "artifact_manifest_sha256": bytes_sha256(snapshot["artifact-manifest.json"])}
-    return VerifiedCandidateReviewBundle(_REVIEW_TOKEN, MappingProxyType(reference), snapshot, bytes_sha256(snapshot["review-package.json"]), commit)
-
-
-def verify_minimal_review_artifact_bytes(artifact_bytes: Mapping[str, bytes], inspector_commit: VerifiedInspectorCommit, *, review_surface_inventory: object | None = None) -> VerifiedMinimalReviewBundle:
-    bundle = verify_candidate_review_artifact_bytes(artifact_bytes, inspector_commit, review_surface_inventory=review_surface_inventory)
-    if bundle.reference.get("inspection_profile") != MINIMAL:
-        raise ValueError("base review is not minimal")
-    return bundle
-
-
-def verify_base_review_reference(evidence: object, live_head_sha: str, *, target_repository: str | None = None, target_repository_id: int | None = None, pull_request: int | None = None) -> dict[str, Any]:
-    if not is_verified_minimal_review_bundle(evidence): return {"status": "INVALID", "reason": "verified_minimal_review_required"}
-    reference = evidence.reference
-    if REQUIRED_REF - set(reference): return {"status": "INVALID", "reason": "missing_fields"}
-    if evidence.inspector_commit.repository != LOCKED_INSPECTOR_REPOSITORY or evidence.inspector_commit.repository_id != LOCKED_INSPECTOR_REPOSITORY_ID: return {"status": "INVALID", "reason": "inspector_identity_mismatch"}
-    if target_repository is not None and reference["target_repository"] != target_repository: return {"status": "INVALID", "reason": "target_repository_mismatch"}
-    if not isinstance(target_repository_id, int) or target_repository_id <= 0: return {"status": "INVALID", "reason": "target_repository_id_required"}
-    if reference.get("target_repository_id") != target_repository_id: return {"status": "INVALID", "reason": "target_repository_id_mismatch"}
-    if pull_request is not None and reference["pull_request"] != pull_request: return {"status": "INVALID", "reason": "pull_request_mismatch"}
-    if reference["reviewed_head_sha"] != live_head_sha: return {"status": "STALE", "reason": "head_drift", "action": "rerun_minimal_then_strict"}
-    return {"status": "VERIFIED", "reason": "same_head", "action": "reuse_technical_decision"}
-
-
-def render_owner_profile_commands(profile: str) -> bytes:
-    if profile not in {MINIMAL, STRICT}: raise ValueError("unknown inspection_profile")
-    return PROFILE_COMMANDS_BYTES
-
-
-def validate_owner_profile_commands(raw: bytes) -> list[str]:
-    errors = []
-    if raw != PROFILE_COMMANDS_BYTES: errors.append("owner profile commands bytes differ from canonical text")
-    if raw.startswith(b"\xef\xbb\xbf"): errors.append("owner profile commands must not contain BOM")
-    if b"\r\n" in raw: errors.append("owner profile commands must use LF newlines")
-    if not raw.endswith(b"\n"): errors.append("owner profile commands must end with LF")
-    if len(raw.decode("utf-8").splitlines()) != 2: errors.append("owner profile commands must contain exactly two visible lines")
-    return errors
-
-
-def build_candidate_owner_delivery_artifacts(bundle: VerifiedCandidateReviewBundle) -> Mapping[str, bytes]:
-    if not is_verified_candidate_review_bundle(bundle):
-        raise ValueError("verified candidate bundle is required for owner delivery")
-    return bundle.artifact_bytes
-
-
-def candidate_owner_delivery_stdout(bundle: object, *, live_head_sha: str | None = None) -> bytes:
-    try:
-        if not is_verified_candidate_review_bundle(bundle):
-            return b""
-        if live_head_sha is not None and bundle.reference.get("reviewed_head_sha") != live_head_sha:
-            return b""
-        artifacts = bundle.artifact_bytes
-        manifest = _json_object("artifact-manifest.json", artifacts["artifact-manifest.json"])
-        if manifest.get("schema_version") != 2:
-            return b""
-        manifest_items = manifest.get("artifacts")
-        if not isinstance(manifest_items, list):
-            return b""
-        seen_paths: set[str] = set()
-        for item in manifest_items:
-            if not isinstance(item, Mapping) or not isinstance(item.get("path"), str) or item["path"] in seen_paths:
-                return b""
-            seen_paths.add(item["path"])
-            if item["path"] not in artifacts or item.get("sha256") != bytes_sha256(artifacts[item["path"]]):
-                return b""
-        if not set(artifacts).issubset(seen_paths | {"artifact-manifest.json"}):
-            return b""
-        projection = _json_object("DECISION_PROJECTION.json", artifacts["DECISION_PROJECTION.json"])
-        _schema_validator("decision-projection").validate(projection)
-        raw_owner = artifacts[OWNER_RESULT_ARTIFACT]
-        if raw_owner != render_candidate_owner_result(projection):
-            return b""
-        if validate_owner_profile_commands(artifacts.get(OWNER_PROFILE_COMMANDS_ARTIFACT, b"")):
-            return b""
-        prompt = render_candidate_next_action_prompt(projection)
-        if prompt is None:
-            if "NEXT_ACTION_PROMPT.en.md" in artifacts:
-                return b""
-            return raw_owner + artifacts[OWNER_PROFILE_COMMANDS_ARTIFACT]
-        if artifacts.get("NEXT_ACTION_PROMPT.en.md") != prompt:
-            return b""
-        return raw_owner + "\n## Ù¾Ø±Ø§Ù…Ù¾Øª Ø§Ù‚Ø¯Ø§Ù…\n\n".encode("utf-8") + prompt + artifacts[OWNER_PROFILE_COMMANDS_ARTIFACT]
-    except Exception:
-        return b""
+            finding = finding_by_id[fid]
+            if repair and finding.get("severity") in {"CRITICAL", "HIGH", 'MEDIUM%ô…¹™¥¹‘¥¹œ¹•Ğ ‰‰±½­¥¹œˆ¤èÙ…±¥‘}‰±½­¥¹œ¹…ÁÁ•¹¡™¥¤(€€€€€€€É•ÍÕ±ÑÌ¹…ÁÁ•¹¡ì‰Í½ÕÉ•}¥ˆèÍ¥°€‰±…ÍÍ¥™¥…Ñ¥½¸ˆè±…ÍÍ¥™¥…Ñ¥½¸°€‰±¥¹­•‘}™¥¹‘¥¹}¥‘Ìˆè±¥¹­•°€‰É•Á…¥É}…ÕÑ¡½É¥é•ˆèÉ•Á…¥È°€‰‘ÕÁ±¥…Ñ•}½¹™¥Éµ•ˆè±…ÍÍ¥™¥…Ñ¥½¸€ôô€‰‘ÕÁ±¥…Ñ”‰ô¤(€€€Õ¹¥¹ÍÁ•Ñ•€ôÍ½ÉÑ•¡Í½ÕÉ•}¥‘Ì€´¥¹ÍÁ•Ñ•¤(€€€É•ÑÕÉ¸ì‰½±±•Ñ¥½¹}ÍÑ…ÑÕÌˆè€‰=5A1Qˆ¥˜¹½ĞÕ¹¥¹ÍÁ•Ñ••±Í”€‰%9=5A1Qˆ°€‰½Á•¹}‰½Ñ}Í½ÕÉ•Í}Ñ½Ñ…°ˆè±•¸¡Í½ÕÉ•}¥‘Ì¤°€‰¥¹ÍÁ•Ñ•‘}Ñ½Ñ…°ˆè±•¸¡¥¹ÍÁ•Ñ•¤°€‰½Õ¹ÑÌˆè½Õ¹ÑÌ°€‰Õ¹¥¹ÍÁ•Ñ•‘}Í½ÕÉ•}¥‘ÌˆèÕ¹¥¹ÍÁ•Ñ•°€‰Ù…±¥‘}‰±½­¥¹}™¥¹‘¥¹}¥‘ÌˆèÍ½ÉÑ•¡Í•Ğ¡Ù…±¥‘}‰±½­¥¹œ¤¤°€‰ÍÕ•ÍÑ¥½¹}É•ÍÕ±ÑÌˆèÉ•ÍÕ±ÑÍô(()‘•˜É•½µÁÕÑ•}•áÑ•É¹…±}É•Ù¥•İ}É•½¹¥±¥…Ñ¥½¸¡Á…­…”è5…ÁÁ¥¹mÍÑÈ°¹åt°¥¹Ù•¹Ñ½ÉäèY•É¥™¥•‘I•Ù¥•İMÕÉ™…•%¹Ù•¹Ñ½Éä¤€´ø‘¥ÑmÍÑÈ°¹åtè(€€€¥˜¹½Ğ¥Í¥¹ÍÑ…¹”¡¥¹Ù•¹Ñ½Éä°Y•É¥™¥•‘I•Ù¥•İMÕÉ™…•%¹Ù•¹Ñ½Éä¤½È¥¹Ù•¹Ñ½Éä¹}Ñ½­•¸¥Ì¹½Ğ}MUI}Q=-8è(€€€€€€€É…¥Í”Y…±Õ•ÉÉ½È ‰Í•…±•É•Ù¥•ÜÍÕÉ™…”¥¹Ù•¹Ñ½Éä¥ÌÉ•ÅÕ¥É•ˆ¤(€€€¥¹Ñ…­”€ôÁ…­…”¹•Ğ ‰•áÑ•É¹…±}É•Ù¥•İ}¥¹Ñ…­”ˆ¤½Èíô(€€€Í½ÕÉ•Ì€ô±¥ÍĞ¡¥¹Ñ…­”¹•Ğ ‰Í½ÕÉ•Í}¥¹ÍÁ•Ñ•ˆ°mt¤¤(€€€ÍÕ•ÍÑ¥½¹Ì€ô±¥ÍĞ¡¥¹Ñ…­”¹•Ğ ‰ÍÕ•ÍÑ¥½¹Ìˆ°mt¤¤(€€€¥˜í¥Ñ•µl‰Í½ÕÉ•}¥‰t™½È¥Ñ•´¥¸Í½ÕÉ•Íô€„ôí¥Ñ•µl‰Í½ÕÉ•}¥‰t™½È¥Ñ•´¥¸¥¹Ù•¹Ñ½Éä¹Í½ÕÉ•Íôè(€€€€€€€É…¥Í”Y…±Õ•ÉÉ½È ‰•áÑ•É¹…°É•Ù¥•Ü¥¹Ñ…­”‘½•Ì¹½Ğµ…Ñ Ù•É¥™¥•É•Ù¥•ÜÍÕÉ™…”¥¹Ù•¹Ñ½Éäˆ¤(€€€É•ÑÕÉ¸É•½¹¥±•}‰½Ñ}É•Ù¥•İÌ¡Í½ÕÉ•Ì°ÍÕ•ÍÑ¥½¹Ì°Á…­…”¹•Ğ ‰™¥¹‘¥¹Ìˆ°mt¤¤(()‘•˜Ù…±¥‘…Ñ•}…¹‘¥‘…Ñ•}Á…­…”¡Á…­…”è5…ÁÁ¥¹mÍÑÈ°¹åt°½Ù•É¹…¹•}•Ù¥‘•¹”è½‰©•Ğğ9½¹”€ô9½¹”°€¨°É•Ù¥•İ}ÍÕÉ™…•}¥¹Ù•¹Ñ½Éäè½‰©•Ğğ9½¹”€ô9½¹”°Ñ…É•Ñ}É•Á½Í¥Ñ½Éå}¥è¥¹Ğğ9½¹”€ô9½¹”¤€´ø±¥ÍÑmÍÑÉtè(€€€…¹‘¥‘…Ñ”€ô‘¥Ğ¡Á…­…”¤(€€€¥˜…¹‘¥‘…Ñ”¹•Ğ ‰ÁÉ½Ñ½½±}Ù•ÉÍ¥½¸ˆ¤€„ôAI=Q==1}YIM%=8è(€€€€€€€É•ÑÕÉ¸l‰Á…­…”ÁÉ½Ñ½½±}Ù•ÉÍ¥½¸‘½•Ì¹½Ğµ…Ñ Ñ¡”…Ñ¥Ù”ÁÉ½Ñ½½°‰t(€€€¥˜É•Ù¥•İ}ÍÕÉ™…•}¥¹Ù•¹Ñ½Éä¥Ì¹½Ğ9½¹”è(€€€€€€€ÑÉäè…¹‘¥‘…Ñ•l‰•áÑ•É¹…±}É•Ù¥•İ}É•½¹¥±¥…Ñ¥½¸‰t€ôÉ•½µÁÕÑ•}•áÑ•É¹…±}É•Ù¥•İ}É•½¹¥±¥…Ñ¥½¸¡…¹‘¥‘…Ñ”°É•Ù¥•İ}ÍÕÉ™…•}¥¹Ù•¹Ñ½Éä¤(€€€€€€€•á•ÁĞY…±Õ•ÉÉ½È…Ì•áŒèÉ•ÑÕÉ¸mÍÑÈ¡•áŒ ¥t(€€€•Ù¥‘•¹”€ô½™™¥¥…±}½Ù•É¹…¹•}•Ù¥‘•¹”¡½Ù•É¹…¹•}•Ù¥‘•¹”¤(€€€É•ÑÕÉ¸m¥Ñ•´¹±¥¹” ¤™½È¥Ñ•´¥¸}½™™¥¥…±}Ù…±¥‘…Ñ•}Á…­…”¡…¹‘¥‘…Ñ”°½Ù•É¹…¹•}•Ù¥‘•¹”õ•Ù¥‘•¹”¥t(()‘•˜‰¥¹‘}µ¥¹¥µ…±}É•Ù¥•İ}½µÁ±•Ñ¥½¸¡½µÁ±•Ñ¥½¸èY•É¥™¥•‘I•Ù¥•İ½µÁ±•Ñ¥½¸°€¨°Ñ…É•Ñ}É•Á½Í¥Ñ½Éå}¥è¥¹Ğ°¥¹ÍÁ•Ñ½É}½µµ¥Ğè…¹‘¥‘…Ñ•Y•É¥™¥•‘%¹ÍÁ•Ñ½É½µµ¥Ğ¤€´øY•É¥™¥•‘5¥¹¥µ…±I•Ù¥•İI•™•É•¹”è(€€€¥˜¹½Ğ¥Í}Ù•É¥™¥•‘}É•Ù¥•İ}½µÁ±•Ñ¥½¸¡½µÁ±•Ñ¥½¸¤½È½µÁ±•Ñ¥½¸¹‘•¥Í¥½¹}ÁÉ½©•Ñ¥½¸ ¤¹•Ğ ‰¥¹ÍÁ•Ñ¥½¹}ÁÉ½™¥±”ˆ¤€„ô5%9%50è(€€€€€€€É…¥Í”Y…±Õ•ÉÉ½È ‰Ù•É¥™¥•½™™¥¥…°µ¥¹¥µ…°½µÁ±•Ñ¥½¸¥ÌÉ•ÅÕ¥É•ˆ¤(€€€½µµ¥Ğ€ô}Ù•É¥™¥•‘}½µµ¥Ğ¡¥¹ÍÁ•Ñ½É}½µµ¥Ğ¤(€€€¥˜¹½Ğ¥Í¥¹ÍÑ…¹”¡Ñ…É•Ñ}É•Á½Í¥Ñ½Éå}¥°¥¹Ğ¤½ÈÑ…É•Ñ}É•Á½Í¥Ñ½Éå}¥€ğô€ÀèÉ…¥Í”Y…±Õ•ÉÉ½È ‰Ñ…É•ĞÉ•Á½Í¥Ñ½Éå}¥¥Ì¥¹Ù…±¥ˆ¤(€€€É•ÑÕÉ¸Y•É¥™¥•‘5¥¹¥µ…±I•Ù¥•İI•™•É•¹”¡}II9}Q=-8°½µÁ±•Ñ¥½¸°Ñ…É•Ñ}É•Á½Í¥Ñ½Éå}¥°½µµ¥Ğ¤(()‘•˜¥Í}Ù•É¥™¥•‘}µ¥¹¥µ…±}É•Ù¥•İ}É•™•É•¹”¡Ù…±Õ”è½‰©•Ğ¤€´ø‰½½°è(€€€É•ÑÕÉ¸¥Í¥¹ÍÑ…¹”¡Ù…±Õ”°Y•É¥™¥•‘5¥¹¥µ…±I•Ù¥•İI•™•É•¹”¤…¹Ù…±Õ”¹}Ñ½­•¸¥Ì}II9}Q=-8(()‘•˜Ù•É¥™å}‰…Í•}É•Ù¥•İ}É•™•É•¹”¡•Ù¥‘•¹”è½‰©•Ğ°±¥Ù•}¡•…‘}Í¡„èÍÑÈ°€¨°Ñ…É•Ñ}É•Á½Í¥Ñ½ÉäèÍÑÈğ9½¹”€ô9½¹”°Ñ…É•Ñ}É•Á½Í¥Ñ½Éå}¥è¥¹Ğğ9½¹”€ô9½¹”°ÁÕ±±}É•ÅÕ•ÍĞè¥¹Ğğ9½¹”€ô9½¹”¤€´ø‘¥ÑmÍÑÈ°¹åtè(€€€¥˜¹½Ğ¥Í}Ù•É¥™¥•‘}µ¥¹¥µ…±}É•Ù¥•İ}É•™•É•¹”¡•Ù¥‘•¹”¤èÉ•ÑÕÉ¸ì‰ÍÑ…ÑÕÌˆè€‰%9Y1%ˆ°€‰É•…Í½¸ˆè€‰Ù•É¥™¥•‘}µ¥¹¥µ…±}É•Ù¥•İ}É•ÅÕ¥É•‰ô(€€€½µÁ±•Ñ¥½¸€ô•Ù¥‘•¹”¹½µÁ±•Ñ¥½¸(€€€¥˜Ñ…É•Ñ}É•Á½Í¥Ñ½Éä¥Ì¹½Ğ9½¹”…¹½µÁ±•Ñ¥½¸¹Ñ…É•Ñ}É•Á½Í¥Ñ½Éä€„ôÑ…É•Ñ}É•Á½Í¥Ñ½ÉäèÉ•ÑÕÉ¸ì‰ÍÑ…ÑÕÌˆè€‰%9Y1%ˆ°€‰É•…Í½¸ˆè€‰Ñ…É•Ñ}É•Á½Í¥Ñ½Éå}µ¥Íµ…Ñ ‰ô(€€€¥˜¹½Ğ¥Í¥¹ÍÑ…¹”¡Ñ…É•Ñ}É•Á½Í¥Ñ½Éå}¥°¥¹Ğ¤½ÈÑ…É•Ñ}É•Á½Í¥Ñ½Éå}¥€ğô€ÀèÉ•ÑÕÉ¸ì‰ÍÑ…ÑÕÌˆè€‰%9Y1%ˆ°€‰É•…Í½¸ˆè€‰Ñ…É•Ñ}É•Á½Í¥Ñ½Éå}¥‘}É•ÅÕ¥É•‰ô(€€€¥˜•Ù¥‘•¹”¹Ñ…É•Ñ}É•Á½Í¥Ñ½Éå}¥€„ôÑ…É•Ñ}É•Á½Í¥Ñ½Éå}¥èÉ•ÑÕÉ¸ì‰ÍÑ…ÑÕÌˆè€‰%9Y1%ˆ°€‰É•…Í½¸ˆè€‰Ñ…É•Ñ}É•Á½Í¥Ñ½Éå}¥‘}µ¥Íµ…Ñ ‰ô(€€€¥˜ÁÕ±±}É•ÅÕ•ÍĞ¥Ì¹½Ğ9½¹”…¹½µÁ±•Ñ¥½¸¹ÁÉ}¹Õµ‰•È€„ôÁÕ±±}É•ÅÕ•ÍĞèÉ•ÑÕÉ¸ì‰ÍÑ…ÑÕÌˆè€‰%9Y1%ˆ°€‰É•…Í½¸ˆè€‰ÁÕ±±}É•ÅÕ•ÍÑ}µ¥Íµ…Ñ ‰ô(€€€¥˜½µÁ±•Ñ¥½¸¹É•Ù¥•İ•‘}¡•…‘}Í¡„€„ô±¥Ù•}¡•…‘}Í¡„èÉ•ÑÕÉ¸ì‰ÍÑ…ÑÕÌˆè€‰MQ1ˆ°€‰É•…Í½¸ˆè€‰¡•…‘}‘É¥™Ğˆ°€‰…Ñ¥½¸ˆè€‰É•ÉÕ¹}µ¥¹¥µ…±}Ñ¡•¹}ÍÑÉ¥Ğ‰ô(€€€É•ÑÕÉ¸ì‰ÍÑ…ÑÕÌˆè€‰YI%%ˆ°€‰É•…Í½¸ˆè€‰Í…µ•}¡•…ˆ°€‰…Ñ¥½¸ˆè€‰É•ÕÍ•}Ñ•¡¹¥…±}‘•¥Í¥½¸‰ô(()‘•˜}Ñ…É•Ğ¡É•™•É•¹”èY•É¥™¥•‘5¥¹¥µ…±I•Ù¥•İI•™•É•¹”¤€´ø5…ÁÁ¥¹mÍÑÈ°¹åtè(€€€Œ€ôÉ•™•É•¹”¹½µÁ±•Ñ¥½¸(€€€É•ÑÕÉ¸5…ÁÁ¥¹AÉ½áåQåÁ”¡ì‰É•Á½Í¥Ñ½ÉäˆèŒ¹Ñ…É•Ñ}É•Á½Í¥Ñ½Éä°€‰É•Á½Í¥Ñ½Éå}¥ˆèÉ•™•É•¹”¹Ñ…É•Ñ}É•Á½Í¥Ñ½Éå}¥°€‰ÁÕ±±}É•ÅÕ•ÍĞˆèŒ¹ÁÉ}¹Õµ‰•È°€‰ÕÉ°ˆè˜‰¡ÑÑÁÌè¼½¥Ñ¡Õˆ¹½´½íŒ¹Ñ…É•Ñ}É•Á½Í¥Ñ½Éåô½ÁÕ±°½íŒ¹ÁÉ}¹Õµ‰•Éô‰ô¤(()‘•˜½É¡•ÍÑÉ…Ñ•}ÍÑÉ¥Ñ}…™Ñ•É}µ¥¹¥µ…°¡½¹Ñ•áĞè5…ÁÁ¥¹mÍÑÈ°¹åt°É•™É•Í¡}µ¥¹¥µ…±}É•Ù¥•Üè…±±…‰±•mm5…ÁÁ¥¹mÍÑÈ°¹åt°ÍÑÉt°Y•É¥™¥•‘5¥¹¥µ…±I•Ù¥•İI•™•É•¹•tğ9½¹”€ô9½¹”¤€´ø5¥¹¥µ…±I•™É•Í¡I•ÍÕ±Ğè(€€€É•™•É•¹”€ô½¹Ñ•áĞ¹•Ğ ‰Ù•É¥™¥•‘}µ¥¹¥µ…±}É•Ù¥•Üˆ¤¥˜¥Í¥¹ÍÑ…¹”¡½¹Ñ•áĞ°5…ÁÁ¥¹œ¤•±Í”9½¹”(€€€¥˜¹½Ğ¥Í}Ù•É¥™¥•‘}µ¥¹¥µ…±}É•Ù¥•İ}É•™•É•¹”¡É•™•É•¹”¤è(€€€€€€€É•ÑÕÉ¸5¥¹¥µ…±I•™É•Í¡I•ÍÕ±Ğ¡}IIM!}Q=-8°€‰É•™É•Í¡}™…¥±•ˆ°5…ÁÁ¥¹AÉ½áåQåÁ”¡íô¤°€ˆˆ°9½¹”°€‰Ù•É¥™¥•‘}µ¥¹¥µ…±}É•Ù¥•İ}É•ÅÕ¥É•ˆ¤(€€€Ñ…É•Ğ€ô}Ñ…É•Ğ¡É•™•É•¹”¤(€€€±¥Ù”€ô½¹Ñ•áĞ¹•Ğ ‰Ù•É¥™¥•‘}±¥Ù•}ÁÉ}¡•…ˆ¤(€€€¥˜¹½Ğ¥Í¥¹ÍÑ…¹”¡±¥Ù”°Y•É¥™¥•‘1¥Ù•AÉ!•…¤½È±¥Ù”¹}Ñ½­•¸¥Ì¹½Ğ}QIQ}Q=-8è(€€€€€€€É•ÍÁ½¹Í”€ô½¹Ñ•áĞ¹•Ğ ‰±¥Ù•}ÁÉ}É•ÍÁ½¹Í”ˆ¤(€€€€€€€¥˜É•ÍÁ½¹Í”¥Ì9½¹”è(€€€€€€€€€€€É•ÑÕÉ¸5¥¹¥µ…±I•™É•Í¡I•ÍÕ±Ğ¡}IIM!}Q=-8°€‰É•™É•Í¡}™…¥±•ˆ°Ñ…É•Ğ°€ˆˆ°9½¹”°€‰Í•…±•‘}±¥Ù•}ÁÉ}¡•…‘}É•ÅÕ¥É•ˆ¤(€€€€€€€±¥Ù”€ôÙ•É¥™å}±¥Ù•}ÁÉ}¡•…‘}É•ÍÁ½¹Í”¡É•ÍÁ½¹Í”°Ñ…É•Ñ}É•Á½Í¥Ñ½ÉäõÑ…É•Ñl‰É•Á½Í¥Ñ½Éä‰t°Ñ…É•Ñ}É•Á½Í¥Ñ½Éå}¥õÑ…É•Ñl‰É•Á½Í¥Ñ½Éå}¥‰t°ÁÕ±±}É•ÅÕ•ÍĞõÑ…É•Ñl‰ÁÕ±±}É•ÅÕ•ÍĞ‰t¤(€€€ÍÑ…ÑÕÌ€ôÙ•É¥™å}‰…Í•}É•Ù¥•İ}É•™•É•¹”¡É•™•É•¹”°±¥Ù”¹¡•…‘}Í¡„°Ñ…É•Ñ}É•Á½Í¥Ñ½ÉäõÑ…É•Ñl‰É•Á½Í¥Ñ½Éä‰t°Ñ…É•Ñ}É•Á½Í¥Ñ½Éå}¥õÑ…É•Ñl‰É•Á½Í¥Ñ½Éå}¥‰t°ÁÕ±±}É•ÅÕ•ÍĞõÑ…É•Ñl‰ÁÕ±±}É•ÅÕ•ÍĞ‰t¤(€€€¥˜ÍÑ…ÑÕÍl‰ÍÑ…ÑÕÌ‰t€ôô€‰YI%%ˆè(€€€€€€€É•ÑÕÉ¸5¥¹¥µ…±I•™É•Í¡I•ÍÕ±Ğ¡}IIM!}Q=-8°€‰Í…µ•}¡•…‘}É•ÕÍ”ˆ°Ñ…É•Ğ°±¥Ù”¹¡•…‘}Í¡„°É•™•É•¹”¤(€€€¥˜ÍÑ…ÑÕÍl‰ÍÑ…ÑÕÌ‰t€„ô€‰MQ1ˆè(€€€€€€€É•ÑÕÉ¸5¥¹¥µ…±I•™É•Í¡I•ÍÕ±Ğ¡}IIM!}Q=-8°€‰É•™É•Í¡}™…¥±•ˆ°Ñ…É•Ğ°±¥Ù”¹¡•…‘}Í¡„°9½¹”°ÍÑ…ÑÕÌ¹•Ğ ‰É•…Í½¸ˆ¤¤(€€€…±±‰…¬€ôÉ•™É•Í¡}µ¥¹¥µ…±}É•Ù¥•Ü½È½¹Ñ•áĞ¹•Ğ ‰É•™É•Í¡}µ¥¹¥µ…±}É•Ù¥•Üˆ¤(€€€¥˜…±±‰…¬¥Ì9½¹”è(€€€€€€€É•ÑÕÉ¸5¥¹¥µ…±I•™É•Í¡I•ÍÕ±Ğ¡}IIM!}Q=-8°€‰¡•…‘}‘É¥™Ñ}É•™É•Í¡}É•ÅÕ¥É•ˆ°Ñ…É•Ğ°±¥Ù”¹¡•…‘}Í¡„°9½¹”°€‰µ¥¹¥µ…±}É•™É•Í¡}É•ÅÕ¥É•ˆ¤(€€€É•™É•Í¡•€ô…±±‰…¬¡Ñ…É•Ğ°±¥Ù”¹¡•…‘}Í¡„¤(€€€Ù•É¥™ä€ôÙ•É¥™å}‰…Í•}É•Ù¥•İ}É•™•É•¹”¡É•™É•Í¡•°±¥Ù”¹¡•…‘}Í¡„°Ñ…É•Ñ}É•Á½Í¥Ñ½ÉäõÑ…É•Ñl‰É•Á½Í¥Ñ½Éä‰t°Ñ…É•Ñ}É•Á½Í¥Ñ½Éå}¥õÑ…É•Ñl‰É•Á½Í¥Ñ½Éå}¥‰t°ÁÕ±±}É•ÅÕ•ÍĞõÑ…É•Ñl‰ÁÕ±±}É•ÅÕ•ÍĞ‰t¤(€€€¥˜Ù•É¥™ål‰ÍÑ…ÑÕÌ‰t€„ô€‰YI%%ˆè(€€€€€€€É•ÑÕÉ¸5¥¹¥µ…±I•™É•Í¡I•ÍÕ±Ğ¡}IIM!}Q=-8°€‰É•™É•Í¡}™…¥±•ˆ°Ñ…É•Ğ°±¥Ù”¹¡•…‘}Í¡„°9½¹”°Ù•É¥™ä¹•Ğ ‰É•…Í½¸ˆ¤¤(€€€É•ÑÕÉ¸5¥¹¥µ…±I•™É•Í¡I•ÍÕ±Ğ¡}IIM!}Q=-8°€‰É•™É•Í¡}Ù•É¥™¥•ˆ°Ñ…É•Ğ°±¥Ù”¹¡•…‘}Í¡„°É•™É•Í¡•¤(()‘•˜Á…ÉÍ•}¥¹Ñ…­”¡Ñ•áĞèÍÑÈ°½¹Ñ•áĞè5…ÁÁ¥¹mÍÑÈ°¹åtğ9½¹”€ô9½¹”¤€´ø‘¥ÑmÍÑÈ°¹åtè(€€€¥˜½¹Ñ•áĞ¥Ì¹½Ğ9½¹”…¹¹½Ğ¥Í¥¹ÍÑ…¹”¡½¹Ñ•áĞ°5…ÁÁ¥¹œ¤è(€€€€€€€É•ÑÕÉ¸ì‰¥¹ÍÁ•Ñ¥½¹}ÁÉ½™¥±”ˆè5%9%50°€‰Ñ…É•Ğˆè9½¹”°€‰É•ÕÍ•}ÕÉÉ•¹Ñ}µ¥¹¥µ…°ˆè…±Í”°€‰µ¥ÍÍ¥¹œˆèl‰Ù…±¥‘}½¹Ñ•áĞ‰t°€‰•ÉÉ½Èˆè€‰½¹Ñ•áÑ}µ…±™½Éµ•‰ô(€€€±¥¹•Ì€ôm±¥¹”¹ÍÑÉ¥À ¤™½È±¥¹”¥¸Ñ•áĞ¹ÍÁ±¥Ñ±¥¹•Ì ¤¥˜±¥¹”¹ÍÑÉ¥À ¥t(€€€ÁÉ½™¥±”€ô5%9%50(€€€¥˜±¥¹•Ì…¹±¥¹•ÍlÁt¥¸ì‹b·b¿bŸffn0ˆ°€‹bÏb»b¨ƒj¿n3bÇbŸff‰ôè(€€€€€€€ÁÉ½™¥±”€ô5%9%50¥˜±¥¹•Ì¹Á½À À¤€ôô€‹b·b¿bŸffn0ˆ•±Í”MQI%P(€€€ÕÉ°€ô¹•áĞ ¡±¥¹”™½È±¥¹”¥¸±¥¹•Ì¥˜AI}UI1}I¹™Õ±±µ…Ñ ¡±¥¹”¤¤°9½¹”¤(€€€¥˜ÁÉ½™¥±”€ôôMQI%P…¹ÕÉ°¥Ì9½¹”…¹½¹Ñ•áĞè(€€€€€€€É•™É•Í €ô½É¡•ÍÑÉ…Ñ•}ÍÑÉ¥Ñ}…™Ñ•É}µ¥¹¥µ…°¡½¹Ñ•áĞ¤(€€€€€€€¥˜É•™É•Í ¹ÍÑ…Ñ”¥¸ì‰Í…µ•}¡•…‘}É•ÕÍ”ˆ°€‰¡•…‘}‘É¥™Ñ}É•™É•Í¡}É•ÅÕ¥É•ˆ°€‰É•™É•Í¡}Ù•É¥™¥•‰ôè(€€€€€€€€€€€É•ÑÕÉ¸ì‰¥¹ÍÁ•Ñ¥½¹}ÁÉ½™¥±”ˆèMQI%P°€‰Ñ…É•Ğˆè‘¥Ğ¡É•™É•Í ¹Ñ…É•Ğ¤°€‰É•ÕÍ•}ÕÉÉ•¹Ñ}µ¥¹¥µ…°ˆèÉ•™É•Í ¹ÍÑ…Ñ”€ôô€‰Í…µ•}¡•…‘}É•ÕÍ”ˆ°€‰É•™É•Í¡•‘}µ¥¹¥µ…±}É•Ù¥•ÜˆèÉ•™É•Í ¹‰Õ¹‘±”°€‰µ¥¹¥µ…±}É•™É•Í¡}ÍÑ…Ñ”ˆèÉ•™É•Í ¹ÍÑ…Ñ”°€‰½¹Ñ¥¹Õ•}ÍÑÉ¥ĞˆèÉ•™É•Í ¹ÍÑ…Ñ”¥¸ì‰Í…µ•}¡•…‘}É•ÕÍ”ˆ°€‰É•™É•Í¡}Ù•É¥™¥•‰ô°€‰µ¥ÍÍ¥¹œˆèmuô(€€€€€€€¥˜É•™É•Í ¹Ñ…É•Ğè(€€€€€€€€€€€É•ÑÕÉ¸ì‰¥¹ÍÁ•Ñ¥½¹}ÁÉ½™¥±”ˆèMQI%P°€‰Ñ…É•Ğˆè‘¥Ğ¡É•™É•Í ¹Ñ…É•Ğ¤°€‰É•ÕÍ•}ÕÉÉ•¹Ñ}µ¥¹¥µ…°ˆè…±Í”°€‰µ¥¹¥µ…±}É•™É•Í¡}ÍÑ…Ñ”ˆèÉ•™É•Í ¹ÍÑ…Ñ”°€‰½¹Ñ¥¹Õ•}ÍÑÉ¥Ğˆè…±Í”°€‰µ¥ÍÍ¥¹œˆèmt°€‰•ÉÉ½ÈˆèÉ•™É•Í ¹É•…Í½¹ô(€€€¥˜ÕÉ°¥Ì9½¹”è(€€€€€€€É•ÑÕÉ¸ì‰¥¹ÍÁ•Ñ¥½¹}ÁÉ½™¥±”ˆèÁÉ½™¥±”°€‰Ñ…É•Ğˆè9½¹”°€‰É•ÕÍ•}ÕÉÉ•¹Ñ}µ¥¹¥µ…°ˆè…±Í”°€‰µ¥ÍÍ¥¹œˆèl‰ÁÕ±±}É•ÅÕ•ÍÑ}ÕÉ°‰uô(€€€µ…Ñ €ôAI}UI1}I¹™Õ±±µ…Ñ ¡ÕÉ°¤(€€€É•ÑÕÉ¸ì‰¥¹ÍÁ•Ñ¥½¹}ÁÉ½™¥±”ˆèÁÉ½™¥±”°€‰Ñ…É•Ğˆèì‰É•Á½Í¥Ñ½Éäˆèµ…Ñ ¹É½ÕÀ Ä¤°€‰ÁÕ±±}É•ÅÕ•ÍĞˆè¥¹Ğ¡µ…Ñ ¹É½ÕÀ È¤¤°€‰ÕÉ°ˆèÕÉ±ô°€‰É•ÕÍ•}ÕÉÉ•¹Ñ}µ¥¹¥µ…°ˆè…±Í”°€‰µ¥ÍÍ¥¹œˆèmuô(()‘•˜É•¹‘•É}½İ¹•É}ÁÉ½™¥±•}½µµ…¹‘Ì¡ÁÉ½™¥±”èÍÑÈ¤€´ø‰åÑ•Ìè(€€€¥˜ÁÉ½™¥±”¹½Ğ¥¸í5%9%50°MQI%Qôè(€€€€€€€É…¥Í”Y…±Õ•ÉÉ½È ‰Õ¹­¹½İ¸¥¹ÍÁ•Ñ¥½¹}ÁÉ½™¥±”ˆ¤(€€€É•ÑÕÉ¸}½™™¥¥…±}ÁÉ½™¥±•}½µµ…¹‘Ì ¤¹•¹½‘” ‰ÕÑ˜´àˆ¤(()‘•˜Ù…±¥‘…Ñ•}½İ¹•É}ÁÉ½™¥±•}½µµ…¹‘Ì¡É…Üè‰åÑ•Ì¤€´ø±¥ÍÑmÍÑÉtè(€€€•ÉÉ½ÉÌ€ômt(€€€¥˜É…Ü€„ôAI=%1}=559M}	eQLè•ÉÉ½ÉÌ¹…ÁÁ•¹ ‰½İ¹•ÈÁÉ½™¥±”½µµ…¹‘Ì‘¥™™•È™É½´…¹½¹¥…°½™™¥¥…°‰åÑ•Ìˆ¤(€€€¥˜É…Ü¹ÍÑ…ÉÑÍİ¥Ñ ¡ˆ‰qá•™qá‰‰qá‰˜ˆ¤è•ÉÉ½ÉÌ¹…ÁÁ•¹ ‰½İ¹•ÈÁÉ½™¥±”½µµ…¹‘ÌµÕÍĞ¹½Ğ½¹Ñ…¥¸	=4ˆ¤(€€€¥˜ˆ‰qÉq¸ˆ¥¸É…Üè•ÉÉ½ÉÌ¹…ÁÁ•¹ ‰½İ¹•ÈÁÉ½™¥±”½µµ…¹‘ÌµÕÍĞÕÍ”1¹•İ±¥¹•Ìˆ¤(€€€¥˜¹½ĞÉ…Ü¹•¹‘Íİ¥Ñ ¡ˆ‰q¸ˆ¤è•ÉÉ½ÉÌ¹…ÁÁ•¹ ‰½İ¹•ÈÁÉ½™¥±”½µµ…¹‘ÌµÕÍĞ•¹İ¥Ñ 1ˆ¤(€€€É•ÑÕÉ¸•ÉÉ½ÉÌ(()‘•˜}Õ¹ÍÕÁÁ½ÉÑ•‘}½ÕÑÁÕĞ¡Íåµ‰½°èÍÑÈ¤€´ø9½¹”è(€€€É…¥Í”…¹‘¥‘…Ñ•=ÕÑÁÕÑ5¥É…Ñ¥½¹ÉÉ½È¡˜‰íÍåµ‰½±ô¥Ì¹¼±½¹•È…¸½ÕÑÁÕĞ…ÕÑ¡½É¥ÑäìÕÍ”…¹½¹¥…°É•Ù¥•ÜµÁ…­…”ÁÉ½•ÍÍ¥¹œ°Y•É¥™¥•‘I•Ù¥•İ½µÁ±•Ñ¥½¸°…¹½™™¥¥…±}½İ¹•É}‘•±¥Ù•Éäˆ¤(()‘•˜ÁÉ½©•Ñ}‘•¥Í¥½¸ ©…ÉÌè¹ä°€¨©­İ…ÉÌè¹ä¤€´ø9½¹”è}Õ¹ÍÕÁÁ½ÉÑ•‘}½ÕÑÁÕĞ ‰…¹‘¥‘…Ñ•}ØÅ|ÄÄ¹ÁÉ½©•Ñ}‘•¥Í¥½¸ˆ¤)‘•˜É•¹‘•É}…¹‘¥‘…Ñ•}¹•áÑ}…Ñ¥½¹}ÁÉ½µÁĞ ©…ÉÌè¹ä°€¨©­İ…ÉÌè¹ä¤€´ø9½¹”è}Õ¹ÍÕÁÁ½ÉÑ•‘}½ÕÑÁÕĞ ‰É•¹‘•É}…¹‘¥‘…Ñ•}¹•áÑ}…Ñ¥½¹}ÁÉ½µÁĞˆ¤)‘•˜É•¹‘•É}…¹‘¥‘…Ñ•}½İ¹•É}É•ÍÕ±Ğ ©…ÉÌè¹ä°€¨©­İ…ÉÌè¹ä¤€´ø9½¹”è}Õ¹ÍÕÁÁ½ÉÑ•‘}½ÕÑÁÕĞ ‰É•¹‘•É}…¹‘¥‘…Ñ•}½İ¹•É}É•ÍÕ±Ğˆ¤)‘•˜É•¹‘•É}…¹‘¥‘…Ñ•}½İ¹•É}…É ©…ÉÌè¹ä°€¨©­İ…ÉÌè¹ä¤€´ø9½¹”è}Õ¹ÍÕÁÁ½ÉÑ•‘}½ÕÑÁÕĞ ‰É•¹‘•É}…¹‘¥‘…Ñ•}½İ¹•É}…Éˆ¤)‘•˜É•¹‘•É}…¹‘¥‘…Ñ•}Ñ•¡¹¥…±}¡…¹‘½™˜ ©…ÉÌè¹ä°€¨©­İ…ÉÌè¹ä¤€´ø9½¹”è}Õ¹ÍÕÁÁ½ÉÑ•‘}½ÕÑÁÕĞ ‰É•¹‘•É}…¹‘¥‘…Ñ•}Ñ•¡¹¥…±}¡…¹‘½™˜ˆ¤)‘•˜‰Õ¥±‘}…¹‘¥‘…Ñ•}É•Ù¥•İ}…ÉÑ¥™…ÑÌ ©…ÉÌè¹ä°€¨©­İ…ÉÌè¹ä¤€´ø9½¹”è}Õ¹ÍÕÁÁ½ÉÑ•‘}½ÕÑÁÕĞ ‰‰Õ¥±‘}…¹‘¥‘…Ñ•}É•Ù¥•İ}…ÉÑ¥™…ÑÌˆ¤)‘•˜Ù•É¥™å}…¹‘¥‘…Ñ•}É•Ù¥•İ}…ÉÑ¥™…Ñ}‰åÑ•Ì ©…ÉÌè¹ä°€¨©­İ…ÉÌè¹ä¤€´ø9½¹”è}Õ¹ÍÕÁÁ½ÉÑ•‘}½ÕÑÁÕĞ ‰Ù•É¥™å}…¹‘¥‘…Ñ•}É•Ù¥•İ}…ÉÑ¥™…Ñ}‰åÑ•Ìˆ¤)‘•˜Ù•É¥™å}µ¥¹¥µ…±}É•Ù¥•İ}…ÉÑ¥™…Ñ}‰åÑ•Ì ©…ÉÌè¹ä°€¨©­İ…ÉÌè¹ä¤€´ø9½¹”è}Õ¹ÍÕÁÁ½ÉÑ•‘}½ÕÑÁÕĞ ‰Ù•É¥™å}µ¥¹¥µ…±}É•Ù¥•İ}…ÉÑ¥™…Ñ}‰åÑ•Ìˆ¤)‘•˜‰Õ¥±‘}…¹‘¥‘…Ñ•}½İ¹•É}‘•±¥Ù•Éå}…ÉÑ¥™…ÑÌ ©…ÉÌè¹ä°€¨©­İ…ÉÌè¹ä¤€´ø9½¹”è}Õ¹ÍÕÁÁ½ÉÑ•‘}½ÕÑÁÕĞ ‰‰Õ¥±‘}…¹‘¥‘…Ñ•}½İ¹•É}‘•±¥Ù•Éå}…ÉÑ¥™…ÑÌˆ¤)‘•˜…¹‘¥‘…Ñ•}½İ¹•É}‘•±¥Ù•Éå}ÍÑ‘½ÕĞ ©…ÉÌè¹ä°€¨©­İ…ÉÌè¹ä¤€´ø9½¹”è}Õ¹ÍÕÁÁ½ÉÑ•‘}½ÕÑÁÕĞ ‰…¹‘¥‘…Ñ•}½İ¹•É}‘•±¥Ù•Éå}ÍÑ‘½ÕĞˆ¤(()}}…±±}|€ôl(€€€€‰…¹‘¥‘…Ñ•½Ù•É¹…¹•Ù¥‘•¹”ˆ°€‰…¹‘¥‘…Ñ•=ÕÑÁÕÑ5¥É…Ñ¥½¹ÉÉ½Èˆ°(€€€€‰…¹‘¥‘…Ñ•Y•É¥™¥•‘%¹ÍÁ•Ñ½É½µµ¥Ğˆ°€‰¡•­¹¹½Ñ…Ñ¥½¹½±±•Ñ¥½¸ˆ°(€€€€‰=YI99}IM=9}=Lˆ°€‰=YI99}MQQUM}Pˆ°(€€€€‰1=-}%9MAQ=I}IA=M%Q=Ie}%ˆ°€‰5%9%50ˆ°€‰5¥¹¥µ…±I•™É•Í¡I•ÍÕ±Ğˆ°(€€€€‰=]9I}AI=%1}=559M}IQ%Pˆ°€‰AI=%1}=559M}	eQLˆ°€‰AI=Q==1}YIM%=8ˆ°(€€€€‰MQI%Pˆ°€‰Q!9%1}IM=9}=Lˆ°€‰Y•É¥™¥•‘1¥Ù•AÉ!•…ˆ°(€€€€‰Y•É¥™¥•‘5¥¹¥µ…±I•Ù¥•İI•™•É•¹”ˆ°€‰Y•É¥™¥•‘I•Ù¥•İMÕÉ™…•%¹Ù•¹Ñ½Éäˆ°(€€€€‰Y•É¥™¥•‘Q…É•Ñ%‘•¹Ñ¥Ñäˆ°€‰‰¥¹‘}…¹‘¥‘…Ñ•}½Ù•É¹…¹•}•Ù¥‘•¹”ˆ°(€€€€‰‰¥¹‘}µ¥¹¥µ…±}É•Ù¥•İ}½µÁ±•Ñ¥½¸ˆ°€‰‰åÑ•Í}Í¡„ÈÔØˆ°€‰…¹½¹¥…±}Í¡„ÈÔØˆ°(€€€€‰±…ÍÍ¥™å}½Ù•É¹…¹”ˆ°€‰¥Í}Ù•É¥™¥•‘}µ¥¹¥µ…±}É•Ù¥•İ}É•™•É•¹”ˆ°(€€€€‰½™™¥¥…±}½Ù•É¹…¹•}•Ù¥‘•¹”ˆ°€‰½É¡•ÍÑÉ…Ñ•}ÍÑÉ¥Ñ}…™Ñ•É}µ¥¹¥µ…°ˆ°(€€€€‰Á…ÉÍ•}¥¹Ñ…­”ˆ°€‰É•½µÁÕÑ•}•áÑ•É¹…±}É•Ù¥•İ}É•½¹¥±¥…Ñ¥½¸ˆ°(€€€€‰É•½¹¥±•}‰½Ñ}É•Ù¥•İÌˆ°€‰É•¹‘•É}½İ¹•É}ÁÉ½™¥±•}½µµ…¹‘Ìˆ°(€€€€‰Ù…±¥‘…Ñ•}…¹‘¥‘…Ñ•}Á…­…”ˆ°€‰Ù…±¥‘…Ñ•}½İ¹•É}ÁÉ½™¥±•}½µµ…¹‘Ìˆ°(€€€€‰Ù•É¥™å}‰…Í•}É•Ù¥•İ}É•™•É•¹”ˆ°€‰Ù•É¥™å}…¹‘¥‘…Ñ•}¥¹ÍÁ•Ñ½É}½µµ¥Ñ}Á…å±½…ˆ°(€€€€‰Ù•É¥™å}…¹‘¥‘…Ñ•}¥¹ÍÁ•Ñ½É}½µµ¥Ñ}É•ÍÁ½¹Í•Ìˆ°€‰Ù•É¥™å}½Ù•É¹…¹•}Á…å±½…‘}‰Õ¹‘±”ˆ°(€€€€‰Ù•É¥™å}±¥Ù•}ÁÉ}¡•…‘}É•ÍÁ½¹Í”ˆ°€‰Ù•É¥™å}É•Ù¥•İ}ÍÕÉ™…•}¥¹Ù•¹Ñ½Éå}É•ÍÁ½¹Í•Ìˆ°(€€€€‰Ù•É¥™å}Ñ…É•Ñ}¥‘•¹Ñ¥Ñå}É•ÍÁ½¹Í”ˆ°)t(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 from pathlib import Path
@@ -28,6 +29,26 @@ QUALITY_REQUIRED_PHRASES = {
     "COR-RESEARCH-001": "must include the research-backed-claims seed rule",
     "Validation does not make this document part of the active protocol and does not make the seed rules active review rules.": "must distinguish repository validation from active review-rule enforcement",
     "No active protocol behavior is changed": "must not claim the planning document itself changes active protocol enforcement",
+}
+CANDIDATE_FORBIDDEN_EXPORTS = {
+    "project_decision",
+    "render_candidate_next_action_prompt",
+    "render_candidate_owner_result",
+    "render_candidate_owner_card",
+    "render_candidate_technical_handoff",
+    "build_candidate_review_artifacts",
+    "verify_candidate_review_artifact_bytes",
+    "verify_minimal_review_artifact_bytes",
+    "build_candidate_owner_delivery_artifacts",
+    "candidate_owner_delivery_stdout",
+}
+CANDIDATE_REQUIRED_EXPORTS = {
+    "parse_intake",
+    "verify_target_identity_response",
+    "verify_live_pr_head_response",
+    "verify_review_surface_inventory_responses",
+    "reconcile_bot_reviews",
+    "bind_minimal_review_completion",
 }
 
 
@@ -62,46 +83,35 @@ def validate_quality_foundation(root: Path, load_order: list[str]) -> list[Diagn
     return diagnostics
 
 
-def validate_active_release_lock(
-    root: Path,
-    current: str,
-    manifest: dict,
-    load_order: list[str],
-) -> list[Diagnostic]:
+def validate_active_release_lock(root: Path, current: str, manifest: dict, load_order: list[str]) -> list[Diagnostic]:
     diagnostics: list[Diagnostic] = []
     expected_rel = f"release-locks/{current}.sha256"
     declared_rel = manifest.get("release_lock")
     if declared_rel != expected_rel:
-        diagnostics.append(Diagnostic("PRI-LOCK-002", "/protocol-manifest.yaml/release_lock", f"active release lock must be {expected_rel}"))
-        return diagnostics
-
+        return [Diagnostic("PRI-LOCK-002", "/protocol-manifest.yaml/release_lock", f"active release lock must be {expected_rel}")]
     lock_path = root / expected_rel
     if not lock_path.is_file():
-        diagnostics.append(Diagnostic("PRI-LOCK-002", f"/{expected_rel}", "active release lock is missing"))
-        return diagnostics
-
+        return [Diagnostic("PRI-LOCK-002", f"/{expected_rel}", "active release lock is missing")]
     try:
         locked_paths = set(parse_lock(lock_path))
     except (OSError, ValueError) as exc:
-        diagnostics.append(Diagnostic("PRI-LOCK-002", f"/{expected_rel}", str(exc)))
-        return diagnostics
-
+        return [Diagnostic("PRI-LOCK-002", f"/{expected_rel}", str(exc))]
     canonical_paths = set(load_order)
     if locked_paths != canonical_paths:
         missing = sorted(canonical_paths - locked_paths)
         extra = sorted(locked_paths - canonical_paths)
-        details: list[str] = []
+        details = []
         if missing:
-            details.append(f"missing canonical paths: {', '.join(missing)}")
+            details.append("missing canonical paths: " + ", ".join(missing))
         if extra:
-            details.append(f"unexpected locked paths: {', '.join(extra)}")
+            details.append("unexpected locked paths: " + ", ".join(extra))
         diagnostics.append(Diagnostic("PRI-LOCK-003", f"/{expected_rel}", "; ".join(details)))
     return diagnostics
 
 
-def validate_active_schemas(root: Path, load_order: list[str]) -> list[Diagnostic]:
+def validate_active_schemas(root: Path, load_order: list[str]) -> list[Diagostic]:
     diagnostics: list[Diagnostic] = []
-    schema_paths = [rel for rel in load_order if str(rel).endswith(".schema.json")]
+    schema_paths = [rel for rel in load_order if rel.endswith(".schema.json")]
     if not schema_paths:
         return [Diagnostic("PRI-REPO-SCHEMA-002", "/protocol-manifest.yaml/load_order", "active load_order contains no JSON Schema")]
     for rel in schema_paths:
@@ -124,7 +134,54 @@ def validate_reason_registry() -> list[Diagnostic]:
     return []
 
 
-def validate_repository(root: Path = ROOT) -> list[Diagnostic]:
+def _literal_all(tree: ast.Module) -> set[str] | None:
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == "__all__" for target in node.targets):
+            if isinstance(node.value, (ast.List, ast.Tuple, ast.Set)):
+                values: set[str] = set()
+                for item in node.value.elts:
+                    if not isinstance(item, ast.Constant) or not isinstance(item.value, str):
+                        return None
+                    values.add(item.value)
+                return values
+    return None
+
+
+def validate_candidate_output_closure(root: Path) -> list[Diagnostic]:
+    path = root / "pr_inspector/candidate_v1_11.py"
+    if not path.is_file():
+        return [Diagnostic("PRI-CANDIDATE-OUTPUT-001", "/pr_inspector/candidate_v1_11.py", "compatibility module is missing")]
+    try:
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+    except (OSError, SyntaxError) as exc:
+        return [Diagnostic("PRI-CANDIDATE-OUTPUT-001", "/pr_inspector/candidate_v1_11.py", str(exc))]
+    diagnostics: list[Diagnostic] = []
+    exports = _literal_all(tree)
+    if exports is None:
+        diagnostics.append(Diagnostic("PRI-CANDIDATE-OUTPUT-001", "/pr_inspector/candidate_v1_11.py/__all__", "Candidate compatibility requires a literal allowlist"))
+    else:
+        leaked = sorted(exports & CANDIDATE_FORBIDDEN_EXPORTS)
+        missing = sorted(CANDIDATE_REQUIRED_EXPORTS - exports)
+        if leaked:
+            diagnostics.append(Diagnostic("PRI-CANDIDATE-OUTPUT-001", "/pr_inspector/candidate_v1_11.py/__all__", "Candidate output authority is exported: " + ", ".join(leaked)))
+        if missing:
+            diagnostics.append(Diagnostic("PRI-CANDIDATE-OUTPUT-001", "/pr_inspector/candidate_v1_11.py/__all__", "required pre-package compatibility exports are missing: " + ", ".join(missing)))
+    forbidden_text = (
+        "Repair independently validated technical findings before review",
+        "for _name in dir(",
+        "for name in tuple(dir(",
+        "raw_owner + \"\\n## پرامپت اقدام",
+    )
+    for text in forbidden_text:
+        if text in source:
+            diagnostics.append(Diagnostic("PRI-CANDIDATE-OUTPUT-001", "/pr_inspector/candidate_v1_11.py", f"forbidden Candidate output implementation remains: {text}"))
+    if "CandidateOutputMigrationError" not in source:
+        diagnostics.append(Diagnostic("PRI-CANDIDATE-OUTPUT-001", "/pr_inspector/candidate_v1_11.py", "deterministic Candidate output migration failure is missing"))
+    return diagnostics
+
+
+def validate_repository(root: Path = ROOT) -> list[Diagostic]:
     diagnostics: list[Diagnostic] = []
     required = [
         "README.md", "BOOTSTRAP.md", "AGENTS.md", "CURRENT_VERSION",
@@ -137,7 +194,6 @@ def validate_repository(root: Path = ROOT) -> list[Diagnostic]:
             diagnostics.append(Diagnostic("PRI-REPO-001", f"/{rel}", "required file is missing"))
     if diagnostics:
         return sorted(diagnostics)
-
     try:
         manifest = yaml.safe_load((root / "protocol-manifest.yaml").read_text(encoding="utf-8"))
     except Exception as exc:
@@ -149,34 +205,27 @@ def validate_repository(root: Path = ROOT) -> list[Diagnostic]:
     if len(load_order) != len(set(load_order)):
         diagnostics.append(Diagnostic("PRI-REPO-004", "/protocol-manifest.yaml/load_order", "duplicate canonical path"))
     diagnostics.extend(validate_quality_foundation(root, load_order))
-
     prefix = f"protocols/{current}/"
-    for idx, rel in enumerate(load_order):
+    for index, rel in enumerate(load_order):
         if not str(rel).startswith(prefix):
-            diagnostics.append(Diagnostic("PRI-REPO-005", f"/protocol-manifest.yaml/load_order/{idx}", "active canonical path is not version-scoped"))
+            diagnostics.append(Diagnostic("PRI-REPO-005", f"/protocol-manifest.yaml/load_order/{index}", "active canonical path is not version-scoped"))
         if not (root / rel).is_file():
             diagnostics.append(Diagnostic("PRI-REPO-006", f"/{rel}", "canonical file is missing"))
-
     diagnostics.extend(validate_active_release_lock(root, current, manifest, load_order))
     diagnostics.extend(validate_active_schemas(root, load_order))
     diagnostics.extend(validate_reason_registry())
     diagnostics.extend(validate_behavioral_coverage(root))
+    diagnostics.extend(validate_candidate_output_closure(root))
 
-    lifecycle_paths = [
-        root / "README.md",
-        root / f"protocols/{current}/PR_REVIEW_CONTRACT.md",
-    ]
-    forbidden_lifecycle = (
-        "active candidate on the unmerged pr branch",
-        "default branch remains authoritative until this pr is merged",
-    )
+    lifecycle_paths = [root / "README.md", root / f"protocols/{current}/PR_REVIEW_CONTRACT.md"]
     for lifecycle_path in lifecycle_paths:
         text = lifecycle_path.read_text(encoding="utf-8").lower()
-        for phrase in forbidden_lifecycle:
+        for phrase in (
+            "active candidate on the unmerged pr branch",
+            "default branch remains authoritative until this pr is merged",
+        ):
             if phrase in text:
-                diagnostics.append(
-                    Diagnostic("PRI-LIFECYCLE-001", f"/{lifecycle_path.relative_to(root)}", f"stale lifecycle wording remains: {phrase}")
-                )
+                diagnostics.append(Diagnostic("PRI-LIFECYCLE-001", f"/{lifecycle_path.relative_to(root)}", f"stale lifecycle wording remains: {phrase}"))
 
     lock_dir = root / "release-locks"
     if not lock_dir.is_dir():
