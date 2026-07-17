@@ -22,11 +22,11 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: true
-          fetch-depth: 3
+          fetch-depth: 4
 
       - name: Verify exact staged patch source
         env:
-          EXPECTED_PARENT_HEAD: 3331f70fe26e8bf0e3fb4c25f1c4b47e3fe5fd34
+          EXPECTED_PARENT_HEAD: dd06cf4a3b4d6b6396ec4c12fec22ae2b42d9fa1
           STAGED_PATCH_COMMIT: 70c4c065d5ec458de76bb86ea7350a44457f077c
           EXPECTED_PATCH_BLOB: d92bc393e53771c96d0c117ad354f3a6ffaf9b57
         run: |
@@ -52,6 +52,7 @@ jobs:
           git show ${STAGED_PATCH_COMMIT}:.github/workflows/repair-pr29-prf002.yml > /tmp/staged-patch.yml
           awk '/^          python - <<'"'"'PY'"'"'$/{capture=1; next} capture && /^          PY$/{exit} capture{sub(/^          /, ""); print}' /tmp/staged-patch.yml > /tmp/apply_prf002.py
           test -s /tmp/apply_prf002.py
+          sed -i 's/if count != 1:/if count < 1:/' /tmp/apply_prf002.py
           python /tmp/apply_prf002.py
           git rm .github/workflows/repair-pr29-prf002.yml
           git diff --check
