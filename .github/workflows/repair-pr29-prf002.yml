@@ -1,4 +1,4 @@
-name: Repair PR29 PRF-002 provenance
+name: Diagnose PR29 Behavioral provenance tests
 
 on:
   pull_request:
@@ -12,21 +12,21 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  repair:
+  diagnose:
     if: github.event.pull_request.number == 29 && github.event.pull_request.head.ref == 'fix/v1-11-1-output-authority-consolidation' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 25
     steps:
       - name: Check out exact triggering head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: true
-          fetch-depth: 18
+          fetch-depth: 20
 
       - name: Verify exact staged sources
         env:
-          EXPECTED_PARENT_HEAD: 926cba496eb7e4cae9c4681f91d51ddff6f7baf2
+          EXPECTED_PARENT_HEAD: c773f510b718efb3cabf1bb79833897b5c9aa57d
           STAGED_PATCH_COMMIT: 70c4c065d5ec458de76bb86ea7350a44457f077c
           EXPECTED_PATCH_BLOB: d92bc393e53771c96d0c117ad354f3a6ffaf9b57
         run: |
@@ -45,51 +45,28 @@ jobs:
       - name: Install validation dependencies
         run: python -m pip install --disable-pip-version-check ".[dev]"
 
-      - name: Apply and normalize bounded repair
+      - name: Capture Behavioral test failure
         env:
           STAGED_PATCH_COMMIT: 70c4c065d5ec458de76bb86ea7350a44457f077c
+          BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
           set -euo pipefail
           git show ${STAGED_PATCH_COMMIT}:.github/workflows/repair-pr29-prf002.yml > /tmp/staged-patch.yml
           awk '/^          python - <<'"'"'PY'"'"'$/{capture=1; next} capture && /^          PY$/{exit} capture{sub(/^          /, ""); print}' /tmp/staged-patch.yml > /tmp/apply_prf002.py
-          test -s /tmp/apply_prf002.py
           sed -i 's/if count != 1:/if count < 1:/' /tmp/apply_prf002.py
           python /tmp/apply_prf002.py
           python scripts/prf002_normalize.py
-          git rm .github/workflows/repair-pr29-prf002.yml .prf002-error.txt scripts/prf002_normalize.py
-          sed -i 's/[[:space:]]\+$//' CHANGELOG.md scripts/validate_rereview_sequence.py tests/test_behavioral_rule_coverage.py tests/test_candidate_v1_11.py
-          python -m py_compile scripts/validate_rereview_sequence.py tests/test_candidate_v1_11.py tests/test_behavioral_rule_coverage.py
-          git diff --check
-          git diff --name-only | sort
-
-      - name: Validate repository structure
-        run: python scripts/validate_repository_v2.py
-
-      - name: Run Candidate provenance tests
-        run: python -m pytest -q tests/test_candidate_v1_11.py
-
-      - name: Run repository closure tests
-        run: python -m pytest -q tests/test_repository_closure.py
-
-      - name: Run output authority tests
-        run: python -m pytest -q tests/test_v1_11_1_output_authority.py
-
-      - name: Run Behavioral Rule Coverage tests
-        run: python -m pytest -q tests/test_behavioral_rule_coverage.py
-
-      - name: Run governance enforcement tests
-        run: python -m pytest -q tests/test_governance_enforcement.py
-
-      - name: Run full test suite
-        run: python -m pytest
-
-      - name: Commit validated repair
-        env:
-          BRANCH: ${{ github.event.pull_request.head.ref }}
-        run: |
-          set -euo pipefail
+          set +e
+          python -m pytest -q tests/test_behavioral_rule_coverage.py > /tmp/behavioral.out 2>&1
+          status=$?
+          set -e
+          git reset --hard HEAD
+          {
+            echo "exit_status=${status}"
+            cat /tmp/behavioral.out
+          } > .prf002-error.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "Complete PRF-002 Inspector provenance repair"
+          git add .prf002-error.txt
+          git commit -m "Record Behavioral provenance test diagnostic"
           git push origin "HEAD:${BRANCH}"
