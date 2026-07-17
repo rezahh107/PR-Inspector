@@ -57,6 +57,18 @@ class GitHubApiResponse:
         raise AttributeError("GitHubApiResponse is immutable")
 
 
+class TestGitHubApiResponse:
+    """Structurally similar, non-operational response for negative tests only."""
+
+    __slots__ = GitHubApiResponse.__slots__
+
+    def __init__(self, *_: object, **__: object) -> None:
+        raise TypeError("TestGitHubApiResponse can only be created by the test factory")
+
+    def __setattr__(self, _name: str, _value: object) -> None:
+        raise AttributeError("TestGitHubApiResponse is immutable")
+
+
 class VerifiedGitHubGovernanceSource:
     """Sealed payload-derived governance source."""
 
@@ -124,7 +136,6 @@ class SpecialistRequirement:
             raise GovernanceEvidenceError("specialist team slug is invalid")
 
 
-_RESPONSE_CAPABILITIES: weakref.WeakSet[GitHubApiResponse] = weakref.WeakSet()
 _SOURCE_CAPABILITIES: weakref.WeakSet[VerifiedGitHubGovernanceSource] = weakref.WeakSet()
 _EVIDENCE_CAPABILITIES: weakref.WeakSet[VerifiedGovernanceEvidence] = weakref.WeakSet()
 
@@ -202,15 +213,16 @@ def _require_api_url(url: str) -> str:
     return url
 
 
-def _mint_response(
+def _assign_response_fields(
+    value: object,
     *,
     request_url: str,
     response_url: str,
     status_code: int,
     fetched_at: datetime,
     payload: Any,
-    transport_origin: str = "test_factory",
-) -> GitHubApiResponse:
+    transport_origin: str,
+) -> object:
     payload_json = _canonical_json(payload)
     content_id = hashlib.sha256(
         _canonical_json(
@@ -230,7 +242,6 @@ def _mint_response(
             }
         ).encode("utf-8")
     ).hexdigest()
-    value = object.__new__(GitHubApiResponse)
     object.__setattr__(value, "request_url", request_url)
     object.__setattr__(value, "response_url", response_url)
     object.__setattr__(value, "status_code", status_code)
@@ -239,75 +250,132 @@ def _mint_response(
     object.__setattr__(value, "receipt_id", receipt_id)
     object.__setattr__(value, "content_id", content_id)
     object.__setattr__(value, "transport_origin", transport_origin)
-    _RESPONSE_CAPABILITIES.add(value)
     return value
 
 
-def is_verified_github_api_response(value: object) -> bool:
-    return isinstance(value, GitHubApiResponse) and value in _RESPONSE_CAPABILITIES
-
-
-def fetch_github_api_response(
-    url: str,
+def _mint_response(
     *,
-    token: str | None,
-    api_version: str,
-    fetched_at: datetime | None = None,
-) -> GitHubApiResponse:
-    """Fetch one official GitHub API response and mint a sealed receipt.
+    request_url: str,
+    response_url: str,
+    status_code: int,
+    fetched_at: datetime,
+    payload: Any,
+) -> TestGitHubApiResponse:
+    """Create only a non-operational structural response for adversarial tests.
 
-    HTTP errors are retained as response receipts so missing or inaccessible governance
-    endpoints can be evaluated fail-closed instead of being mistaken for positive evidence.
-    Transport and JSON failures remain hard errors.
+    This compatibility helper deliberately has no caller-selectable transport origin,
+    never touches the operational registry, and is rejected by production verifiers.
     """
 
-    request_url = _require_api_url(url)
-    headers = {
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": api_version,
-        "User-Agent": "PR-Inspector-governance-verifier",
-    }
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-    request = urllib.request.Request(request_url, headers=headers)
-    try:
-        response = urllib.request.urlopen(request, timeout=20)
-    except urllib.error.HTTPError as exc:
-        response = exc
-    except (urllib.error.URLError, TimeoutError) as exc:
-        raise GovernanceEvidenceError(
-            f"insufficient_evidence: GitHub governance request failed for {url}: {exc}"
-        ) from exc
-
-    try:
-        response_url = _require_api_url(response.geturl())
-        if response_url != request_url:
-            raise GovernanceEvidenceError(
-                "insufficient_evidence: redirected GitHub governance responses are not accepted"
-            )
-        status_code = int(getattr(response, "status", getattr(response, "code", 0)))
-        payload = json.loads(response.read().decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError, ValueError, TypeError) as exc:
-        raise GovernanceEvidenceError(
-            f"insufficient_evidence: GitHub governance response is invalid: {exc}"
-        ) from exc
-    finally:
-        close = getattr(response, "close", None)
-        if callable(close):
-            close()
-
-    if not isinstance(payload, (dict, list)):
-        raise GovernanceEvidenceError(
-            "insufficient_evidence: GitHub governance response must be a JSON object or array"
-        )
-    return _mint_response(
+    value = object.__new__(TestGitHubApiResponse)
+    return _assign_response_fields(
+        value,
         request_url=request_url,
         response_url=response_url,
         status_code=status_code,
-        fetched_at=fetched_at or _utcnow(),
+        fetched_at=fetched_at,
         payload=payload,
-        transport_origin="github_https",
+        transport_origin="test_factory",
     )
+
+
+def _build_operational_response_boundary():
+    capabilities: weakref.WeakSet[GitHubApiResponse] = weakref.WeakSet()
+    issuer = object()
+
+    def _mint_operational_response(
+        *,
+        request_url: str,
+        response_url: str,
+        status_code: int,
+        fetched_at: datetime,
+        payload: Any,
+        issuer_token: object,
+    ) -> GitHubApiResponse:
+        if issuer_token is not issuer:
+            raise GovernanceEvidenceError("operational GitHub response issuer is invalid")
+        value = object.__new__(GitHubApiResponse)
+        _assign_response_fields(
+            value,
+            request_url=request_url,
+            response_url=response_url,
+            status_code=status_code,
+            fetched_at=fetched_at,
+            payload=payload,
+            transport_origin="github_https",
+        )
+        capabilities.add(value)
+        return value
+
+    def is_verified(value: object) -> bool:
+        return type(value) is GitHubApiResponse and value in capabilities
+
+    def fetch(
+        url: str,
+        *,
+        token: str | None,
+        api_version: str,
+        fetched_at: datetime | None = None,
+    ) -> GitHubApiResponse:
+        """Fetch one GitHub API response and seal the observed HTTPS receipt.
+
+        HTTP errors and redirects are retained as negative receipts. Only a 200 response
+        whose observed URL exactly matches the canonical request can satisfy a positive
+        provenance verifier. Transport and JSON failures remain hard errors.
+        """
+
+        request_url = _require_api_url(url)
+        headers = {
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": api_version,
+            "User-Agent": "PR-Inspector-governance-verifier",
+        }
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        request = urllib.request.Request(request_url, headers=headers)
+        try:
+            response = urllib.request.urlopen(request, timeout=20)
+        except urllib.error.HTTPError as exc:
+            response = exc
+        except (urllib.error.URLError, TimeoutError) as exc:
+            raise GovernanceEvidenceError(
+                f"insufficient_evidence: GitHub governance request failed for {url}: {exc}"
+            ) from exc
+
+        try:
+            response_url = response.geturl()
+            if not isinstance(response_url, str) or not response_url:
+                raise TypeError("response URL is missing")
+            status_code = int(getattr(response, "status", getattr(response, "code", 0)))
+            payload = json.loads(response.read().decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, TypeError) as exc:
+            raise GovernanceEvidenceError(
+                f"insufficient_evidence: GitHub governance response is invalid: {exc}"
+            ) from exc
+        finally:
+            close = getattr(response, "close", None)
+            if callable(close):
+                close()
+
+        if not isinstance(payload, (dict, list)):
+            raise GovernanceEvidenceError(
+                "insufficient_evidence: GitHub governance response must be a JSON object or array"
+            )
+        return _mint_operational_response(
+            request_url=request_url,
+            response_url=response_url,
+            status_code=status_code,
+            fetched_at=fetched_at or _utcnow(),
+            payload=payload,
+            issuer_token=issuer,
+        )
+
+    return fetch, is_verified
+
+
+fetch_github_api_response, is_verified_github_api_response = (
+    _build_operational_response_boundary()
+)
 
 
 def _validate_check_annotation_payload(response: GitHubApiResponse, payload: Any) -> None:
