@@ -9,6 +9,7 @@
 - Sealed Minimal-to-Strict reuse as a verifier-created capability bound to target identity, Inspector identity and commit, active protocol, exact reviewed Head, and all canonical package/projection/manifest hashes; forged and unverified refresh references fail closed.
 - Added the immutable v1.11.1 protocol snapshot and release lock while preserving v1.11.0 byte-for-byte.
 - Sealed Inspector repository and commit provenance behind operational GitHub HTTPS response capabilities; plain mappings and copied response fields cannot mint reusable Minimal-review authority.
+- Closed PRF-002-R1 by moving operational response minting and its registry into the production fetch closure, fixing the test factory to a separate non-operational class, and making governance fixtures supply URL plans for live HTTPS fetches rather than authoritative payloads.
 
 ## 1.10.2
 
