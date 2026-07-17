@@ -1,0 +1,87 @@
+name: Finalize PR29 Minimal reference repair
+
+on:
+  pull_request:
+    types: [synchronize]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-pr29-minimal-reference-finalize
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: github.event.pull_request.number == 29 && github.event.pull_request.head.ref == 'fix/v1-11-1-output-authority-consolidation' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact triggering head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: true
+          fetch-depth: 2
+
+      - name: Verify bounded starting state
+        env:
+          EXPECTED_PARENT_HEAD: 9ec77355e0c9a7b12f0d77e5007206d310892149
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "${EXPECTED_PARENT_HEAD}"
+          test "$(git diff --name-only HEAD^ HEAD)" = ".github/workflows/repair-pr29-minimal-reference-finalize.yml"
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install validation dependencies
+        run: python -m pip install --disable-pip-version-check ".[dev]"
+
+      - name: Apply bounded repair and remove temporary workflows
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64
+          import re
+          import zlib
+          from pathlib import Path
+
+          carrier = Path(".github/workflows/repair-pr29-minimal-reference.yml")
+          text = carrier.read_text(encoding="utf-8")
+          match = re.search(r'encoded = """\n(?P<data>.*?)\n          """', text, re.S)
+          if match is None:
+              raise SystemExit("embedded bounded patch was not found")
+          patch = zlib.decompress(base64.b64decode("".join(match.group("data").split())))
+          Path("/tmp/pr29-minimal-reference.patch").write_bytes(patch)
+          PY
+          git apply --check /tmp/pr29-minimal-reference.patch
+          git apply /tmp/pr29-minimal-reference.patch
+          rm .github/workflows/repair-pr29-minimal-reference.yml
+          rm .github/workflows/repair-pr29-minimal-reference-finalize.yml
+          test "$(git diff --name-only | sort)" = "$(printf '%s\n' .github/workflows/repair-pr29-minimal-reference-finalize.yml .github/workflows/repair-pr29-minimal-reference.yml pr_inspector/candidate_v1_11.py pr_inspector/review_provenance.py tests/test_candidate_v1_11.py | sort)"
+
+      - name: Validate repaired final tree
+        run: |
+          set -euo pipefail
+          python scripts/validate_repository_v2.py
+          python -m pytest -q tests/test_candidate_v1_11.py
+          python -m pytest -q tests/test_repository_closure.py
+          python -m pytest -q tests/test_v1_11_1_output_authority.py
+          python -m pytest -q tests/test_behavioral_rule_coverage.py
+          python -m pytest
+
+      - name: Commit validated repair
+        env:
+          BRANCH: fix/v1-11-1-output-authority-consolidation
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix: seal Minimal review reuse provenance"
+          git push origin "HEAD:${BRANCH}"
