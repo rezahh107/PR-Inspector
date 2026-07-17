@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import re
@@ -278,3 +279,53 @@ def test_validation_workflow_runs_repository_closure_semantics_and_full_suite():
     )
     for command in required:
         assert command in workflow
+
+
+def test_operational_github_receipt_factory_is_closure_bound():
+    transport_path = ROOT / "pr_inspector/_governance_transport.py"
+    source = transport_path.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+
+    top_level_functions = {
+        node.name: node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    assert "_mint_operational_response" not in top_level_functions
+    assert "_build_operational_response_boundary" in top_level_functions
+    assert "_mint_response" in top_level_functions
+
+    test_factory = top_level_functions["_mint_response"]
+    argument_names = {
+        argument.arg
+        for argument in (
+            list(test_factory.args.posonlyargs)
+            + list(test_factory.args.args)
+            + list(test_factory.args.kwonlyargs)
+        )
+    }
+    assert "transport_origin" not in argument_names
+    assert "object.__new__(GitHubApiResponse)" not in ast.unparse(test_factory)
+
+    assigned_names = {
+        target.id
+        for node in tree.body
+        if isinstance(node, (ast.Assign, ast.AnnAssign))
+        for target in (
+            node.targets if isinstance(node, ast.Assign) else [node.target]
+        )
+        if isinstance(target, ast.Name)
+    }
+    assert "_RESPONSE_CAPABILITIES" not in assigned_names
+    assert "fetch_github_api_response, is_verified_github_api_response" in source
+
+    for directory in (ROOT / "pr_inspector", ROOT / "scripts"):
+        for path in directory.glob("*.py"):
+            if path == transport_path:
+                continue
+            candidate_tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(candidate_tree):
+                if isinstance(node, ast.ImportFrom) and node.module:
+                    if node.module.endswith("_governance_transport"):
+                        assert all(alias.name != "_mint_response" for alias in node.names), path
+
