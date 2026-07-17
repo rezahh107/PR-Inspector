@@ -32,7 +32,7 @@
 - Replaced raw-substring external workflow topology checks with fail-closed YAML structural validation for jobs, steps, reusable-workflow pins, dependencies, checkout refs, and validation-step environment bindings.
 - Made malformed, unreadable, or invalid-UTF-8 coverage planning JSON block bootstrap attestation instead of being skipped.
 - Tightened OIDC run identity validation and preserved proof-credit-disabled bootstrap behavior.
-- Scoped the one-off EV4 Decision Kernel PR #43 indepent verifier to manual dispatch so it cannot become an unbounded pull-request check.
+- Scoped the one-off EV4 Decision Kernel PR #43 independent verifier to manual dispatch so it cannot become an unbounded pull-request check.
 
 ## 1.9.0
 
@@ -91,7 +91,7 @@
 ## 1.4.0
 
 - Added immutable full-protocol snapshots and SHA-256 release locks.
-- Added a canonical JSON review packae using JSON Schema Draft 2020-12.
+- Added a canonical JSON review package using JSON Schema Draft 2020-12.
 - Added deterministic semantic validation for SHA validity, decision gates, sensitive approvals, evidence links, counts, and output consistency.
 - Added deterministic Persian owner-card and English technical-handoff renderers.
 - Added a synthetic golden fixture plus negative mutation tests for critical gate behavior.

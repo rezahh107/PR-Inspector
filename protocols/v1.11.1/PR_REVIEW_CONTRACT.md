@@ -21,7 +21,7 @@ review-package.json
 → official_owner_delivery
 ```
 
-There is exactly one projection authority, one prompt renderer, one artifact builder, one artifact verifier, and one prompt-required owner-delivery authority.
+There is one canonical projection authority, one prompt renderer, one artifact builder, one artifact verifier, and one prompt-required owner-delivery authority.
 
 ## Dual profiles
 
@@ -29,7 +29,7 @@ There is exactly one projection authority, one prompt renderer, one artifact bui
 
 ## Candidate compatibility
 
-`pr_inspector.candidate_v1_11` is a bounded compatibility module. Its allowlisted intake, target, live-Head, review-surface, provenance, and evidence helpers remain supported. Legacy Candidate projection, rendering, artifact generation, artifact verification, and owner-output functions MUST fail closed with a deterministic migration error. `candidate_owner_delivery_stdout` MAY delegate only from a genuine `VerifiedReviewCompletion` and MUST return exact `official_owner_delivery` bytes.
+`pr_inspector.candidate_v1_11` is a bounded pre-package compatibility module. Its allowlisted intake, target, live-Head, review-surface, provenance, and evidence helpers remain supported. Legacy Candidate projection, rendering, artifact generation, artifact verification, and owner-output functions MUST fail closed with a deterministic migration error. `candidate_owner_delivery_stdout` MAY delegate only from a genuine `VerifiedReviewCompletion` and MUST return exact `official_owner_delivery` bytes.
 
 ## Prompt completeness
 
@@ -44,6 +44,10 @@ A prompt-required `NEXT_ACTION_PROMPT.en.md` must be both byte-canonical and sem
 ## Integration contract
 
 External integrations MUST consume verified completion and official accessors. Candidate output accessors, direct artifact concatenation, manually reconstructed prompts, and model-authored substitutes are not supported. External execution evidence remains separate from repository-enforceable acceptance tests.
+
+## Historical review provenance
+
+PR #12 is historical provenance only. Its recorded review state `COMMENTED` did not prove completion, approval, or merge authorization. Historical comments cannot replace current exact-head validation or independent review.
 
 ## Version integrity
 

@@ -415,33 +415,23 @@ def render_candidate_technical_handoff(*args: Any, **kwargs: Any) -> bytes:
     raise _migration_error("render_candidate_technical_handoff")
 
 
-def render_candidate_next_action_prompt(
-    *args: Any, **kwargs: Any
-) -> bytes:
+def render_candidate_next_action_prompt(*args: Any, **kwargs: Any) -> bytes:
     raise _migration_error("render_candidate_next_action_prompt")
 
 
-def build_candidate_review_artifacts(
-    *args: Any, **kwargs: Any
-) -> Mapping[str, bytes]:
+def build_candidate_review_artifacts(*args: Any, **kwargs: Any) -> Mapping[str, bytes]:
     raise _migration_error("build_candidate_review_artifacts")
 
 
-def verify_candidate_review_artifact_bytes(
-    *args: Any, **kwargs: Any
-) -> Any:
+def verify_candidate_review_artifact_bytes(*args: Any, **kwargs: Any) -> Any:
     raise _migration_error("verify_candidate_review_artifact_bytes")
 
 
-def verify_minimal_review_artifact_bytes(
-    *args: Any, **kwargs: Any
-) -> Any:
+def verify_minimal_review_artifact_bytes(*args: Any, **kwargs: Any) -> Any:
     raise _migration_error("verify_minimal_review_artifact_bytes")
 
 
-def build_candidate_owner_delivery_artifacts(
-    *args: Any, **kwargs: Any
-) -> Mapping[str, bytes]:
+def build_candidate_owner_delivery_artifacts(*args: Any, **kwargs: Any) -> Mapping[str, bytes]:
     raise _migration_error("build_candidate_owner_delivery_artifacts")
 
 
