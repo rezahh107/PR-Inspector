@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from pr_inspector import _governance_transport
 from pr_inspector.behavioral_coverage import (
     EXTERNAL_COVERAGE_COMMAND,
     FOCUSED_COMMAND,
@@ -24,6 +25,7 @@ from pr_inspector.derived_outputs import (
 )
 from pr_inspector.evidence_context import evidence_scope
 from pr_inspector.governance import (
+    fetch_github_api_response,
     verify_github_governance_source,
     verify_governance_record,
 )
@@ -461,6 +463,63 @@ def _github_payloads(commit_sha: str) -> tuple[dict, dict]:
     )
 
 
+class _InspectorHttpResponse:
+    def __init__(self, url: str, payload: object, status: int = 200):
+        self._url = url
+        self._payload = payload
+        self.status = status
+
+    def geturl(self) -> str:
+        return self._url
+
+    def read(self) -> bytes:
+        return json.dumps(self._payload).encode("utf-8")
+
+    def close(self) -> None:
+        pass
+
+
+def _github_responses(
+    commit_sha: str,
+    *,
+    repository_payload: dict | None = None,
+    commit_payload: dict | None = None,
+):
+    default_repository, default_commit = _github_payloads(commit_sha)
+    repository_payload = repository_payload or default_repository
+    commit_payload = commit_payload or default_commit
+    repository_url = "https://api.github.com/repos/rezahh107/PR-Inspector"
+    commit_url = f"{repository_url}/commits/{commit_sha}"
+    responses = {
+        repository_url: _InspectorHttpResponse(
+            repository_url,
+            repository_payload,
+        ),
+        commit_url: _InspectorHttpResponse(commit_url, commit_payload),
+    }
+
+    def fake_urlopen(request, timeout):
+        return responses[request.full_url]
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(
+            _governance_transport.urllib.request,
+            "urlopen",
+            fake_urlopen,
+        )
+        repository_response = fetch_github_api_response(
+            repository_url,
+            token=None,
+            api_version="2026-03-10",
+        )
+        commit_response = fetch_github_api_response(
+            commit_url,
+            token=None,
+            api_version="2026-03-10",
+        )
+    return repository_response, commit_response
+
+
 def verified_sequence(tmp_path, value: dict | None = None):
     value = value or package()
     capability = profile_sequence_capability()
@@ -470,10 +529,10 @@ def verified_sequence(tmp_path, value: dict | None = None):
         sequence_enforcement=capability,
     )
     commit_sha = value["review_identity"]["inspector_commit_sha"]
-    repository_payload, commit_payload = _github_payloads(commit_sha)
+    repository_response, commit_response = _github_responses(commit_sha)
     inspector_commit = verify_github_commit_payload(
-        repository_payload,
-        commit_payload,
+        repository_response,
+        commit_response,
         expected_commit_sha=commit_sha,
     )
     with evidence_scope(sequence_enforcement=capability):
@@ -557,10 +616,15 @@ def test_forged_inspector_commit_payload_is_rejected():
     commit_sha = "3" * 40
     repository_payload, commit_payload = _github_payloads(commit_sha)
     commit_payload["sha"] = "f" * 40
+    repository_response, commit_response = _github_responses(
+        commit_sha,
+        repository_payload=repository_payload,
+        commit_payload=commit_payload,
+    )
     with pytest.raises(ProvenanceError, match="commit SHA"):
         verify_github_commit_payload(
-            repository_payload,
-            commit_payload,
+            repository_response,
+            commit_response,
             expected_commit_sha=commit_sha,
         )
 
@@ -569,10 +633,15 @@ def test_forged_inspector_repository_identity_is_rejected():
     commit_sha = "3" * 40
     repository_payload, commit_payload = _github_payloads(commit_sha)
     repository_payload["id"] = 999
+    repository_response, commit_response = _github_responses(
+        commit_sha,
+        repository_payload=repository_payload,
+        commit_payload=commit_payload,
+    )
     with pytest.raises(ProvenanceError, match="repository id"):
         verify_github_commit_payload(
-            repository_payload,
-            commit_payload,
+            repository_response,
+            commit_response,
             expected_commit_sha=commit_sha,
         )
 
@@ -583,10 +652,15 @@ def test_noncanonical_inspector_commit_url_is_rejected():
     commit_payload["url"] = (
         f"https://api.github.com/repos/attacker/fake-inspector/commits/{commit_sha}"
     )
+    repository_response, commit_response = _github_responses(
+        commit_sha,
+        repository_payload=repository_payload,
+        commit_payload=commit_payload,
+    )
     with pytest.raises(ProvenanceError, match="commit API URL"):
         verify_github_commit_payload(
-            repository_payload,
-            commit_payload,
+            repository_response,
+            commit_response,
             expected_commit_sha=commit_sha,
         )
 
@@ -597,10 +671,10 @@ def test_missing_review_artifact_is_rejected_before_sequence_unlock(tmp_path):
     write_directory(tmp_path, value, sequence_enforcement=capability)
     (tmp_path / "artifact-manifest.json").unlink()
     commit_sha = value["review_identity"]["inspector_commit_sha"]
-    repository_payload, commit_payload = _github_payloads(commit_sha)
+    repository_response, commit_response = _github_responses(commit_sha)
     inspector_commit = verify_github_commit_payload(
-        repository_payload,
-        commit_payload,
+        repository_response,
+        commit_response,
         expected_commit_sha=commit_sha,
     )
     with pytest.raises(ProvenanceError, match="required review artifact is missing"):
@@ -640,10 +714,10 @@ def test_stale_review_artifact_cannot_create_verified_evidence(tmp_path):
     )
     write_directory(tmp_path, value)
     commit_sha = value["review_identity"]["inspector_commit_sha"]
-    repository_payload, commit_payload = _github_payloads(commit_sha)
+    repository_response, commit_response = _github_responses(commit_sha)
     inspector_commit = verify_github_commit_payload(
-        repository_payload,
-        commit_payload,
+        repository_response,
+        commit_response,
         expected_commit_sha=commit_sha,
     )
     with pytest.raises(ProvenanceError, match="only a CURRENT review"):

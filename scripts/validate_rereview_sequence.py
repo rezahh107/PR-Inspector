@@ -28,23 +28,12 @@ from pr_inspector.review_provenance import (
 from pr_inspector.sequence_policy import REREVIEW_COMPLETED, validate_rereview_sequence
 
 
-def _github_json(url: str, token: str | None, api_version: str) -> dict:
-    headers = {
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": api_version,
-        "User-Agent": "PR-Inspector-rereview-verifier",
-    }
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-    request = urllib.request.Request(url, headers=headers)
-    try:
-        with urllib.request.urlopen(request, timeout=20) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except (urllib.error.URLError, TimeoutError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ProvenanceError(f"GitHub evidence request failed: {exc}") from exc
-    if not isinstance(payload, dict):
-        raise ProvenanceError("GitHub evidence response must be a JSON object")
-    return payload
+def _github_json(url: str, token: str | None, api_version: str):
+    return fetch_github_api_response(
+        url,
+        token=token,
+        api_version=api_version,
+    )
 
 
 def _parse_review_mapping(values: list[str]) -> dict[str, Path]:

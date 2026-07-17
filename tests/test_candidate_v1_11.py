@@ -9,7 +9,12 @@ from pathlib import Path
 import pytest
 
 import pr_inspector.candidate_v1_11 as candidate
-from pr_inspector._governance_transport import _mint_response
+from pr_inspector import _governance_transport
+from pr_inspector._governance_transport import (
+    GitHubApiResponse,
+    _mint_response,
+    fetch_github_api_response,
+)
 from pr_inspector.governance import (
     verify_github_governance_source,
     verify_governance_record,
@@ -20,7 +25,12 @@ from pr_inspector.official_review import (
     github_pull_request_head_source,
     is_verified_review_completion,
 )
-from pr_inspector.review_provenance import verify_github_commit_payload
+from pr_inspector.review_provenance import (
+    ProvenanceError,
+    VerifiedInspectorCommit,
+    is_verified_inspector_commit,
+    verify_github_commit_payload,
+)
 from pr_inspector.sequence_enforcement import (
     SEQUENCE_ENFORCEMENT_CHECK_CONTEXT,
     verify_sequence_ci_enforcement,
@@ -43,6 +53,94 @@ INSPECTOR_REPOSITORY_ID = 1288323264
 INSPECTOR_COMMIT = "3" * 40
 API_VERSION = "2026-03-10"
 SHA = "a" * 40
+
+
+class _FakeHttpResponse:
+    def __init__(self, url: str, payload: object, status: int = 200):
+        self._url = url
+        self._payload = payload
+        self.status = status
+
+    def geturl(self) -> str:
+        return self._url
+
+    def read(self) -> bytes:
+        return json.dumps(self._payload).encode("utf-8")
+
+    def close(self) -> None:
+        pass
+
+
+def _inspector_payloads(commit_sha: str = INSPECTOR_COMMIT):
+    repository_url = f"https://api.github.com/repos/{INSPECTOR_REPOSITORY}"
+    commit_url = f"{repository_url}/commits/{commit_sha}"
+    return (
+        {
+  "id": INSPECTOR_REPOSITORY_ID,
+  "full_name": INSPECTOR_REPOSITORY,
+  "url": repository_url,
+  "html_url": f"https://github.com/{INSPECTOR_REPOSITORY}",
+        },
+        {
+  "sha": commit_sha,
+  "url": commit_url,
+  "html_url": (
+      f"https://github.com/{INSPECTOR_REPOSITORY}/commit/{commit_sha}"
+  ),
+        },
+    )
+
+
+def _fetch_inspector_responses(
+    *,
+    repository_payload=None,
+    commit_payload=None,
+    repository_status: int = 200,
+    commit_status: int = 200,
+):
+    default_repository, default_commit = _inspector_payloads()
+    repository_payload = repository_payload or default_repository
+    commit_payload = commit_payload or default_commit
+    repository_url = f"https://api.github.com/repos/{INSPECTOR_REPOSITORY}"
+    commit_url = f"{repository_url}/commits/{INSPECTOR_COMMIT}"
+    responses = {
+        repository_url: _FakeHttpResponse(
+  repository_url,
+  repository_payload,
+  repository_status,
+        ),
+        commit_url: _FakeHttpResponse(commit_url, commit_payload, commit_status),
+    }
+
+    def fake_urlopen(request, timeout):
+        return responses[request.full_url]
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(
+  _governance_transport.urllib.request,
+  "urlopen",
+  fake_urlopen,
+        )
+        repository_response = fetch_github_api_response(
+  repository_url,
+  token=None,
+  api_version=API_VERSION,
+        )
+        commit_response = fetch_github_api_response(
+  commit_url,
+  token=None,
+  api_version=API_VERSION,
+        )
+    return repository_response, commit_response
+
+
+def _copy_response(response: GitHubApiResponse) -> GitHubApiResponse:
+    copied = object.__new__(GitHubApiResponse)
+    for name in GitHubApiResponse.__slots__:
+        if name == "__weakref__":
+            continue
+        object.__setattr__(copied, name, getattr(response, name))
+    return copied
 
 
 def _replace_exact(value, old: str, new: str):
@@ -205,23 +303,10 @@ def _live_head(head_sha: str):
 
 
 def _inspector_commit():
-    repository_url = f"https://api.github.com/repos/{INSPECTOR_REPOSITORY}"
-    commit_url = f"{repository_url}/commits/{INSPECTOR_COMMIT}"
+    repository_response, commit_response = _fetch_inspector_responses()
     return verify_github_commit_payload(
-        {
-            "id": INSPECTOR_REPOSITORY_ID,
-            "full_name": INSPECTOR_REPOSITORY,
-            "url": repository_url,
-            "html_url": f"https://github.com/{INSPECTOR_REPOSITORY}",
-        },
-        {
-            "sha": INSPECTOR_COMMIT,
-            "url": commit_url,
-            "html_url": (
-                f"https://github.com/{INSPECTOR_REPOSITORY}/commit/"
-                f"{INSPECTOR_COMMIT}"
-            ),
-        },
+        repository_response,
+        commit_response,
         expected_commit_sha=INSPECTOR_COMMIT,
     )
 
@@ -236,6 +321,174 @@ def _genuine_reference(tmp_path: Path, monkeypatch, head_sha: str = HEAD):
         inspector_commit=inspector,
     )
     return completion, target, inspector, reference
+
+
+
+def test_plain_mappings_and_direct_commit_construction_cannot_mint_evidence():
+    repository_payload, commit_payload = _inspector_payloads()
+    with pytest.raises(ProvenanceError, match="sealed verifier-created"):
+        verify_github_commit_payload(
+            repository_payload,
+            commit_payload,
+            expected_commit_sha=INSPECTOR_COMMIT,
+        )
+    with pytest.raises(TypeError, match="sealed operational"):
+        VerifiedInspectorCommit()
+
+
+def test_operational_https_responses_mint_commit_and_minimal_reference(
+    tmp_path,
+    monkeypatch,
+):
+    repository_response, commit_response = _fetch_inspector_responses()
+    inspector = verify_github_commit_payload(
+        repository_response,
+        commit_response,
+        expected_commit_sha=INSPECTOR_COMMIT,
+    )
+    assert is_verified_inspector_commit(inspector)
+    completion = _completion(tmp_path, monkeypatch, HEAD)
+    reference = candidate.minimal_reference_from_official_completion(
+        completion,
+        target_identity=_target_identity(),
+        inspector_commit=inspector,
+    )
+    assert reference.inspector_commit_sha == INSPECTOR_COMMIT
+
+
+@pytest.mark.parametrize(
+    ("payload_kind", "field", "value", "message"),
+    (
+        ("repository", "id", 999, "repository id"),
+        (
+            "repository",
+            "url",
+            "https://api.github.com/repos/attacker/fake",
+            "repository API URL",
+        ),
+        (
+            "repository",
+            "html_url",
+            "https://github.com/attacker/fake",
+            "repository HTML URL",
+        ),
+        ("commit", "sha", "9" * 40, "commit SHA"),
+        (
+            "commit",
+            "url",
+            "https://api.github.com/repos/attacker/fake/commits/" + "3" * 40,
+            "commit API URL",
+        ),
+        (
+            "commit",
+            "html_url",
+            "https://github.com/attacker/fake/commit/" + "3" * 40,
+            "commit HTML URL",
+        ),
+    ),
+)
+def test_forged_operational_payload_fields_are_rejected(
+    payload_kind,
+    field,
+    value,
+    message,
+):
+    repository_payload, commit_payload = _inspector_payloads()
+    target = repository_payload if payload_kind == "repository" else commit_payload
+    target[field] = value
+    repository_response, commit_response = _fetch_inspector_responses(
+        repository_payload=repository_payload,
+        commit_payload=commit_payload,
+    )
+    with pytest.raises(ProvenanceError, match=message):
+        verify_github_commit_payload(
+            repository_response,
+            commit_response,
+            expected_commit_sha=INSPECTOR_COMMIT,
+        )
+
+
+def test_arbitrary_expected_commit_requires_matching_official_endpoint_response():
+    repository_response, commit_response = _fetch_inspector_responses()
+    with pytest.raises(ProvenanceError, match="request URL"):
+        verify_github_commit_payload(
+            repository_response,
+            commit_response,
+            expected_commit_sha="9" * 40,
+        )
+
+
+def test_wrong_status_origin_response_url_and_copied_receipts_are_rejected():
+    repository_payload, commit_payload = _inspector_payloads()
+    bad_status_repository, good_commit = _fetch_inspector_responses(
+        repository_status=404,
+    )
+    with pytest.raises(ProvenanceError, match="did not succeed"):
+        verify_github_commit_payload(
+            bad_status_repository,
+            good_commit,
+            expected_commit_sha=INSPECTOR_COMMIT,
+        )
+
+    repository_url = f"https://api.github.com/repos/{INSPECTOR_REPOSITORY}"
+    commit_url = f"{repository_url}/commits/{INSPECTOR_COMMIT}"
+    wrong_origin_repository = _mint_response(
+        request_url=repository_url,
+        response_url=repository_url,
+        status_code=200,
+        fetched_at=datetime.now(timezone.utc),
+        payload=repository_payload,
+        transport_origin="test_factory",
+    )
+    good_repository, good_commit = _fetch_inspector_responses()
+    with pytest.raises(ProvenanceError, match="operational GitHub HTTPS"):
+        verify_github_commit_payload(
+            wrong_origin_repository,
+            good_commit,
+            expected_commit_sha=INSPECTOR_COMMIT,
+        )
+
+    redirected_commit = _mint_response(
+        request_url=commit_url,
+        response_url=repository_url,
+        status_code=200,
+        fetched_at=datetime.now(timezone.utc),
+        payload=commit_payload,
+        transport_origin="github_https",
+    )
+    with pytest.raises(ProvenanceError, match="response URL"):
+        verify_github_commit_payload(
+            good_repository,
+            redirected_commit,
+            expected_commit_sha=INSPECTOR_COMMIT,
+        )
+
+    with pytest.raises(ProvenanceError, match="sealed verifier-created"):
+        verify_github_commit_payload(
+            _copy_response(good_repository),
+            good_commit,
+            expected_commit_sha=INSPECTOR_COMMIT,
+        )
+
+
+def test_reconstructed_commit_capability_cannot_mint_minimal_reference(
+    tmp_path,
+    monkeypatch,
+):
+    genuine = _inspector_commit()
+    forged = object.__new__(VerifiedInspectorCommit)
+    for name in VerifiedInspectorCommit.__slots__:
+        if name == "__weakref__":
+            continue
+        object.__setattr__(forged, name, getattr(genuine, name))
+    assert not is_verified_inspector_commit(forged)
+    completion = _completion(tmp_path, monkeypatch, HEAD)
+    with pytest.raises(ValueError, match="verified Inspector commit identity"):
+        candidate.minimal_reference_from_official_completion(
+            completion,
+            target_identity=_target_identity(),
+            inspector_commit=forged,
+        )
 
 
 def _reconstruct(reference, **changes):

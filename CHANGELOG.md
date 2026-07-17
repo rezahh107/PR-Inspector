@@ -8,6 +8,7 @@
 - Added historical PR #22 + PR #26 activation regressions, PR #27-style compatibility re-export closure checks, and Candidate API disposition tests.
 - Sealed Minimal-to-Strict reuse as a verifier-created capability bound to target identity, Inspector identity and commit, active protocol, exact reviewed Head, and all canonical package/projection/manifest hashes; forged and unverified refresh references fail closed.
 - Added the immutable v1.11.1 protocol snapshot and release lock while preserving v1.11.0 byte-for-byte.
+- Sealed Inspector repository and commit provenance behind operational GitHub HTTPS response capabilities; plain mappings and copied response fields cannot mint reusable Minimal-review authority.
 
 ## 1.10.2
 
