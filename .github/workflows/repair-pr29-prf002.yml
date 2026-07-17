@@ -15,18 +15,18 @@ jobs:
   repair:
     if: github.event.pull_request.number == 29 && github.event.pull_request.head.ref == 'fix/v1-11-1-output-authority-consolidation' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - name: Check out exact triggering head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: true
-          fetch-depth: 8
+          fetch-depth: 9
 
       - name: Verify exact staged patch source
         env:
-          EXPECTED_PARENT_HEAD: f27b89f303f6a90f9252018d50715bb561f50983
+          EXPECTED_PARENT_HEAD: e73577e96042dc436d8f231bccb53d70924fe1df
           STAGED_PATCH_COMMIT: 70c4c065d5ec458de76bb86ea7350a44457f077c
           EXPECTED_PATCH_BLOB: d92bc393e53771c96d0c117ad354f3a6ffaf9b57
         run: |
@@ -59,15 +59,23 @@ jobs:
           git diff --check
           git diff --name-only | sort
 
-      - name: Validate repository and focused tests
-        run: |
-          set -euo pipefail
-          python scripts/validate_repository_v2.py
-          python -m pytest -q tests/test_candidate_v1_11.py
-          python -m pytest -q tests/test_repository_closure.py
-          python -m pytest -q tests/test_v1_11_1_output_authority.py
-          python -m pytest -q tests/test_behavioral_rule_coverage.py
-          python -m pytest -q tests/test_governance_enforcement.py
+      - name: Validate repository structure
+        run: python scripts/validate_repository_v2.py
+
+      - name: Run Candidate provenance tests
+        run: python -m pytest -q tests/test_candidate_v1_11.py
+
+      - name: Run repository closure tests
+        run: python -m pytest -q tests/test_repository_closure.py
+
+      - name: Run output authority tests
+        run: python -m pytest -q tests/test_v1_11_1_output_authority.py
+
+      - name: Run Behavioral Rule Coverage tests
+        run: python -m pytest -q tests/test_behavioral_rule_coverage.py
+
+      - name: Run governance enforcement tests
+        run: python -m pytest -q tests/test_governance_enforcement.py
 
       - name: Run full test suite
         run: python -m pytest
