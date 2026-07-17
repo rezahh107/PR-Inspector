@@ -8,7 +8,12 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Mapping
 
-from .derived_outputs import MANIFEST_NAME, PROJECTION_NAME, PROMPT_NAME
+from .derived_outputs import (
+    MANIFEST_NAME,
+    PROFILE_COMMANDS_NAME,
+    PROJECTION_NAME,
+    PROMPT_NAME,
+)
 from .diagnostics import Diagnostic
 from .render import package_sha256
 from .validation_v2 import validate_directory
@@ -26,6 +31,7 @@ _OFFICIAL = {
     "OWNER_DECISION_CARD.fa.md",
     "TECHNICAL_HANDOFF.en.md",
     "OWNER_RESULT.fa.txt",
+    PROFILE_COMMANDS_NAME,
     MANIFEST_NAME,
 }
 _CAPTURE_CANDIDATES = frozenset({*_OFFICIAL, PROMPT_NAME})
@@ -125,6 +131,13 @@ class VerifiedReviewCompletion:
         return utf8_bytes(
             "OWNER_RESULT.fa.txt",
             required_artifact_bytes(bundle.artifact_bytes, "OWNER_RESULT.fa.txt"),
+        )
+
+    def owner_profile_commands_text(self) -> str:
+        bundle = self._reverify()
+        return utf8_bytes(
+            PROFILE_COMMANDS_NAME,
+            required_artifact_bytes(bundle.artifact_bytes, PROFILE_COMMANDS_NAME),
         )
 
     def owner_decision_card_text(self) -> str:
@@ -376,6 +389,12 @@ def official_owner_result(value: VerifiedReviewCompletion) -> str:
     if not is_verified_review_completion(value):
         raise CompletionError("official owner output requires verified completion")
     return value.owner_result_text()
+
+
+def official_owner_profile_commands(value: VerifiedReviewCompletion) -> str:
+    if not is_verified_review_completion(value):
+        raise CompletionError("official profile commands require verified completion")
+    return value.owner_profile_commands_text()
 
 
 def official_technical_handoff(value: VerifiedReviewCompletion) -> str:

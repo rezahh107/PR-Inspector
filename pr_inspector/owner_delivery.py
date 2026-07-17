@@ -69,6 +69,14 @@ def _owner_result(bundle: Any, contract: dict[str, Any]) -> str:
     )
 
 
+def _profile_commands(bundle: Any, contract: dict[str, Any]) -> str:
+    name = contract["profile_commands_name"]
+    return utf8_bytes(
+        name,
+        required_artifact_bytes(bundle.artifact_bytes, name),
+    )
+
+
 def _prompt(
     bundle: Any,
     projection: dict[str, Any],
@@ -120,3 +128,13 @@ def official_owner_result(value: VerifiedReviewCompletion) -> str:
             "prompt-required owner output must use official_owner_delivery"
         )
     return _owner_result(bundle, contract)
+
+
+def official_owner_profile_commands(value: VerifiedReviewCompletion) -> str:
+    """Return the separately verified canonical profile-selection commands."""
+
+    contract = _delivery_contract()
+    bundle = _verified_bundle(value)
+    if contract.get("profile_commands_behavior") != "always_generated_separate_verified_artifact":
+        raise CompletionError("active profile commands behavior is unsupported")
+    return _profile_commands(bundle, contract)

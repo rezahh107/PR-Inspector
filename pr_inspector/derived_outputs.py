@@ -13,6 +13,11 @@ from .render import canonical_json_bytes, package_sha256, render_handoff, render
 PROJECTION_NAME = "DECISION_PROJECTION.json"
 PROMPT_NAME = "NEXT_ACTION_PROMPT.en.md"
 MANIFEST_NAME = "artifact-manifest.json"
+PROFILE_COMMANDS_NAME = "OWNER_PROFILE_COMMANDS.fa.txt"
+PROFILE_COMMANDS_TEXT = (
+    "برای بررسی حفاظت‌های Merge، تأییدهای مستقل و کنترل‌های حاکمیتی بنویس: سخت گیرانه\n"
+    "برای بررسی حداقلی بنویس: حداقلی و سپس آدرس PR را ارسال کن.\n"
+)
 
 
 def _sha256(value: bytes) -> str:
@@ -44,6 +49,10 @@ def structured_action_reasons(pkg: dict[str, Any], *, governance_evidence: Verif
 def render_owner_result(projection_or_package: dict[str, Any], *, governance_evidence: VerifiedGovernanceEvidence | None = None, sequence_enforcement: VerifiedSequenceEnforcement | None = None) -> str:
     projection = project_decision(projection_or_package, governance_evidence=governance_evidence, sequence_enforcement=sequence_enforcement) if "decision" in projection_or_package else projection_or_package
     return owner_result_text(projection)
+
+
+def render_owner_profile_commands() -> str:
+    return PROFILE_COMMANDS_TEXT
 
 
 def _reason_lines(projection: dict[str, Any]) -> list[str]:
@@ -220,6 +229,7 @@ def _manifest_data(pkg: dict[str, Any], artifact_bytes: dict[str, bytes], projec
         "owner_decision_card": "OWNER_DECISION_CARD.fa.md",
         "technical_handoff": "TECHNICAL_HANDOFF.en.md",
         "simple_owner_result": "OWNER_RESULT.fa.txt",
+        "owner_profile_commands": PROFILE_COMMANDS_NAME,
     }.items():
         data[key] = {"path": name, "sha256": _sha256(artifact_bytes[name]), "hash_scope": "final_file_bytes"}
     generated = PROMPT_NAME in artifact_bytes
@@ -245,6 +255,7 @@ def build_review_artifacts(pkg: dict[str, Any], review_package_bytes: bytes | No
         "OWNER_DECISION_CARD.fa.md": render_owner(pkg, projection),
         "TECHNICAL_HANDOFF.en.md": render_handoff(pkg, projection),
         "OWNER_RESULT.fa.txt": render_owner_result(projection),
+        PROFILE_COMMANDS_NAME: render_owner_profile_commands(),
     }
     if projection["next_action"]["prompt_required"]:
         artifacts[PROMPT_NAME] = render_next_action_prompt(pkg, projection)
