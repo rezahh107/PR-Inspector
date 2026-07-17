@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import weakref
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,10 +22,17 @@ from ._governance_transport import (
     is_verified_github_api_response,
 )
 from .official_review import (
+    CompletionError,
     VerifiedReviewCompletion,
     is_verified_review_completion,
     official_owner_delivery,
     official_owner_profile_commands,
+)
+from .review_provenance import (
+    ProvenanceError,
+    VerifiedInspectorCommit,
+    is_verified_inspector_commit,
+    trust_policy,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,6 +43,7 @@ MINIMAL = "minimal"
 STRICT = "strict"
 _TARGET_TOKEN = object()
 _REFRESH_TOKEN = object()
+_MINIMAL_REFERENCE_TOKEN = object()
 
 
 class CandidateOutputMigrationError(RuntimeError):
@@ -58,16 +67,47 @@ class VerifiedLivePrHead:
     receipt_id: str
 
 
-@dataclass(frozen=True)
 class VerifiedMinimalReviewReference:
-    target_repository: str
-    target_repository_id: int
-    pull_request: int
-    reviewed_head_sha: str
-    protocol_version: str
-    review_package_sha256: str
-    decision_projection_sha256: str
-    artifact_manifest_sha256: str
+    """Opaque, verifier-created capability for reusing one Minimal review."""
+
+    __slots__ = (
+        "_token",
+        "target_repository",
+        "target_repository_id",
+        "pull_request",
+        "reviewed_head_sha",
+        "protocol_version",
+        "inspector_repository",
+        "inspector_repository_id",
+        "inspector_commit_sha",
+        "review_package_canonical_sha256",
+        "review_package_file_sha256",
+        "decision_projection_sha256",
+        "artifact_manifest_sha256",
+        "__weakref__",
+    )
+
+    def __init__(self, *_: object, **__: object) -> None:
+        raise TypeError(
+            "VerifiedMinimalReviewReference can only be created from "
+            "verified official review provenance"
+        )
+
+    def __setattr__(self, _name: str, _value: object) -> None:
+        raise AttributeError("VerifiedMinimalReviewReference is immutable")
+
+
+@dataclass(frozen=True)
+class _MinimalReferenceProof:
+    fingerprint: tuple[Any, ...]
+    completion: VerifiedReviewCompletion
+    target_identity: VerifiedTargetIdentity
+    inspector_commit: VerifiedInspectorCommit
+
+
+_MINIMAL_REFERENCE_PROOFS: weakref.WeakKeyDictionary[
+    VerifiedMinimalReviewReference, _MinimalReferenceProof
+] = weakref.WeakKeyDictionary()
 
 
 @dataclass(frozen=True)
@@ -178,31 +218,187 @@ def verify_live_pr_head_response(
     )
 
 
-def minimal_reference_from_official_completion(
+def _reference_fingerprint(
+    reference: VerifiedMinimalReviewReference,
+) -> tuple[Any, ...]:
+    return (
+        reference.target_repository,
+        reference.target_repository_id,
+        reference.pull_request,
+        reference.reviewed_head_sha,
+        reference.protocol_version,
+        reference.inspector_repository,
+        reference.inspector_repository_id,
+        reference.inspector_commit_sha,
+        reference.review_package_canonical_sha256,
+        reference.review_package_file_sha256,
+        reference.decision_projection_sha256,
+        reference.artifact_manifest_sha256,
+    )
+
+
+def _is_verified_minimal_reference(value: object) -> bool:
+    if not isinstance(value, VerifiedMinimalReviewReference):
+        return False
+    if getattr(value, "_token", None) is not _MINIMAL_REFERENCE_TOKEN:
+        return False
+    proof = _MINIMAL_REFERENCE_PROOFS.get(value)
+    return proof is not None and proof.fingerprint == _reference_fingerprint(value)
+
+
+def _completion_reference_fields(
     completion: VerifiedReviewCompletion,
     *,
-    target_repository_id: int,
-) -> VerifiedMinimalReviewReference:
+    target_identity: VerifiedTargetIdentity,
+    inspector_commit: VerifiedInspectorCommit,
+) -> dict[str, Any]:
     if not is_verified_review_completion(completion):
         raise ValueError("verified official review completion is required")
     if (
-        not isinstance(target_repository_id, int)
-        or isinstance(target_repository_id, bool)
-        or target_repository_id <= 0
+        not isinstance(target_identity, VerifiedTargetIdentity)
+        or target_identity._token is not _TARGET_TOKEN
     ):
-        raise ValueError("verified target repository id is required")
-    projection = completion.decision_projection()
+        raise ValueError("verified target repository identity is required")
+    if not is_verified_inspector_commit(inspector_commit):
+        raise ValueError("verified Inspector commit identity is required")
+
+    try:
+        bundle = completion._reverify()
+        package_bytes = bundle.artifact_bytes["review-package.json"]
+        package = json.loads(package_bytes.decode("utf-8"))
+        projection = completion.decision_projection()
+    except (
+        CompletionError,
+        KeyError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+    ) as exc:
+        raise ProvenanceError(
+            f"cannot reverify official Minimal completion: {exc}"
+        ) from exc
+    if not isinstance(package, dict):
+        raise ProvenanceError("verified review package must be a JSON object")
     if projection.get("inspection_profile") != MINIMAL:
         raise ValueError("official completion is not a minimal review")
-    return VerifiedMinimalReviewReference(
+
+    identity = package.get("review_identity")
+    if not isinstance(identity, Mapping):
+        raise ProvenanceError("verified review identity is malformed")
+    policy = trust_policy()
+    fields = {
+        "target_repository": completion.target_repository,
+        "target_repository_id": target_identity.repository_id,
+        "pull_request": completion.pr_number,
+        "reviewed_head_sha": completion.reviewed_head_sha,
+        "protocol_version": completion.protocol_version,
+        "inspector_repository": inspector_commit.repository,
+        "inspector_repository_id": inspector_commit.repository_id,
+        "inspector_commit_sha": inspector_commit.commit_sha,
+        "review_package_canonical_sha256": (
+            completion.review_package_canonical_sha256
+        ),
+        "review_package_file_sha256": completion.review_package_file_sha256,
+        "decision_projection_sha256": completion.decision_projection_sha256,
+        "artifact_manifest_sha256": completion.artifact_manifest_sha256,
+    }
+
+    if completion.protocol_version != PROTOCOL_VERSION:
+        raise ProvenanceError("minimal review protocol version is not active")
+    if (
+        target_identity.repository != completion.target_repository
+        or identity.get("target_repository") != completion.target_repository
+        or identity.get("target_repository_id") != target_identity.repository_id
+        or identity.get("pr_number") != completion.pr_number
+        or identity.get("reviewed_head_sha") != completion.reviewed_head_sha
+    ):
+        raise ProvenanceError("minimal review target identity is not verified")
+    if (
+        policy.get("inspector_repository") != inspector_commit.repository
+        or policy.get("inspector_repository_id") != inspector_commit.repository_id
+        or identity.get("inspector_repository") != inspector_commit.repository
+        or identity.get("inspector_commit_sha") != inspector_commit.commit_sha
+    ):
+        raise ProvenanceError("minimal review Inspector identity is not verified")
+
+    actual_bundle = (
+        bundle.protocol_version,
+        bundle.repository,
+        bundle.pr_number,
+        bundle.head_sha,
+        bundle.package_canonical_sha256,
+        bundle.package_file_sha256,
+        bundle.projection_sha256,
+        bundle.manifest_sha256,
+        bytes_sha256(package_bytes),
+    )
+    expected_bundle = (
+        completion.protocol_version,
         completion.target_repository,
-        target_repository_id,
         completion.pr_number,
         completion.reviewed_head_sha,
-        completion.protocol_version,
         completion.review_package_canonical_sha256,
+        completion.review_package_file_sha256,
         completion.decision_projection_sha256,
         completion.artifact_manifest_sha256,
+        completion.review_package_file_sha256,
+    )
+    if actual_bundle != expected_bundle:
+        raise ProvenanceError("minimal review artifact provenance does not match")
+
+    for name in (
+        "reviewed_head_sha",
+        "inspector_commit_sha",
+    ):
+        if SHA40_RE.fullmatch(str(fields[name])) is None:
+            raise ProvenanceError(f"{name} is malformed")
+    for name in (
+        "review_package_canonical_sha256",
+        "review_package_file_sha256",
+        "decision_projection_sha256",
+        "artifact_manifest_sha256",
+    ):
+        if re.fullmatch(r"[0-9a-f]{64}", str(fields[name])) is None:
+            raise ProvenanceError(f"{name} is malformed")
+    return fields
+
+
+def _mint_minimal_reference(
+    fields: Mapping[str, Any],
+    *,
+    completion: VerifiedReviewCompletion,
+    target_identity: VerifiedTargetIdentity,
+    inspector_commit: VerifiedInspectorCommit,
+) -> VerifiedMinimalReviewReference:
+    reference = object.__new__(VerifiedMinimalReviewReference)
+    object.__setattr__(reference, "_token", _MINIMAL_REFERENCE_TOKEN)
+    for name, value in fields.items():
+        object.__setattr__(reference, name, value)
+    fingerprint = _reference_fingerprint(reference)
+    _MINIMAL_REFERENCE_PROOFS[reference] = _MinimalReferenceProof(
+        fingerprint,
+        completion,
+        target_identity,
+        inspector_commit,
+    )
+    return reference
+
+
+def minimal_reference_from_official_completion(
+    completion: VerifiedReviewCompletion,
+    *,
+    target_identity: VerifiedTargetIdentity,
+    inspector_commit: VerifiedInspectorCommit,
+) -> VerifiedMinimalReviewReference:
+    fields = _completion_reference_fields(
+        completion,
+        target_identity=target_identity,
+        inspector_commit=inspector_commit,
+    )
+    return _mint_minimal_reference(
+        fields,
+        completion=completion,
+        target_identity=target_identity,
+        inspector_commit=inspector_commit,
     )
 
 
@@ -214,8 +410,17 @@ def verify_base_review_reference(
     target_repository_id: int,
     pull_request: int,
 ) -> dict[str, Any]:
-    if not isinstance(reference, VerifiedMinimalReviewReference):
+    if not _is_verified_minimal_reference(reference):
         return {"status": "INVALID", "reason": "verified_minimal_review_required"}
+    assert isinstance(reference, VerifiedMinimalReviewReference)
+
+    policy = trust_policy()
+    if reference.protocol_version != PROTOCOL_VERSION:
+        return {"status": "INVALID", "reason": "protocol_version_mismatch"}
+    if reference.inspector_repository != policy.get("inspector_repository"):
+        return {"status": "INVALID", "reason": "inspector_repository_mismatch"}
+    if reference.inspector_repository_id != policy.get("inspector_repository_id"):
+        return {"status": "INVALID", "reason": "inspector_repository_id_mismatch"}
     if reference.target_repository != target_repository:
         return {"status": "INVALID", "reason": "target_repository_mismatch"}
     if reference.target_repository_id != target_repository_id:
@@ -228,6 +433,36 @@ def verify_base_review_reference(
             "reason": "head_drift",
             "action": "rerun_minimal_then_strict",
         }
+
+    proof = _MINIMAL_REFERENCE_PROOFS.get(reference)
+    assert proof is not None
+    try:
+        current = _completion_reference_fields(
+            proof.completion,
+            target_identity=proof.target_identity,
+            inspector_commit=proof.inspector_commit,
+        )
+    except (CompletionError, ProvenanceError, ValueError):
+        return {"status": "INVALID", "reason": "minimal_review_provenance_invalid"}
+    expected = {
+        name: getattr(reference, name)
+        for name in (
+            "target_repository",
+            "target_repository_id",
+            "pull_request",
+            "reviewed_head_sha",
+            "protocol_version",
+            "inspector_repository",
+            "inspector_repository_id",
+            "inspector_commit_sha",
+            "review_package_canonical_sha256",
+            "review_package_file_sha256",
+            "decision_projection_sha256",
+            "artifact_manifest_sha256",
+        )
+    }
+    if current != expected:
+        return {"status": "INVALID", "reason": "minimal_review_provenance_mismatch"}
     return {
         "status": "VERIFIED",
         "reason": "same_head",
@@ -238,7 +473,7 @@ def verify_base_review_reference(
 def orchestrate_strict_after_minimal(
     context: Mapping[str, Any],
     refresh_minimal_review: Callable[
-        [Mapping[str, Any], str], VerifiedMinimalReviewReference
+        [Mapping[str, Any], str], VerifiedReviewCompletion
     ]
     | None = None,
 ) -> MinimalRefreshResult:
@@ -252,7 +487,7 @@ def orchestrate_strict_after_minimal(
         if isinstance(context, Mapping)
         else None
     )
-    if not isinstance(reference, VerifiedMinimalReviewReference):
+    if not _is_verified_minimal_reference(reference):
         return MinimalRefreshResult(
             _REFRESH_TOKEN,
             "refresh_failed",
@@ -261,6 +496,9 @@ def orchestrate_strict_after_minimal(
             None,
             "verified_minimal_review_required",
         )
+    assert isinstance(reference, VerifiedMinimalReviewReference)
+    proof = _MINIMAL_REFERENCE_PROOFS.get(reference)
+    assert proof is not None
     target = MappingProxyType(
         {
             "repository": reference.target_repository,
@@ -314,7 +552,32 @@ def orchestrate_strict_after_minimal(
             None,
             "minimal_refresh_required",
         )
-    refreshed = refresh_minimal_review(target, live.head_sha)
+
+    refreshed_completion = refresh_minimal_review(target, live.head_sha)
+    if not is_verified_review_completion(refreshed_completion):
+        return MinimalRefreshResult(
+            _REFRESH_TOKEN,
+            "refresh_failed",
+            target,
+            live.head_sha,
+            None,
+            "verified_official_minimal_completion_required",
+        )
+    try:
+        refreshed = minimal_reference_from_official_completion(
+            refreshed_completion,
+            target_identity=proof.target_identity,
+            inspector_commit=proof.inspector_commit,
+        )
+    except (CompletionError, ProvenanceError, ValueError):
+        return MinimalRefreshResult(
+            _REFRESH_TOKEN,
+            "refresh_failed",
+            target,
+            live.head_sha,
+            None,
+            "minimal_refresh_provenance_invalid",
+        )
     verified = verify_base_review_reference(
         refreshed,
         live.head_sha,

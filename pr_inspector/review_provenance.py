@@ -105,6 +105,13 @@ class VerifiedInspectorCommit:
     _marker: object = field(repr=False, compare=False)
 
 
+def is_verified_inspector_commit(value: object) -> bool:
+    return (
+        isinstance(value, VerifiedInspectorCommit)
+        and value._marker is _VERIFIED_MARKER
+    )
+
+
 @dataclass(frozen=True)
 class VerifiedReviewEvidence:
     evidence_id: str
