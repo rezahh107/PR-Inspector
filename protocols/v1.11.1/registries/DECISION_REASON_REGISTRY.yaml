@@ -1,10 +1,10 @@
 schema_version: 1
-registry_version: v1.11.0
+registry_version: v1.11.1
 reasons:
 - reason_code: RSN-REVIEW-NOT-CURRENT
-  concept: Review identity is stale or unknown.
+  concept: Review Not Current
   trigger: canonical decision projection
-  predicate: review_identity.review_validity != CURRENT
+  predicate: structured canonical package fact
   technical_status_effect: YELLOW
   action_effect: rerun_review
   recipient: reviewer_model
@@ -12,9 +12,9 @@ reasons:
   prompt_kind: fresh_review_prompt
   recovery_action: block
 - reason_code: RSN-RED-GATE-FLAG
-  concept: An explicit red-gate flag is present.
+  concept: Red Gate Flag
   trigger: canonical decision projection
-  predicate: red_gate_flags is non-empty
+  predicate: structured canonical package fact
   technical_status_effect: RED
   action_effect: repair
   recipient: implementer_model
@@ -22,9 +22,9 @@ reasons:
   prompt_kind: implementer_repair_prompt
   recovery_action: block
 - reason_code: RSN-REQUIRED-CHECK-FAILED
-  concept: A required check failed.
+  concept: Required Check Failed
   trigger: canonical decision projection
-  predicate: any required check has result FAIL
+  predicate: structured canonical package fact
   technical_status_effect: RED
   action_effect: repair
   recipient: implementer_model
@@ -32,9 +32,9 @@ reasons:
   prompt_kind: implementer_repair_prompt
   recovery_action: repair_request
 - reason_code: RSN-CRITICAL-SUPPORTED-FINDING
-  concept: A Critical finding is reproduced or code-supported.
+  concept: Critical Supported Finding
   trigger: canonical decision projection
-  predicate: any Critical finding has evidence_label REPRODUCED or CODE_SUPPORTED
+  predicate: structured canonical package fact
   technical_status_effect: RED
   action_effect: repair
   recipient: implementer_model
@@ -42,9 +42,9 @@ reasons:
   prompt_kind: implementer_repair_prompt
   recovery_action: repair_request
 - reason_code: RSN-HIGH-REPRODUCED-FINDING
-  concept: A High finding is reproduced.
+  concept: High Reproduced Finding
   trigger: canonical decision projection
-  predicate: any High finding has evidence_label REPRODUCED
+  predicate: structured canonical package fact
   technical_status_effect: RED
   action_effect: repair
   recipient: implementer_model
@@ -52,9 +52,9 @@ reasons:
   prompt_kind: implementer_repair_prompt
   recovery_action: repair_request
 - reason_code: RSN-REQUIRED-CHECK-UNRESOLVED
-  concept: A required check is unknown or not run.
+  concept: Required Check Unresolved
   trigger: canonical decision projection
-  predicate: any required check has result UNKNOWN or NOT_RUN
+  predicate: structured canonical package fact
   technical_status_effect: YELLOW
   action_effect: verify
   recipient: reviewer_model
@@ -62,9 +62,9 @@ reasons:
   prompt_kind: verification_prompt
   recovery_action: block
 - reason_code: RSN-HIGH-CODE-SUPPORTED-FINDING
-  concept: A High code-supported finding requires repair.
+  concept: High Code Supported Finding
   trigger: canonical decision projection
-  predicate: any High finding has evidence_label CODE_SUPPORTED
+  predicate: structured canonical package fact
   technical_status_effect: YELLOW
   action_effect: repair
   recipient: implementer_model
@@ -72,9 +72,9 @@ reasons:
   prompt_kind: implementer_repair_prompt
   recovery_action: repair_request
 - reason_code: RSN-HIGH-HYPOTHESIS-FINDING
-  concept: A High hypothesis requires verification.
+  concept: High Hypothesis Finding
   trigger: canonical decision projection
-  predicate: any High finding has evidence_label HYPOTHESIS
+  predicate: structured canonical package fact
   technical_status_effect: YELLOW
   action_effect: verify
   recipient: reviewer_model
@@ -82,9 +82,9 @@ reasons:
   prompt_kind: verification_prompt
   recovery_action: block
 - reason_code: RSN-BLOCKING-MEDIUM-SUPPORTED
-  concept: A blocking Medium supported finding requires repair.
+  concept: Blocking Medium Supported
   trigger: canonical decision projection
-  predicate: any blocking Medium finding is REPRODUCED or CODE_SUPPORTED
+  predicate: structured canonical package fact
   technical_status_effect: YELLOW
   action_effect: repair
   recipient: implementer_model
@@ -92,9 +92,9 @@ reasons:
   prompt_kind: implementer_repair_prompt
   recovery_action: repair_request
 - reason_code: RSN-BLOCKING-MEDIUM-UNVERIFIED
-  concept: A blocking Medium unsupported finding requires verification.
+  concept: Blocking Medium Unverified
   trigger: canonical decision projection
-  predicate: any blocking Medium finding is HYPOTHESIS or NOT_ASSESSABLE
+  predicate: structured canonical package fact
   technical_status_effect: YELLOW
   action_effect: verify
   recipient: reviewer_model
@@ -102,9 +102,9 @@ reasons:
   prompt_kind: verification_prompt
   recovery_action: block
 - reason_code: RSN-BLOCKING-HYPOTHESIS
-  concept: A blocking hypothesis remains unresolved.
+  concept: Blocking Hypothesis
   trigger: canonical decision projection
-  predicate: any blocking finding has evidence_label HYPOTHESIS
+  predicate: structured canonical package fact
   technical_status_effect: YELLOW
   action_effect: verify
   recipient: reviewer_model
@@ -112,9 +112,9 @@ reasons:
   prompt_kind: verification_prompt
   recovery_action: block
 - reason_code: RSN-NOT-ASSESSABLE-FINDING
-  concept: A finding is not assessable.
+  concept: Not Assessable Finding
   trigger: canonical decision projection
-  predicate: any finding has evidence_label NOT_ASSESSABLE
+  predicate: structured canonical package fact
   technical_status_effect: YELLOW
   action_effect: verify
   recipient: reviewer_model
@@ -122,9 +122,9 @@ reasons:
   prompt_kind: verification_prompt
   recovery_action: block
 - reason_code: RSN-PARTIAL-REVIEW
-  concept: Review mode is partial.
+  concept: Partial Review
   trigger: canonical decision projection
-  predicate: review_identity.review_mode == PARTIAL
+  predicate: structured canonical package fact
   technical_status_effect: YELLOW
   action_effect: verify
   recipient: reviewer_model
@@ -132,9 +132,9 @@ reasons:
   prompt_kind: verification_prompt
   recovery_action: block
 - reason_code: RSN-HIGH-RISK-AREA-UNREVIEWED
-  concept: A high-risk area was not reviewed.
+  concept: High Risk Area Unreviewed
   trigger: canonical decision projection
-  predicate: scope.high_risk_areas_not_reviewed is non-empty
+  predicate: structured canonical package fact
   technical_status_effect: YELLOW
   action_effect: verify
   recipient: reviewer_model
@@ -142,9 +142,9 @@ reasons:
   prompt_kind: verification_prompt
   recovery_action: block
 - reason_code: RSN-COVERAGE-INCOMPLETE
-  concept: Review coverage is incomplete.
+  concept: Coverage Incomplete
   trigger: canonical decision projection
-  predicate: scope.coverage_complete == false
+  predicate: structured canonical package fact
   technical_status_effect: YELLOW
   action_effect: verify
   recipient: reviewer_model
@@ -152,9 +152,9 @@ reasons:
   prompt_kind: verification_prompt
   recovery_action: block
 - reason_code: RSN-UNVERIFIED-AREA
-  concept: An explicitly unverified area remains.
+  concept: Unverified Area
   trigger: canonical decision projection
-  predicate: unverified_areas is non-empty
+  predicate: structured canonical package fact
   technical_status_effect: NONE
   action_effect: verify
   recipient: reviewer_model
@@ -162,9 +162,9 @@ reasons:
   prompt_kind: verification_prompt
   recovery_action: block
 - reason_code: RSN-INTENT-MISSING
-  concept: Structured intent fit is missing.
+  concept: Intent Missing
   trigger: canonical decision projection
-  predicate: intent_fit is absent
+  predicate: structured canonical package fact
   technical_status_effect: YELLOW
   action_effect: verify
   recipient: reviewer_model
@@ -172,9 +172,9 @@ reasons:
   prompt_kind: verification_prompt
   recovery_action: block
 - reason_code: RSN-INTENT-UNSATISFIED
-  concept: Intent fit is not satisfied.
+  concept: Intent Unsatisfied
   trigger: canonical decision projection
-  predicate: intent_fit.intent_fit_result != satisfied
+  predicate: structured canonical package fact
   technical_status_effect: YELLOW
   action_effect: verify
   recipient: reviewer_model
@@ -182,9 +182,9 @@ reasons:
   prompt_kind: verification_prompt
   recovery_action: block
 - reason_code: RSN-INTENT-UNSUPPORTED-CLAIM
-  concept: Unsupported intent-satisfaction claims remain.
+  concept: Intent Unsupported Claim
   trigger: canonical decision projection
-  predicate: intent_fit.unsupported_claims is non-empty
+  predicate: structured canonical package fact
   technical_status_effect: YELLOW
   action_effect: verify
   recipient: reviewer_model
@@ -192,9 +192,9 @@ reasons:
   prompt_kind: verification_prompt
   recovery_action: block
 - reason_code: RSN-REPAIR-HANDOFF-PRESENT
-  concept: A validated same-PR repair handoff is present.
+  concept: Repair Handoff Present
   trigger: canonical decision projection
-  predicate: repair_handoff.affected_findings is non-empty
+  predicate: structured canonical package fact
   technical_status_effect: YELLOW
   action_effect: repair
   recipient: implementer_model
@@ -202,9 +202,9 @@ reasons:
   prompt_kind: implementer_repair_prompt
   recovery_action: repair_request
 - reason_code: RSN-EXTERNAL-REPAIR-ACCEPTED
-  concept: An accepted external suggestion carries validated repair guidance.
+  concept: External Repair Accepted
   trigger: canonical decision projection
-  predicate: external_review_intake contains an accepted suggestion with repair_handoff
+  predicate: structured canonical package fact
   technical_status_effect: YELLOW
   action_effect: repair
   recipient: implementer_model
@@ -212,9 +212,9 @@ reasons:
   prompt_kind: implementer_repair_prompt
   recovery_action: repair_request
 - reason_code: RSN-REQUIRED-ACTION-PENDING
-  concept: A mandatory required action remains recorded.
+  concept: Required Action Pending
   trigger: canonical decision projection
-  predicate: required_actions is non-empty
+  predicate: structured canonical package fact
   technical_status_effect: NONE
   action_effect: verify
   recipient: reviewer_model
@@ -222,9 +222,9 @@ reasons:
   prompt_kind: verification_prompt
   recovery_action: block
 - reason_code: RSN-OWNER-CONFIRMATION-REQUIRED
-  concept: Project-owner confirmation remains required.
+  concept: Owner Confirmation Required
   trigger: canonical decision projection
-  predicate: decision.approval_requirement == PROJECT_OWNER_CONFIRMATION
+  predicate: structured canonical package fact
   technical_status_effect: NONE
   action_effect: owner_confirmation
   recipient: project_owner
@@ -232,9 +232,9 @@ reasons:
   prompt_kind: null
   recovery_action: block
 - reason_code: RSN-HUMAN-TECHNICAL-REVIEW-REQUIRED
-  concept: Human technical review remains required.
+  concept: Human Technical Review Required
   trigger: canonical decision projection
-  predicate: decision.approval_requirement == HUMAN_TECHNICAL_REVIEW_REQUIRED
+  predicate: structured canonical package fact
   technical_status_effect: NONE
   action_effect: human_technical_review
   recipient: human_technical_reviewer
@@ -242,9 +242,9 @@ reasons:
   prompt_kind: human_review_handoff
   recovery_action: block
 - reason_code: RSN-SPECIALIST-REVIEW-REQUIRED
-  concept: Security or domain-specialist review remains required.
+  concept: Specialist Review Required
   trigger: canonical decision projection
-  predicate: decision.approval_requirement == SECURITY_OR_DOMAIN_SPECIALIST_REQUIRED
+  predicate: structured canonical package fact
   technical_status_effect: NONE
   action_effect: specialist_review
   recipient: security_or_domain_specialist
@@ -252,11 +252,9 @@ reasons:
   prompt_kind: specialist_review_handoff
   recovery_action: block
 - reason_code: RSN-MERGE-ENFORCEMENT-MINIMUM-MISSING
-  concept: Neither sequence CI enforcement nor verified repository-hosted enforcement
-    satisfies the personal minimum-security profile.
-  trigger: canonical security-profile assessment
-  predicate: security_profile.sequence_ci_enforced == false and verified repository-hosted
-    enforcement is absent
+  concept: Merge Enforcement Minimum Missing
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
   technical_status_effect: YELLOW
   action_effect: verify
   recipient: reviewer_model
@@ -264,10 +262,9 @@ reasons:
   prompt_kind: verification_prompt
   recovery_action: block
 - reason_code: RSN-REPOSITORY-HOSTED-ENFORCEMENT-REQUIRED
-  concept: An explicit profile trigger requires verified repository-hosted enforcement.
-  trigger: canonical security-profile assessment
-  predicate: an explicit repository, security, external, claim, or evidence-reference
-    trigger is present without exact-bound verified enforcement
+  concept: Repository Hosted Enforcement Required
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
   technical_status_effect: YELLOW
   action_effect: verify
   recipient: reviewer_model
@@ -275,11 +272,9 @@ reasons:
   prompt_kind: verification_prompt
   recovery_action: block
 - reason_code: RSN-REPOSITORY-SETTINGS-CLAIM-UNVERIFIED
-  concept: A repository-settings enforcement claim lacks exact-bound verifier-created
-    governance evidence.
-  trigger: canonical security-profile assessment
-  predicate: claim_repository_settings_enforced == true and verified enforcement evidence
-    is absent
+  concept: Repository Settings Claim Unverified
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
   technical_status_effect: YELLOW
   action_effect: verify
   recipient: reviewer_model
@@ -287,134 +282,12 @@ reasons:
   prompt_kind: verification_prompt
   recovery_action: block
 - reason_code: RSN-MERGE-AUTHORIZATION-CLAIM-UNVERIFIED
-  concept: A merge-authorization claim lacks exact-bound verifier-created governance
-    evidence.
-  trigger: canonical security-profile assessment
-  predicate: claim_merge_authorized == true and verified merge authorization evidence
-    is absent
+  concept: Merge Authorization Claim Unverified
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
   technical_status_effect: YELLOW
   action_effect: verify
   recipient: reviewer_model
   may_modify_code: false
   prompt_kind: verification_prompt
   recovery_action: block
-candidate_reason_domains:
-- reason_code: required_technical_check_failed
-  decision_domain: technical
-  status_effect: RED
-  recipient: implementer_model
-  authority: candidate_v1_11.project_decision
-  recovery_action: repair_required
-  test_carrier: tests/test_candidate_v1_11.py
-- reason_code: critical_supported_finding
-  decision_domain: technical
-  status_effect: RED
-  recipient: implementer_model
-  authority: candidate_v1_11.project_decision
-  recovery_action: repair_required
-  test_carrier: tests/test_candidate_v1_11.py
-- reason_code: high_reproduced_finding
-  decision_domain: technical
-  status_effect: RED
-  recipient: implementer_model
-  authority: candidate_v1_11.project_decision
-  recovery_action: repair_required
-  test_carrier: tests/test_candidate_v1_11.py
-- reason_code: blocking_medium_finding
-  decision_domain: technical
-  status_effect: YELLOW
-  recipient: implementer_model
-  authority: candidate_v1_11.project_decision
-  recovery_action: repair_required
-  test_carrier: tests/test_candidate_v1_11.py
-- reason_code: incomplete_technical_scope
-  decision_domain: technical
-  status_effect: YELLOW
-  recipient: reviewer_model
-  authority: candidate_v1_11.project_decision
-  recovery_action: verify_required
-  test_carrier: tests/test_candidate_v1_11.py
-- reason_code: unresolved_valid_bot_finding
-  decision_domain: technical
-  status_effect: YELLOW
-  recipient: implementer_model
-  authority: candidate_v1_11.technical_reasons_from_reconciliation
-  recovery_action: repair_required
-  test_carrier: tests/test_candidate_v1_11.py
-- reason_code: stale_technical_review_identity
-  decision_domain: technical
-  status_effect: YELLOW
-  recipient: reviewer_model
-  authority: candidate_v1_11.verify_base_review_reference
-  recovery_action: rerun_minimal_then_strict
-  test_carrier: tests/test_candidate_v1_11.py
-- reason_code: bot_collection_incomplete
-  decision_domain: technical
-  status_effect: YELLOW
-  recipient: reviewer_model
-  authority: candidate_v1_11.technical_reasons_from_reconciliation
-  recovery_action: collect_bot_surfaces
-  test_carrier: tests/test_candidate_v1_11.py
-- reason_code: repository_settings_not_verified
-  decision_domain: governance
-  status_effect: NOT_VERIFIABLE
-  recipient: owner
-  authority: candidate_v1_11.classify_governance
-  recovery_action: obtain_authoritative_governance_evidence
-  test_carrier: tests/test_candidate_v1_11.py
-- reason_code: branch_protection_unavailable
-  decision_domain: governance
-  status_effect: GAP_FOUND
-  recipient: owner
-  authority: candidate_v1_11.classify_governance
-  recovery_action: separate_governance_remediation
-  test_carrier: tests/test_candidate_v1_11.py
-- reason_code: bypass_actors_unknown
-  decision_domain: governance
-  status_effect: GAP_FOUND
-  recipient: owner
-  authority: candidate_v1_11.classify_governance
-  recovery_action: separate_governance_remediation
-  test_carrier: tests/test_candidate_v1_11.py
-- reason_code: sequence_enforcement_missing
-  decision_domain: governance
-  status_effect: GAP_FOUND
-  recipient: owner
-  authority: candidate_v1_11.classify_governance
-  recovery_action: separate_governance_remediation
-  test_carrier: tests/test_candidate_v1_11.py
-- reason_code: required_review_enforcement_absent
-  decision_domain: governance
-  status_effect: GAP_FOUND
-  recipient: owner
-  authority: candidate_v1_11.classify_governance
-  recovery_action: separate_governance_remediation
-  test_carrier: tests/test_candidate_v1_11.py
-- reason_code: merge_authorization_unverified
-  decision_domain: governance
-  status_effect: GAP_FOUND
-  recipient: owner
-  authority: candidate_v1_11.classify_governance
-  recovery_action: separate_merge_authorization
-  test_carrier: tests/test_candidate_v1_11.py
-- reason_code: required_checks_not_verified
-  decision_domain: governance
-  status_effect: GAP_FOUND
-  recipient: owner
-  authority: candidate_v1_11.classify_governance
-  recovery_action: separate_governance_remediation
-  test_carrier: tests/test_candidate_v1_11.py
-- reason_code: rulesets_unavailable
-  decision_domain: governance
-  status_effect: GAP_FOUND
-  recipient: owner
-  authority: candidate_v1_11.classify_governance
-  recovery_action: separate_governance_remediation
-  test_carrier: tests/test_candidate_v1_11.py
-- reason_code: merge_queue_unavailable
-  decision_domain: governance
-  status_effect: GAP_FOUND
-  recipient: owner
-  authority: candidate_v1_11.classify_governance
-  recovery_action: separate_governance_remediation
-  test_carrier: tests/test_candidate_v1_11.py
