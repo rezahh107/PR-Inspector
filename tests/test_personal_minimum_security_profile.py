@@ -1,5 +1,8 @@
 import copy
 import json
+import sys
+
+import pytest
 from pathlib import Path
 
 from pr_inspector.decision_projection import (
@@ -37,7 +40,7 @@ from pr_inspector.sequence_enforcement import (
     verify_sequence_producer_evidence,
 )
 from pr_inspector.validation_v2 import validate_directory, validate_package
-from tests.governance_test_support import fixture, responses
+from tests.governance_test_support import fixture, responses, urlopen_for_fixture
 
 ROOT = Path(__file__).resolve().parents[1]
 HEAD = "1" * 40
@@ -593,9 +596,32 @@ def test_sequence_producer_evidence_requires_validator_execution():
         raise AssertionError("producer proof accepted a non-sequence command")
 
 
-def test_manifest_validation_cli_replays_opaque_evidence_from_raw_receipts(tmp_path):
-    import subprocess
-    import sys
+def _validation_cli_argv(tmp_path: Path, fixture_path: Path, command: str) -> list[str]:
+    return [
+        "validate_review_v2.py",
+        str(tmp_path),
+        "--target-repository",
+        REPOSITORY,
+        "--pr-number",
+        str(PR_NUMBER),
+        "--reviewed-head-sha",
+        HEAD,
+        "--governance-fixture",
+        str(fixture_path),
+        "--sequence-workflow-sha",
+        "2" * 40,
+        "--sequence-validator-command",
+        command,
+    ]
+
+
+def test_manifest_validation_cli_fetches_live_evidence_for_fixture_urls(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    from pr_inspector import _governance_transport
+    from scripts import validate_review_v2
 
     value = package()
     package_path = tmp_path / "review-package.json"
@@ -611,37 +637,31 @@ def test_manifest_validation_cli_replays_opaque_evidence_from_raw_receipts(tmp_p
     raw = governance_fixture(check_context=SEQUENCE_CONTEXT)
     fixture_path = tmp_path / "governance-responses.json"
     fixture_path.write_text(json.dumps(raw), encoding="utf-8")
-
-    result = subprocess.run(
-        [
-            sys.executable,
-            "scripts/validate_review_v2.py",
-            str(tmp_path),
-            "--target-repository",
-            REPOSITORY,
-            "--pr-number",
-            str(PR_NUMBER),
-            "--reviewed-head-sha",
-            HEAD,
-            "--governance-fixture",
-            str(fixture_path),
-            "--sequence-workflow-sha",
-            "2" * 40,
-            "--sequence-validator-command",
+    monkeypatch.setattr(
+        _governance_transport.urllib.request,
+        "urlopen",
+        urlopen_for_fixture(raw),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        _validation_cli_argv(
+            tmp_path,
+            fixture_path,
             "python scripts/validate_rereview_sequence.py sequence.json --review EVENT=review",
-        ],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-        check=False,
+        ),
     )
-    assert result.returncode == 0, result.stderr + result.stdout
-    assert "OK: review package" in result.stdout
+
+    assert validate_review_v2.main() == 0
+    assert "OK: review package" in capsys.readouterr().out
 
 
-def test_manifest_validation_cli_rejects_wrong_sequence_command(tmp_path):
-    import subprocess
-    import sys
+def test_manifest_validation_cli_rejects_wrong_sequence_command(
+    tmp_path,
+    monkeypatch,
+):
+    from pr_inspector import _governance_transport
+    from scripts import validate_review_v2
 
     value = package()
     package_path = tmp_path / "review-package.json"
@@ -657,29 +677,16 @@ def test_manifest_validation_cli_rejects_wrong_sequence_command(tmp_path):
     raw = governance_fixture(check_context=SEQUENCE_CONTEXT)
     fixture_path = tmp_path / "governance-responses.json"
     fixture_path.write_text(json.dumps(raw), encoding="utf-8")
-
-    result = subprocess.run(
-        [
-            sys.executable,
-            "scripts/validate_review_v2.py",
-            str(tmp_path),
-            "--target-repository",
-            REPOSITORY,
-            "--pr-number",
-            str(PR_NUMBER),
-            "--reviewed-head-sha",
-            HEAD,
-            "--governance-fixture",
-            str(fixture_path),
-            "--sequence-workflow-sha",
-            "2" * 40,
-            "--sequence-validator-command",
-            "python -m pytest",
-        ],
-        cwd=ROOT,
-        text=True,
-        capture_output=True,
-        check=False,
+    monkeypatch.setattr(
+        _governance_transport.urllib.request,
+        "urlopen",
+        urlopen_for_fixture(raw),
     )
-    assert result.returncode != 0
-    assert "sequence validator" in (result.stderr + result.stdout)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        _validation_cli_argv(tmp_path, fixture_path, "python -m pytest"),
+    )
+
+    with pytest.raises(ValueError, match="sequence validator"):
+        validate_review_v2.main()
