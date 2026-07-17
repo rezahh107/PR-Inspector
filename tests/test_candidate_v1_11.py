@@ -14,6 +14,7 @@ from pr_inspector._governance_transport import (
     GitHubApiResponse,
     _mint_response,
     fetch_github_api_response,
+    is_verified_github_api_response,
 )
 from pr_inspector.governance import (
     verify_github_governance_source,
@@ -91,47 +92,58 @@ def _inspector_payloads(commit_sha: str = INSPECTOR_COMMIT):
     )
 
 
+def _fetch_response(
+    url: str,
+    payload: object,
+    *,
+    status: int = 200,
+    response_url: str | None = None,
+):
+    def fake_urlopen(request, timeout):
+        assert request.full_url == url
+        return _FakeHttpResponse(response_url or url, payload, status)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(
+            _governance_transport.urllib.request,
+            "urlopen",
+            fake_urlopen,
+        )
+        return fetch_github_api_response(
+            url,
+            token=None,
+            api_version=API_VERSION,
+        )
+
+
 def _fetch_inspector_responses(
     *,
     repository_payload=None,
     commit_payload=None,
     repository_status: int = 200,
     commit_status: int = 200,
+    repository_response_url: str | None = None,
+    commit_response_url: str | None = None,
 ):
     default_repository, default_commit = _inspector_payloads()
     repository_payload = repository_payload or default_repository
     commit_payload = commit_payload or default_commit
     repository_url = f"https://api.github.com/repos/{INSPECTOR_REPOSITORY}"
     commit_url = f"{repository_url}/commits/{INSPECTOR_COMMIT}"
-    responses = {
-        repository_url: _FakeHttpResponse(
-  repository_url,
-  repository_payload,
-  repository_status,
+    return (
+        _fetch_response(
+            repository_url,
+            repository_payload,
+            status=repository_status,
+            response_url=repository_response_url,
         ),
-        commit_url: _FakeHttpResponse(commit_url, commit_payload, commit_status),
-    }
-
-    def fake_urlopen(request, timeout):
-        return responses[request.full_url]
-
-    with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(
-  _governance_transport.urllib.request,
-  "urlopen",
-  fake_urlopen,
-        )
-        repository_response = fetch_github_api_response(
-  repository_url,
-  token=None,
-  api_version=API_VERSION,
-        )
-        commit_response = fetch_github_api_response(
-  commit_url,
-  token=None,
-  api_version=API_VERSION,
-        )
-    return repository_response, commit_response
+        _fetch_response(
+            commit_url,
+            commit_payload,
+            status=commit_status,
+            response_url=commit_response_url,
+        ),
+    )
 
 
 def _copy_response(response: GitHubApiResponse) -> GitHubApiResponse:
@@ -265,18 +277,14 @@ def _completion(tmp_path: Path, monkeypatch, head_sha: str) -> VerifiedReviewCom
 
 def _target_identity():
     url = f"https://api.github.com/repos/{REPOSITORY}"
-    response = _mint_response(
-        request_url=url,
-        response_url=url,
-        status_code=200,
-        fetched_at=datetime.now(timezone.utc),
-        payload={
+    response = _fetch_response(
+        url,
+        {
             "id": REPOSITORY_ID,
             "full_name": REPOSITORY,
             "url": url,
             "html_url": f"https://github.com/{REPOSITORY}",
         },
-        transport_origin="github_https",
     )
     return candidate.verify_target_identity_response(
         response,
@@ -286,13 +294,12 @@ def _target_identity():
 
 def _live_head(head_sha: str):
     url = f"https://api.github.com/repos/{REPOSITORY}/pulls/{PR_NUMBER}"
-    response = _mint_response(
-        request_url=url,
-        response_url=url,
-        status_code=200,
-        fetched_at=datetime.now(timezone.utc),
-        payload=_pr_payload(head_sha),
-        transport_origin="github_https",
+    response = _fetch_response(url, _pr_payload(head_sha))
+    return candidate.verify_live_pr_head_response(
+        response,
+        target_repository=REPOSITORY,
+        target_repository_id=REPOSITORY_ID,
+        pull_request=PR_NUMBER,
     )
     return candidate.verify_live_pr_head_response(
         response,
@@ -322,6 +329,36 @@ def _genuine_reference(tmp_path: Path, monkeypatch, head_sha: str = HEAD):
     )
     return completion, target, inspector, reference
 
+
+
+def test_test_factory_cannot_mint_operational_receipt():
+    repository_payload, _ = _inspector_payloads()
+    repository_url = f"https://api.github.com/repos/{INSPECTOR_REPOSITORY}"
+    with pytest.raises(TypeError, match="transport_origin"):
+        _mint_response(
+            request_url=repository_url,
+            response_url=repository_url,
+            status_code=200,
+            fetched_at=datetime.now(timezone.utc),
+            payload=repository_payload,
+            transport_origin="github_https",
+        )
+
+    forged = _mint_response(
+        request_url=repository_url,
+        response_url=repository_url,
+        status_code=200,
+        fetched_at=datetime.now(timezone.utc),
+        payload=repository_payload,
+    )
+    assert not is_verified_github_api_response(forged)
+    _, genuine_commit = _fetch_inspector_responses()
+    with pytest.raises(ProvenanceError, match="sealed verifier-created"):
+        verify_github_commit_payload(
+            forged,
+            genuine_commit,
+            expected_commit_sha=INSPECTOR_COMMIT,
+        )
 
 
 def test_plain_mappings_and_direct_commit_construction_cannot_mint_evidence():
@@ -423,6 +460,7 @@ def test_wrong_status_origin_response_url_and_copied_receipts_are_rejected():
     bad_status_repository, good_commit = _fetch_inspector_responses(
         repository_status=404,
     )
+    assert is_verified_github_api_response(bad_status_repository)
     with pytest.raises(ProvenanceError, match="did not succeed"):
         verify_github_commit_payload(
             bad_status_repository,
@@ -431,31 +469,25 @@ def test_wrong_status_origin_response_url_and_copied_receipts_are_rejected():
         )
 
     repository_url = f"https://api.github.com/repos/{INSPECTOR_REPOSITORY}"
-    commit_url = f"{repository_url}/commits/{INSPECTOR_COMMIT}"
-    wrong_origin_repository = _mint_response(
+    test_factory_repository = _mint_response(
         request_url=repository_url,
         response_url=repository_url,
         status_code=200,
         fetched_at=datetime.now(timezone.utc),
         payload=repository_payload,
-        transport_origin="test_factory",
     )
     good_repository, good_commit = _fetch_inspector_responses()
-    with pytest.raises(ProvenanceError, match="operational GitHub HTTPS"):
+    with pytest.raises(ProvenanceError, match="sealed verifier-created"):
         verify_github_commit_payload(
-            wrong_origin_repository,
+            test_factory_repository,
             good_commit,
             expected_commit_sha=INSPECTOR_COMMIT,
         )
 
-    redirected_commit = _mint_response(
-        request_url=commit_url,
-        response_url=repository_url,
-        status_code=200,
-        fetched_at=datetime.now(timezone.utc),
-        payload=commit_payload,
-        transport_origin="github_https",
+    _, redirected_commit = _fetch_inspector_responses(
+        commit_response_url=repository_url,
     )
+    assert is_verified_github_api_response(redirected_commit)
     with pytest.raises(ProvenanceError, match="response URL"):
         verify_github_commit_payload(
             good_repository,
@@ -463,9 +495,26 @@ def test_wrong_status_origin_response_url_and_copied_receipts_are_rejected():
             expected_commit_sha=INSPECTOR_COMMIT,
         )
 
+    copied = _copy_response(good_repository)
+    assert not is_verified_github_api_response(copied)
     with pytest.raises(ProvenanceError, match="sealed verifier-created"):
         verify_github_commit_payload(
-            _copy_response(good_repository),
+            copied,
+            good_commit,
+            expected_commit_sha=INSPECTOR_COMMIT,
+        )
+
+    class ResponseSubclass(GitHubApiResponse):
+        pass
+
+    subclassed = object.__new__(ResponseSubclass)
+    for name in GitHubApiResponse.__slots__:
+        if name != "__weakref__":
+            object.__setattr__(subclassed, name, getattr(good_repository, name))
+    assert not is_verified_github_api_response(subclassed)
+    with pytest.raises(ProvenanceError, match="sealed verifier-created"):
+        verify_github_commit_payload(
+            subclassed,
             good_commit,
             expected_commit_sha=INSPECTOR_COMMIT,
         )
