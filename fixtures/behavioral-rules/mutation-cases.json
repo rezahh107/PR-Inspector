@@ -134,6 +134,18 @@
       "expected_diagnostic": "CompletionError",
       "mutation": "call_compact_owner_accessor_for_prompt_required_projection",
       "rule_id": "PRR-OWNER-PROMPT-ATOMIC-001"
+    },
+    {
+      "case_id": "generic_prompt_semantically_incomplete",
+      "expected_diagnostic": "PRI-PROMPT-SEMANTICS-001",
+      "mutation": "replace_prompt_with_nonempty_generic_text_and_rehash_manifest",
+      "rule_id": "PRR-PROMPT-SEMANTIC-001"
+    },
+    {
+      "case_id": "candidate_output_authority_exposed",
+      "expected_diagnostic": "candidate_output_api_migration_error",
+      "mutation": "import_or_call_candidate_projection_renderer_verifier_or_owner_composer",
+      "rule_id": "PRR-OUTPUT-AUTHORITY-001"
     }
   ],
   "schema_version": 1

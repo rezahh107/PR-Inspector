@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.11.1
+
+- Completed the v1.11 activation by consolidating all post-package output authority in the official projection, renderer, verifier, `VerifiedReviewCompletion`, and `official_owner_delivery` path.
+- Replaced the independent Candidate output stack with bounded pre-package compatibility helpers and deterministic migration failures; verified-completion owner delivery delegates to exact official bytes.
+- Added independent semantic prompt validation that rejects the PR #22 placeholder, generic or identity-free prompts, action-authority drift, missing findings/tests/rereview, governance-only repair authority, and embedded profile commands.
+- Added historical PR #22 + PR #26 activation regressions, PR #27-style compatibility re-export closure checks, and Candidate API disposition tests.
+- Added the immutable v1.11.1 protocol snapshot and release lock while preserving v1.11.0 byte-for-byte.
+
 ## 1.10.2
 
 - Added the immutable v1.10.2 protocol snapshot and active release lock for atomic owner delivery.
@@ -24,7 +32,7 @@
 - Replaced raw-substring external workflow topology checks with fail-closed YAML structural validation for jobs, steps, reusable-workflow pins, dependencies, checkout refs, and validation-step environment bindings.
 - Made malformed, unreadable, or invalid-UTF-8 coverage planning JSON block bootstrap attestation instead of being skipped.
 - Tightened OIDC run identity validation and preserved proof-credit-disabled bootstrap behavior.
-- Scoped the one-off EV4 Decision Kernel PR #43 independent verifier to manual dispatch so it cannot become an unbounded pull-request check.
+- Scoped the one-off EV4 Decision Kernel PR #43 indepent verifier to manual dispatch so it cannot become an unbounded pull-request check.
 
 ## 1.9.0
 
@@ -83,7 +91,7 @@
 ## 1.4.0
 
 - Added immutable full-protocol snapshots and SHA-256 release locks.
-- Added a canonical JSON review package using JSON Schema Draft 2020-12.
+- Added a canonical JSON review packae using JSON Schema Draft 2020-12.
 - Added deterministic semantic validation for SHA validity, decision gates, sensitive approvals, evidence links, counts, and output consistency.
 - Added deterministic Persian owner-card and English technical-handoff renderers.
 - Added a synthetic golden fixture plus negative mutation tests for critical gate behavior.
