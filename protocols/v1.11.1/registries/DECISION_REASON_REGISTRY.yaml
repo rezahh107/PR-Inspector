@@ -99,7 +99,7 @@ reasons:
   action_effect: verify
   recipient: reviewer_model
   may_modify_code: false
-  prompt_kind: implementer_repair_prompt
+  prompt_kind: verification_prompt
   recovery_action: block
 - reason_code: RSN-BLOCKING-HYPOTHESIS
   concept: Blocking Hypothesis
@@ -149,7 +149,7 @@ reasons:
   action_effect: verify
   recipient: reviewer_model
   may_modify_code: false
-  prompt_kind: implementer_repair_prompt
+  prompt_kind: verification_prompt
   recovery_action: block
 - reason_code: RSN-UNVERIFIED-AREA
   concept: Unverified Area
@@ -269,7 +269,7 @@ reasons:
   action_effect: verify
   recipient: reviewer_model
   may_modify_code: false
-  prompt_kind: implementer_repair_prompt
+  prompt_kind: verification_prompt
   recovery_action: block
 - reason_code: RSN-REPOSITORY-SETTINGS-CLAIM-UNVERIFIED
   concept: Repository Settings Claim Unverified
@@ -279,7 +279,7 @@ reasons:
   action_effect: verify
   recipient: reviewer_model
   may_modify_code: false
-  prompt_kind: implementer_repair_prompt
+  prompt_kind: verification_prompt
   recovery_action: block
 - reason_code: RSN-MERGE-AUTHORIZATION-CLAIM-UNVERIFIED
   concept: Merge Authorization Claim Unverified
@@ -289,5 +289,5 @@ reasons:
   action_effect: verify
   recipient: reviewer_model
   may_modify_code: false
-  prompt_kind: implementer_repair_prompt
+  prompt_kind: verification_prompt
   recovery_action: block
