@@ -1,7 +1,7 @@
 """Bounded compatibility surface for the former v1.11 Candidate module.
 
-The Candidate rollout is not an output authority.  This module retains only
-minimal/strict intake and verified-Minimal Head-drift routing.  After a
+The Candidate rollout is not an output authority. This module retains only
+minimal/strict intake and verified-Minimal Head-drift routing. After a
 canonical review package exists, callers must use ``pr_inspector.official_review``.
 """
 from __future__ import annotations
@@ -96,11 +96,15 @@ def _migration_error(symbol: str) -> CandidateOutputMigrationError:
     )
 
 
-def _require_operational_response(response: GitHubApiResponse, label: str) -> Mapping[str, Any]:
+def _require_operational_response(
+    response: GitHubApiResponse, label: str
+) -> Mapping[str, Any]:
     if not is_verified_github_api_response(response):
         raise ValueError(f"{label} is not a sealed GitHub API response receipt")
     if getattr(response, "transport_origin", None) != "github_https":
-        raise ValueError(f"{label} is not from the operational GitHub HTTPS adapter")
+        raise ValueError(
+            f"{label} is not from the operational GitHub HTTPS adapter"
+        )
     payload = github_response_payload(response)
     if not isinstance(payload, Mapping):
         raise ValueError(f"{label} payload is malformed")
@@ -112,13 +116,18 @@ def verify_target_identity_response(
 ) -> VerifiedTargetIdentity:
     payload = _require_operational_response(response, "target repository response")
     expected = f"https://api.github.com/repos/{expected_repository}"
-    if response.request_url != expected or response.response_url != expected or response.status_code != 200:
+    if (
+        response.request_url != expected
+        or response.response_url != expected
+        or response.status_code != 200
+    ):
         raise ValueError("target repository response is not authoritative")
     repository_id = payload.get("id")
     if (
         payload.get("full_name") != expected_repository
         or payload.get("url") != expected
-        or payload.get("html_url") != f"https://github.com/{expected_repository}"
+        or payload.get("html_url")
+        != f"https://github.com/{expected_repository}"
         or not isinstance(repository_id, int)
         or isinstance(repository_id, bool)
         or repository_id <= 0
@@ -135,16 +144,27 @@ def verify_live_pr_head_response(
     pull_request: int,
 ) -> VerifiedLivePrHead:
     payload = _require_operational_response(response, "live PR response")
-    expected = f"https://api.github.com/repos/{target_repository}/pulls/{pull_request}"
-    if response.request_url != expected or response.response_url != expected or response.status_code != 200:
+    expected = (
+        f"https://api.github.com/repos/{target_repository}/pulls/{pull_request}"
+    )
+    if (
+        response.request_url != expected
+        or response.response_url != expected
+        or response.status_code != 200
+    ):
         raise ValueError("live PR response is not authoritative")
     base = payload.get("base")
     repository = base.get("repo") if isinstance(base, Mapping) else None
     head = payload.get("head")
     head_sha = head.get("sha") if isinstance(head, Mapping) else None
-    if payload.get("number") != pull_request or not isinstance(repository, Mapping):
+    if payload.get("number") != pull_request or not isinstance(
+        repository, Mapping
+    ):
         raise ValueError("live PR identity is malformed")
-    if repository.get("full_name") != target_repository or repository.get("id") != target_repository_id:
+    if (
+        repository.get("full_name") != target_repository
+        or repository.get("id") != target_repository_id
+    ):
         raise ValueError("live PR repository identity mismatch")
     if not isinstance(head_sha, str) or SHA40_RE.fullmatch(head_sha) is None:
         raise ValueError("live PR Head SHA is malformed")
@@ -165,7 +185,11 @@ def minimal_reference_from_official_completion(
 ) -> VerifiedMinimalReviewReference:
     if not is_verified_review_completion(completion):
         raise ValueError("verified official review completion is required")
-    if not isinstance(target_repository_id, int) or isinstance(target_repository_id, bool) or target_repository_id <= 0:
+    if (
+        not isinstance(target_repository_id, int)
+        or isinstance(target_repository_id, bool)
+        or target_repository_id <= 0
+    ):
         raise ValueError("verified target repository id is required")
     projection = completion.decision_projection()
     if projection.get("inspection_profile") != MINIMAL:
@@ -199,26 +223,64 @@ def verify_base_review_reference(
     if reference.pull_request != pull_request:
         return {"status": "INVALID", "reason": "pull_request_mismatch"}
     if reference.reviewed_head_sha != live_head_sha:
-        return {"status": "STALE", "reason": "head_drift", "action": "rerun_minimal_then_strict"}
-    return {"status": "VERIFIED", "reason": "same_head", "action": "reuse_technical_decision"}
+        return {
+            "status": "STALE",
+            "reason": "head_drift",
+            "action": "rerun_minimal_then_strict",
+        }
+    return {
+        "status": "VERIFIED",
+        "reason": "same_head",
+        "action": "reuse_technical_decision",
+    }
 
 
 def orchestrate_strict_after_minimal(
     context: Mapping[str, Any],
-    refresh_minimal_review: Callable[[Mapping[str, Any], str], VerifiedMinimalReviewReference] | None = None,
+    refresh_minimal_review: Callable[
+        [Mapping[str, Any], str], VerifiedMinimalReviewReference
+    ]
+    | None = None,
 ) -> MinimalRefreshResult:
-    reference = context.get("verified_minimal_review") if isinstance(context, Mapping) else None
-    live = context.get("verified_live_pr_head") if isinstance(context, Mapping) else None
+    reference = (
+        context.get("verified_minimal_review")
+        if isinstance(context, Mapping)
+        else None
+    )
+    live = (
+        context.get("verified_live_pr_head")
+        if isinstance(context, Mapping)
+        else None
+    )
     if not isinstance(reference, VerifiedMinimalReviewReference):
-        return MinimalRefreshResult(_REFRESH_TOKEN, "refresh_failed", MappingProxyType({}), "", None, "verified_minimal_review_required")
-    target = MappingProxyType({
-        "repository": reference.target_repository,
-        "repository_id": reference.target_repository_id,
-        "pull_request": reference.pull_request,
-        "url": f"https://github.com/{reference.target_repository}/pull/{reference.pull_request}",
-    })
+        return MinimalRefreshResult(
+            _REFRESH_TOKEN,
+            "refresh_failed",
+            MappingProxyType({}),
+            "",
+            None,
+            "verified_minimal_review_required",
+        )
+    target = MappingProxyType(
+        {
+            "repository": reference.target_repository,
+            "repository_id": reference.target_repository_id,
+            "pull_request": reference.pull_request,
+            "url": (
+                f"https://github.com/{reference.target_repository}/pull/"
+                f"{reference.pull_request}"
+            ),
+        }
+    )
     if not isinstance(live, VerifiedLivePrHead) or live._token is not _TARGET_TOKEN:
-        return MinimalRefreshResult(_REFRESH_TOKEN, "refresh_failed", target, "", None, "sealed_live_pr_head_required")
+        return MinimalRefreshResult(
+            _REFRESH_TOKEN,
+            "refresh_failed",
+            target,
+            "",
+            None,
+            "sealed_live_pr_head_required",
+        )
     status = verify_base_review_reference(
         reference,
         live.head_sha,
@@ -227,11 +289,31 @@ def orchestrate_strict_after_minimal(
         pull_request=live.pull_request,
     )
     if status["status"] == "VERIFIED":
-        return MinimalRefreshResult(_REFRESH_TOKEN, "same_head_reuse", target, live.head_sha, reference)
+        return MinimalRefreshResult(
+            _REFRESH_TOKEN,
+            "same_head_reuse",
+            target,
+            live.head_sha,
+            reference,
+        )
     if status["status"] != "STALE":
-        return MinimalRefreshResult(_REFRESH_TOKEN, "refresh_failed", target, live.head_sha, None, status["reason"])
+        return MinimalRefreshResult(
+            _REFRESH_TOKEN,
+            "refresh_failed",
+            target,
+            live.head_sha,
+            None,
+            status["reason"],
+        )
     if refresh_minimal_review is None:
-        return MinimalRefreshResult(_REFRESH_TOKEN, "head_drift_refresh_required", target, live.head_sha, None, "minimal_refresh_required")
+        return MinimalRefreshResult(
+            _REFRESH_TOKEN,
+            "head_drift_refresh_required",
+            target,
+            live.head_sha,
+            None,
+            "minimal_refresh_required",
+        )
     refreshed = refresh_minimal_review(target, live.head_sha)
     verified = verify_base_review_reference(
         refreshed,
@@ -241,13 +323,34 @@ def orchestrate_strict_after_minimal(
         pull_request=live.pull_request,
     )
     if verified["status"] != "VERIFIED":
-        return MinimalRefreshResult(_REFRESH_TOKEN, "refresh_failed", target, live.head_sha, None, verified["reason"])
-    return MinimalRefreshResult(_REFRESH_TOKEN, "refresh_verified", target, live.head_sha, refreshed)
+        return MinimalRefreshResult(
+            _REFRESH_TOKEN,
+            "refresh_failed",
+            target,
+            live.head_sha,
+            None,
+            verified["reason"],
+        )
+    return MinimalRefreshResult(
+        _REFRESH_TOKEN,
+        "refresh_verified",
+        target,
+        live.head_sha,
+        refreshed,
+    )
 
 
-def parse_intake(text: str, context: Mapping[str, Any] | None = None) -> dict[str, Any]:
+def parse_intake(
+    text: str, context: Mapping[str, Any] | None = None
+) -> dict[str, Any]:
     if context is not None and not isinstance(context, Mapping):
-        return {"inspection_profile": MINIMAL, "target": None, "reuse_current_minimal": False, "missing": ["valid_context"], "error": "context_malformed"}
+        return {
+            "inspection_profile": MINIMAL,
+            "target": None,
+            "reuse_current_minimal": False,
+            "missing": ["valid_context"],
+            "error": "context_malformed",
+        }
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     profile = MINIMAL
     if lines and lines[0] == "حداقلی":
@@ -256,24 +359,40 @@ def parse_intake(text: str, context: Mapping[str, Any] | None = None) -> dict[st
         profile = STRICT
         lines = lines[1:]
     url = next((line for line in lines if PR_URL_RE.fullmatch(line)), None)
-    if profile == STRICT and url is None and context:
-        result = orchestrate_strict_after_minimal(context, context.get("refresh_minimal_review"))
+    if profile == STRICT and url is None and context is not None:
+        result = orchestrate_strict_after_minimal(
+            context, context.get("refresh_minimal_review")
+        )
         return {
             "inspection_profile": STRICT,
             "target": dict(result.target) if result.target else None,
             "reuse_current_minimal": result.state == "same_head_reuse",
             "minimal_refresh_state": result.state,
-            "continue_strict": result.state in {"same_head_reuse", "refresh_verified"},
+            "continue_strict": result.state
+            in {"same_head_reuse", "refresh_verified"},
             "missing": [],
-            **({"error": result.reason} if result.state == "refresh_failed" else {}),
+            **(
+                {"error": result.reason}
+                if result.state == "refresh_failed"
+                else {}
+            ),
         }
     if url is None:
-        return {"inspection_profile": profile, "target": None, "reuse_current_minimal": False, "missing": ["pull_request_url"]}
+        return {
+            "inspection_profile": profile,
+            "target": None,
+            "reuse_current_minimal": False,
+            "missing": ["pull_request_url"],
+        }
     match = PR_URL_RE.fullmatch(url)
     assert match is not None
     return {
         "inspection_profile": profile,
-        "target": {"repository": match.group(1), "pull_request": int(match.group(2)), "url": url},
+        "target": {
+            "repository": match.group(1),
+            "pull_request": int(match.group(2)),
+            "url": url,
+        },
         "reuse_current_minimal": False,
         "missing": [],
     }
@@ -296,37 +415,54 @@ def render_candidate_technical_handoff(*args: Any, **kwargs: Any) -> bytes:
     raise _migration_error("render_candidate_technical_handoff")
 
 
-def render_candidate_next_action_prompt(*args: Any, **kwargs: Any) -> bytes:
+def render_candidate_next_action_prompt(
+    *args: Any, **kwargs: Any
+) -> bytes:
     raise _migration_error("render_candidate_next_action_prompt")
 
 
-def build_candidate_review_artifacts(*args: Any, **kwargs: Any) -> Mapping[str, bytes]:
+def build_candidate_review_artifacts(
+    *args: Any, **kwargs: Any
+) -> Mapping[str, bytes]:
     raise _migration_error("build_candidate_review_artifacts")
 
 
-def verify_candidate_review_artifact_bytes(*args: Any, **kwargs: Any) -> Any:
+def verify_candidate_review_artifact_bytes(
+    *args: Any, **kwargs: Any
+) -> Any:
     raise _migration_error("verify_candidate_review_artifact_bytes")
 
 
-def verify_minimal_review_artifact_bytes(*args: Any, **kwargs: Any) -> Any:
+def verify_minimal_review_artifact_bytes(
+    *args: Any, **kwargs: Any
+) -> Any:
     raise _migration_error("verify_minimal_review_artifact_bytes")
 
 
-def build_candidate_owner_delivery_artifacts(*args: Any, **kwargs: Any) -> Mapping[str, bytes]:
+def build_candidate_owner_delivery_artifacts(
+    *args: Any, **kwargs: Any
+) -> Mapping[str, bytes]:
     raise _migration_error("build_candidate_owner_delivery_artifacts")
 
 
 def candidate_owner_delivery_stdout(
-    completion: VerifiedReviewCompletion, *, live_head_sha: str | None = None
+    completion: VerifiedReviewCompletion,
+    *,
+    live_head_sha: str | None = None,
 ) -> bytes:
     if not is_verified_review_completion(completion):
         raise _migration_error("candidate_owner_delivery_stdout")
-    if live_head_sha is not None and completion.reviewed_head_sha != live_head_sha:
+    if (
+        live_head_sha is not None
+        and completion.reviewed_head_sha != live_head_sha
+    ):
         raise ValueError("verified completion does not match live Head")
     return official_owner_delivery(completion).encode("utf-8")
 
 
-def render_owner_profile_commands(completion: VerifiedReviewCompletion) -> bytes:
+def render_owner_profile_commands(
+    completion: VerifiedReviewCompletion,
+) -> bytes:
     if not is_verified_review_completion(completion):
         raise _migration_error("render_owner_profile_commands")
     return official_owner_profile_commands(completion).encode("utf-8")
