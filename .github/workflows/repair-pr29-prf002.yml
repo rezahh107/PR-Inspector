@@ -22,17 +22,18 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: true
-          fetch-depth: 2
+          fetch-depth: 3
 
       - name: Verify exact staged patch source
         env:
-          EXPECTED_PARENT_HEAD: 70c4c065d5ec458de76bb86ea7350a44457f077c
+          EXPECTED_PARENT_HEAD: 3331f70fe26e8bf0e3fb4c25f1c4b47e3fe5fd34
+          STAGED_PATCH_COMMIT: 70c4c065d5ec458de76bb86ea7350a44457f077c
           EXPECTED_PATCH_BLOB: d92bc393e53771c96d0c117ad354f3a6ffaf9b57
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD^)" = "${EXPECTED_PARENT_HEAD}"
           test "$(git diff --name-only HEAD^ HEAD)" = ".github/workflows/repair-pr29-prf002.yml"
-          test "$(git rev-parse HEAD^:.github/workflows/repair-pr29-prf002.yml)" = "${EXPECTED_PATCH_BLOB}"
+          test "$(git rev-parse ${STAGED_PATCH_COMMIT}:.github/workflows/repair-pr29-prf002.yml)" = "${EXPECTED_PATCH_BLOB}"
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
@@ -43,16 +44,19 @@ jobs:
       - name: Install validation dependencies
         run: python -m pip install --disable-pip-version-check ".[dev]"
 
-      - name: Apply exact transparent patch from verified parent
+      - name: Apply exact transparent patch from verified commit
+        env:
+          STAGED_PATCH_COMMIT: 70c4c065d5ec458de76bb86ea7350a44457f077c
         run: |
           set -euo pipefail
-          git show HEAD^:.github/workflows/repair-pr29-prf002.yml > /tmp/staged-patch.yml
+          git show ${STAGED_PATCH_COMMIT}:.github/workflows/repair-pr29-prf002.yml > /tmp/staged-patch.yml
           awk '/^          python - <<'"'"'PY'"'"'$/{capture=1; next} capture && /^          PY$/{exit} capture{sub(/^          /, ""); print}' /tmp/staged-patch.yml > /tmp/apply_prf002.py
+          test -s /tmp/apply_prf002.py
           python /tmp/apply_prf002.py
           git rm .github/workflows/repair-pr29-prf002.yml
           git diff --check
           changed="$(git diff --name-only | sort)"
-          expected=$'CHANGELOG.md\n.github/workflows/repair-pr29-prf002.yml\nscripts/validate_rereview_sequence.py\ntests/test_behavioral_rule_coverage.py\ntests/test_candidate_v1_11.py'
+          expected=$'.github/workflows/repair-pr29-prf002.yml\nCHANGELOG.md\nscripts/validate_rereview_sequence.py\ntests/test_behavioral_rule_coverage.py\ntests/test_candidate_v1_11.py'
           test "${changed}" = "${expected}"
 
       - name: Validate repaired final tree
