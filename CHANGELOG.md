@@ -6,6 +6,7 @@
 - Replaced the independent Candidate output stack with bounded pre-package compatibility helpers and deterministic migration failures; verified-completion owner delivery delegates to exact official bytes.
 - Added independent semantic prompt validation that rejects the PR #22 placeholder, generic or identity-free prompts, action-authority drift, missing findings/tests/rereview, governance-only repair authority, and embedded profile commands.
 - Added historical PR #22 + PR #26 activation regressions, PR #27-style compatibility re-export closure checks, and Candidate API disposition tests.
+- Sealed Minimal-to-Strict reuse as a verifier-created capability bound to target identity, Inspector identity and commit, active protocol, exact reviewed Head, and all canonical package/projection/manifest hashes; forged and unverified refresh references fail closed.
 - Added the immutable v1.11.1 protocol snapshot and release lock while preserving v1.11.0 byte-for-byte.
 
 ## 1.10.2
