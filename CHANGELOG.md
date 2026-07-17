@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.11.1
+
+- Completed the v1.11 activation by consolidating all post-package output authority in the official projection, renderer, verifier, `VerifiedReviewCompletion`, and `official_owner_delivery` path.
+- Replaced the independent Candidate output stack with bounded pre-package compatibility helpers and deterministic migration failures; verified-completion owner delivery delegates to exact official bytes.
+- Added independent semantic prompt validation that rejects the PR #22 placeholder, generic or identity-free prompts, action-authority drift, missing findings/tests/rereview, governance-only repair authority, and embedded profile commands.
+- Added historical PR #22 + PR #26 activation regressions, PR #27-style compatibility re-export closure checks, and Candidate API disposition tests.
+- Sealed Minimal-to-Strict reuse as a verifier-created capability bound to target identity, Inspector identity and commit, active protocol, exact reviewed Head, and all canonical package/projection/manifest hashes; forged and unverified refresh references fail closed.
+- Added the immutable v1.11.1 protocol snapshot and release lock while preserving v1.11.0 byte-for-byte.
+- Sealed Inspector repository and commit provenance behind operational GitHub HTTPS response capabilities; plain mappings and copied response fields cannot mint reusable Minimal-review authority.
+- Closed PRF-002-R1 by moving operational response minting and its registry into the production fetch closure, fixing the test factory to a separate non-operational class, and making governance fixtures supply URL plans for live HTTPS fetches rather than authoritative payloads.
+
 ## 1.10.2
 
 - Added the immutable v1.10.2 protocol snapshot and active release lock for atomic owner delivery.

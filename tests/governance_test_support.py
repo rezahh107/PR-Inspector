@@ -5,14 +5,34 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
-from pr_inspector._governance_transport import _mint_response
+import pr_inspector._governance_transport as governance_transport
+from pr_inspector._governance_transport import fetch_github_api_response
 
 ROOT = Path(__file__).resolve().parents[1]
 HEAD = "1" * 40
 REPOSITORY = "example/project"
 PR_NUMBER = 42
+API_VERSION = "2026-03-10"
 _CACHED_SEQUENCE_CAPABILITY = None
+
+
+class _FakeHttpResponse:
+    def __init__(self, url: str, payload: object, status: int):
+        self._url = url
+        self._payload = copy.deepcopy(payload)
+        self.status = status
+        self.code = status
+
+    def geturl(self) -> str:
+        return self._url
+
+    def read(self) -> bytes:
+        return json.dumps(self._payload).encode("utf-8")
+
+    def close(self) -> None:
+        pass
 
 
 def fixture() -> dict[str, Any]:
@@ -23,6 +43,39 @@ def fixture() -> dict[str, Any]:
     )
 
 
+def urlopen_for_fixture(value: dict[str, Any] | None = None):
+    source = copy.deepcopy(value or fixture())
+    by_url = {
+        item["url"]: item
+        for item in source["responses"].values()
+    }
+
+    def fake_urlopen(request, timeout):
+        item = by_url[request.full_url]
+        return _FakeHttpResponse(
+            item.get("response_url", item["url"]),
+            item["payload"],
+            item["status_code"],
+        )
+
+    return fake_urlopen
+
+
+def _fetch_item(item: dict[str, Any], *, fetched_at: datetime):
+    source = {"responses": {"single": copy.deepcopy(item)}}
+    with patch.object(
+        governance_transport.urllib.request,
+        "urlopen",
+        urlopen_for_fixture(source),
+    ):
+        return fetch_github_api_response(
+            item["url"],
+            token=None,
+            api_version=API_VERSION,
+            fetched_at=fetched_at,
+        )
+
+
 def responses(
     value: dict[str, Any] | None = None,
     *,
@@ -31,13 +84,7 @@ def responses(
     source = copy.deepcopy(value or fixture())
     observed = fetched_at or datetime.now(timezone.utc)
     return {
-        name: _mint_response(
-            request_url=item["url"],
-            response_url=item["url"],
-            status_code=item["status_code"],
-            fetched_at=observed,
-            payload=item["payload"],
-        )
+        name: _fetch_item(item, fetched_at=observed)
         for name, item in source["responses"].items()
     }
 
@@ -52,12 +99,13 @@ def membership_response(
         "https://api.github.com/orgs/example-org/teams/security-reviewers/"
         f"memberships/{reviewer}"
     )
-    return _mint_response(
-        request_url=url,
-        response_url=url,
-        status_code=200,
+    return _fetch_item(
+        {
+            "url": url,
+            "status_code": 200,
+            "payload": {"state": state, "role": "member", "url": url},
+        },
         fetched_at=fetched_at or datetime.now(timezone.utc),
-        payload={"state": state, "role": "member", "url": url},
     )
 
 

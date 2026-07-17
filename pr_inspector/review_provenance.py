@@ -2,10 +2,17 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
+import weakref
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping
 
+from ._governance_transport import (
+    GitHubApiResponse,
+    github_response_payload,
+    is_verified_github_api_response,
+)
 from .decision_projection import project_decision
 from .derived_outputs import MANIFEST_NAME, PROJECTION_NAME
 from .render import package_sha256
@@ -17,6 +24,7 @@ TRUST_POLICY_PATH = (
     ROOT / f"protocols/{CURRENT_VERSION}/trust/INSPECTOR_TRUST_POLICY.json"
 )
 _VERIFIED_MARKER = object()
+SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
 _EXPECTED_ARTIFACTS = {
     "review-package.json",
     PROJECTION_NAME,
@@ -94,15 +102,68 @@ def trust_policy() -> dict[str, Any]:
     return policy
 
 
-@dataclass(frozen=True)
 class VerifiedInspectorCommit:
-    repository: str
-    repository_id: int
-    commit_sha: str
-    api_url: str
-    html_url: str
-    evidence_source: str
-    _marker: object = field(repr=False, compare=False)
+    """Opaque capability bound to operational GitHub HTTPS commit evidence."""
+
+    __slots__ = (
+        "repository",
+        "repository_id",
+        "commit_sha",
+        "api_url",
+        "html_url",
+        "evidence_source",
+        "repository_response_receipt_id",
+        "commit_response_receipt_id",
+        "__weakref__",
+    )
+
+    def __init__(self, *_: object, **__: object) -> None:
+        raise TypeError(
+            "VerifiedInspectorCommit can only be created from sealed operational "
+            "GitHub HTTPS responses"
+        )
+
+    def __setattr__(self, _name: str, _value: object) -> None:
+        raise AttributeError("VerifiedInspectorCommit is immutable")
+
+
+_INSPECTOR_COMMIT_CAPABILITIES: weakref.WeakSet[VerifiedInspectorCommit] = (
+    weakref.WeakSet()
+)
+
+
+def _mint_verified_inspector_commit(
+    *,
+    repository: str,
+    repository_id: int,
+    commit_sha: str,
+    api_url: str,
+    html_url: str,
+    evidence_source: str,
+    repository_response_receipt_id: str,
+    commit_response_receipt_id: str,
+) -> VerifiedInspectorCommit:
+    value = object.__new__(VerifiedInspectorCommit)
+    for name, item in (
+        ("repository", repository),
+        ("repository_id", repository_id),
+        ("commit_sha", commit_sha),
+        ("api_url", api_url),
+        ("html_url", html_url),
+        ("evidence_source", evidence_source),
+        ("repository_response_receipt_id", repository_response_receipt_id),
+        ("commit_response_receipt_id", commit_response_receipt_id),
+    ):
+        object.__setattr__(value, name, item)
+    _INSPECTOR_COMMIT_CAPABILITIES.add(value)
+    return value
+
+
+def is_verified_inspector_commit(value: object) -> bool:
+    return (
+        type(value) is VerifiedInspectorCommit
+        and value in _INSPECTOR_COMMIT_CAPABILITIES
+    )
 
 
 @dataclass(frozen=True)
@@ -136,18 +197,51 @@ def is_verified_review_evidence(value: object) -> bool:
     )
 
 
+def _require_operational_github_response(
+    response: object,
+    *,
+    expected_url: str,
+    label: str,
+) -> Mapping[str, Any]:
+    if type(response) is not GitHubApiResponse or not is_verified_github_api_response(
+        response
+    ):
+        raise ProvenanceError(
+            f"{label} is not a sealed verifier-created GitHub response"
+        )
+    assert isinstance(response, GitHubApiResponse)
+    if response.transport_origin != "github_https":
+        raise ProvenanceError(
+            f"{label} is not from the operational GitHub HTTPS adapter"
+        )
+    if response.request_url != expected_url:
+        raise ProvenanceError(f"{label} request URL is not canonical")
+    if response.response_url != expected_url:
+        raise ProvenanceError(f"{label} response URL is not canonical")
+    if response.status_code != 200:
+        raise ProvenanceError(f"{label} did not succeed")
+    payload = github_response_payload(response)
+    if not isinstance(payload, Mapping):
+        raise ProvenanceError(f"{label} payload is not a JSON object")
+    return payload
+
+
 def verify_github_commit_payload(
-    repository_payload: Mapping[str, Any],
-    commit_payload: Mapping[str, Any],
+    repository_response: GitHubApiResponse,
+    commit_response: GitHubApiResponse,
     *,
     expected_commit_sha: str,
 ) -> VerifiedInspectorCommit:
-    """Verify GitHub REST repository and commit responses against trust policy.
+    """Verify sealed operational GitHub REST repository and commit responses.
 
-    The payloads must originate from HTTPS requests to the official GitHub REST API.
-    This pure verifier exists for deterministic testing; callers must not construct
-    payloads from target-controlled or lifecycle-event content.
+    The historical function name is retained for compatibility, but ordinary
+    mappings and copied GitHub-looking JSON are never accepted.
     """
+
+    if not isinstance(expected_commit_sha, str) or SHA40_RE.fullmatch(
+        expected_commit_sha
+    ) is None:
+        raise ProvenanceError("expected Inspector commit SHA is malformed")
 
     policy = trust_policy()
     repository = policy["inspector_repository"]
@@ -156,6 +250,17 @@ def verify_github_commit_payload(
     repository_html_url = f"https://github.com/{repository}"
     commit_api_url = f"{repository_api_url}/commits/{expected_commit_sha}"
     commit_html_url = f"{repository_html_url}/commit/{expected_commit_sha}"
+
+    repository_payload = _require_operational_github_response(
+        repository_response,
+        expected_url=repository_api_url,
+        label="Inspector repository response",
+    )
+    commit_payload = _require_operational_github_response(
+        commit_response,
+        expected_url=commit_api_url,
+        label="Inspector commit response",
+    )
 
     if repository_payload.get("full_name") != repository:
         raise ProvenanceError(
@@ -178,14 +283,15 @@ def verify_github_commit_payload(
             "GitHub commit HTML URL does not match canonical repository"
         )
 
-    return VerifiedInspectorCommit(
+    return _mint_verified_inspector_commit(
         repository=repository,
         repository_id=repository_id,
         commit_sha=expected_commit_sha,
         api_url=commit_api_url,
         html_url=commit_html_url,
         evidence_source=policy["commit_evidence_source"],
-        _marker=_VERIFIED_MARKER,
+        repository_response_receipt_id=repository_response.receipt_id,
+        commit_response_receipt_id=commit_response.receipt_id,
     )
 
 
@@ -195,10 +301,7 @@ def verify_review_directory(
 ) -> VerifiedReviewEvidence:
     """Validate immutable review artifacts and bind them to inspector identity."""
 
-    if (
-        not isinstance(inspector_commit, VerifiedInspectorCommit)
-        or inspector_commit._marker is not _VERIFIED_MARKER
-    ):
+    if not is_verified_inspector_commit(inspector_commit):
         raise ProvenanceError("inspector commit evidence is not verified")
 
     policy = trust_policy()

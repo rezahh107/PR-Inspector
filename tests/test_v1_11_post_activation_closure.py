@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
+import pr_inspector._governance_transport as governance_transport
 from pr_inspector._governance_transport import (
     GovernanceEvidenceError,
-    _mint_response,
+    fetch_github_api_response,
     github_response_payload,
 )
 from pr_inspector._official_bundle import artifact_hashes
@@ -122,16 +123,39 @@ def test_official_artifacts_always_include_hashed_profile_commands() -> None:
         artifact_hashes(without_profile, projection)
 
 
+class _FakeAnnotationResponse:
+    def __init__(self, url: str, payload: object):
+        self._url = url
+        self._payload = payload
+        self.status = 200
+
+    def geturl(self) -> str:
+        return self._url
+
+    def read(self) -> bytes:
+        return json.dumps(self._payload).encode("utf-8")
+
+    def close(self) -> None:
+        pass
+
+
 def _annotation_response(payload: object):
     url = "https://api.github.com/repos/o/r/check-runs/7/annotations?per_page=100"
-    return _mint_response(
-        request_url=url,
-        response_url=url,
-        status_code=200,
-        fetched_at=datetime.now(timezone.utc),
-        payload=payload,
-        transport_origin="github_https",
-    )
+
+    def fake_urlopen(request, timeout):
+        assert request.full_url == url
+        return _FakeAnnotationResponse(url, payload)
+
+    with patch.object(
+        governance_transport.urllib.request,
+        "urlopen",
+        fake_urlopen,
+    ):
+        return fetch_github_api_response(
+            url,
+            token=None,
+            api_version="2026-03-10",
+        )
 
 
 @pytest.mark.parametrize(

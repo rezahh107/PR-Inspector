@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from pathlib import Path
 import argparse
+import os
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -8,6 +9,7 @@ sys.path.insert(0, str(ROOT))
 
 from pr_inspector.validation_v2 import validate_directory
 from pr_inspector.evidence_adapter import mint_evidence_from_governance_fixture
+from pr_inspector.review_provenance import trust_policy
 
 
 def main() -> int:
@@ -22,6 +24,7 @@ def main() -> int:
     parser.add_argument("--sequence-workflow-path", default=".github/workflows/validate-rereview-sequence.yml")
     parser.add_argument("--sequence-workflow-sha")
     parser.add_argument("--sequence-validator-command", default="python scripts/validate_rereview_sequence.py SEQUENCE.json --review EVENT=REVIEW_DIRECTORY")
+    parser.add_argument("--github-token-env", default="GITHUB_TOKEN")
     args = parser.parse_args()
     governance_evidence = None
     sequence_enforcement = None
@@ -38,6 +41,8 @@ def main() -> int:
             sequence_workflow_path=args.sequence_workflow_path,
             sequence_workflow_sha=args.sequence_workflow_sha,
             sequence_validator_command=args.sequence_validator_command,
+            token=os.environ.get(args.github_token_env),
+            api_version=trust_policy()["github_api_version"],
         )
     diagnostics = validate_directory(
         args.review_directory,

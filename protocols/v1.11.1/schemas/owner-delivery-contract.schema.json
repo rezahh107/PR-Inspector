@@ -1,0 +1,75 @@
+{
+  "$id": "https://github.com/rezahh107/PR-Inspector/protocols/v1.11.1/schemas/owner-delivery-contract.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "canonical_owner_accessor": {
+      "const": "official_owner_delivery"
+    },
+    "cli_stderr_behavior": {
+      "const": "technical_completion_and_diagnostics"
+    },
+    "cli_stdout_behavior": {
+      "const": "atomic_owner_delivery_only"
+    },
+    "compact_owner_accessor": {
+      "const": "official_owner_result"
+    },
+    "delivery_failure_stdout_behavior": {
+      "const": "empty"
+    },
+    "no_prompt_delivery_behavior": {
+      "const": "exact_owner_result"
+    },
+    "owner_result_name": {
+      "const": "OWNER_RESULT.fa.txt"
+    },
+    "profile_commands_behavior": {
+      "const": "always_generated_separate_verified_artifact"
+    },
+    "profile_commands_name": {
+      "const": "OWNER_PROFILE_COMMANDS.fa.txt"
+    },
+    "projection_name": {
+      "const": "DECISION_PROJECTION.json"
+    },
+    "prompt_heading": {
+      "const": "## پرامپت اقدام"
+    },
+    "prompt_name": {
+      "const": "NEXT_ACTION_PROMPT.en.md"
+    },
+    "prompt_required_compact_behavior": {
+      "const": "completion_error"
+    },
+    "prompt_separator_template": {
+      "const": "\n{heading}\n\n"
+    },
+    "protocol_version": {
+      "const": "v1.11.1"
+    },
+    "schema_version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "schema_version",
+    "protocol_version",
+    "canonical_owner_accessor",
+    "compact_owner_accessor",
+    "owner_result_name",
+    "projection_name",
+    "prompt_name",
+    "prompt_heading",
+    "prompt_separator_template",
+    "prompt_required_compact_behavior",
+    "no_prompt_delivery_behavior",
+    "cli_stdout_behavior",
+    "cli_stderr_behavior",
+    "delivery_failure_stdout_behavior",
+    "profile_commands_name",
+    "profile_commands_behavior"
+  ],
+  "title": "PR Inspector Atomic Owner Delivery Contract v1.11.1",
+  "type": "object"
+}

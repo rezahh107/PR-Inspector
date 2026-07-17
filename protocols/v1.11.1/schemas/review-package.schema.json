@@ -1,0 +1,157 @@
+{
+  "$id": "https://github.com/rezahh107/PR-Inspector/protocols/v1.11.1/schemas/review-package.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "capabilities": {
+      "type": "object"
+    },
+    "change_summary": {
+      "type": "object"
+    },
+    "checks": {
+      "type": "array"
+    },
+    "decision": {
+      "type": "object"
+    },
+    "evidence_records": {
+      "type": "array"
+    },
+    "external_review_intake": {
+      "type": "object"
+    },
+    "external_review_reconciliation": {
+      "type": "object"
+    },
+    "findings": {
+      "type": "array"
+    },
+    "governance_decision": {
+      "properties": {
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "status": {
+          "enum": [
+            "NOT_REQUESTED",
+            "VERIFIED",
+            "GAP_FOUND",
+            "NOT_VERIFIABLE"
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "reason_codes"
+      ],
+      "type": "object"
+    },
+    "inspection_profile": {
+      "default": "minimal",
+      "enum": [
+        "minimal",
+        "strict"
+      ]
+    },
+    "out_of_scope_observations": {
+      "type": "array"
+    },
+    "overall_recommendation": {
+      "properties": {
+        "merge_governance_verified": {
+          "type": "boolean"
+        },
+        "technical_ready": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "technical_ready",
+        "merge_governance_verified"
+      ],
+      "type": "object"
+    },
+    "owner_card": {
+      "type": "object"
+    },
+    "protocol_version": {
+      "enum": [
+        "v1.11.0",
+        "v1.11.1"
+      ]
+    },
+    "red_gate_flags": {
+      "type": "array"
+    },
+    "required_actions": {
+      "type": "array"
+    },
+    "review_identity": {
+      "type": "object"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "scope": {
+      "type": "object"
+    },
+    "security_profile": {
+      "type": "object"
+    },
+    "technical_decision": {
+      "properties": {
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "status": {
+          "enum": [
+            "GREEN",
+            "YELLOW",
+            "RED"
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "reason_codes"
+      ],
+      "type": "object"
+    },
+    "unverified_areas": {
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "protocol_version",
+    "review_identity",
+    "decision",
+    "capabilities",
+    "scope",
+    "change_summary",
+    "evidence_records",
+    "checks",
+    "findings",
+    "unverified_areas",
+    "required_actions",
+    "out_of_scope_observations",
+    "owner_card",
+    "red_gate_flags",
+    "security_profile",
+    "inspection_profile",
+    "technical_decision",
+    "governance_decision",
+    "overall_recommendation",
+    "external_review_intake",
+    "external_review_reconciliation"
+  ],
+  "title": "PR Inspector Review Package v1.11.1 Corrected Activation Extension",
+  "type": "object"
+}

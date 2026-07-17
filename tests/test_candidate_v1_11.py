@@ -1,481 +1,788 @@
+from __future__ import annotations
+
 import copy
+import inspect
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
-import yaml
-from jsonschema import Draft202012Validator
 
-from pr_inspector._governance_transport import _mint_response, fetch_github_api_response
-from pr_inspector.governance import VerifiedGovernanceEvidence, _EVIDENCE_CAPABILITIES, verify_github_governance_source, verify_governance_record
-from pr_inspector.review_provenance import verify_github_commit_payload
-from pr_inspector.candidate_v1_11 import (
-    GOVERNANCE_REASON_CODES, GOVERNANCE_STATUS_EFFECT, LOCKED_INSPECTOR_REPOSITORY_ID,
-    OWNER_PROFILE_COMMANDS_ARTIFACT, PROFILE_COMMANDS_BYTES, PROTOCOL_VERSION,
-    TECHNICAL_REASON_CODES, bind_candidate_governance_evidence,
-    build_candidate_owner_delivery_artifacts, build_candidate_review_artifacts,
-    bytes_sha256, candidate_owner_delivery_stdout, canonical_sha256,
-    classify_governance, orchestrate_strict_after_minimal, parse_intake, project_decision, reconcile_bot_reviews,
-    render_owner_profile_commands, validate_candidate_package,
-    validate_owner_profile_commands, verify_base_review_reference,
-    verify_candidate_inspector_commit_payload, verify_candidate_inspector_commit_responses,
-    verify_governance_payload_bundle, verify_candidate_review_artifact_bytes, verify_minimal_review_artifact_bytes,
-    verify_review_surface_inventory_responses, verify_target_identity_response, verify_live_pr_head_response,
+import pr_inspector.candidate_v1_11 as candidate
+from pr_inspector import _governance_transport
+from pr_inspector._governance_transport import (
+    GitHubApiResponse,
+    _mint_response,
+    fetch_github_api_response,
+    is_verified_github_api_response,
+)
+from pr_inspector.governance import (
+    verify_github_governance_source,
+    verify_governance_record,
+)
+from pr_inspector.official_review import (
+    VerifiedReviewCompletion,
+    complete_review,
+    github_pull_request_head_source,
+    is_verified_review_completion,
+)
+from pr_inspector.review_provenance import (
+    ProvenanceError,
+    VerifiedInspectorCommit,
+    is_verified_inspector_commit,
+    verify_github_commit_payload,
+)
+from pr_inspector.sequence_enforcement import (
+    SEQUENCE_ENFORCEMENT_CHECK_CONTEXT,
+    verify_sequence_ci_enforcement,
+    verify_sequence_producer_evidence,
+)
+from tests.governance_test_support import (
+    fixture as governance_fixture,
+    responses as governance_responses,
 )
 
+
 ROOT = Path(__file__).resolve().parents[1]
+REPOSITORY = "example/project"
+REPOSITORY_ID = 4242
+PR_NUMBER = 42
+HEAD = "1" * 40
+OTHER_HEAD = "f" * 40
+INSPECTOR_REPOSITORY = "rezahh107/PR-Inspector"
+INSPECTOR_REPOSITORY_ID = 1288323264
+INSPECTOR_COMMIT = "3" * 40
+API_VERSION = "2026-03-10"
 SHA = "a" * 40
-OTHER_SHA = "c" * 40
-INSPECTOR_SHA = "d" * 40
-REPO = "o/r"
-REPO_ID = 100
 
 
-def now():
-    return datetime.now(timezone.utc)
-
-
-class FakeHTTPResponse:
-    def __init__(self, url, payload, status=200):
+class _FakeHttpResponse:
+    def __init__(self, url: str, payload: object, status: int = 200):
         self._url = url
-        self._payload = json.dumps(payload).encode("utf-8")
+        self._payload = payload
         self.status = status
-        self.code = status
-    def geturl(self):
+
+    def geturl(self) -> str:
         return self._url
-    def read(self):
-        return self._payload
-    def close(self):
+
+    def read(self) -> bytes:
+        return json.dumps(self._payload).encode("utf-8")
+
+    def close(self) -> None:
         pass
 
 
-def response(url, payload, status=200, fetched_at=None):
-    with patch("urllib.request.urlopen", return_value=FakeHTTPResponse(url, payload, status)):
-        return fetch_github_api_response(url, token=None, api_version="2022-11-28", fetched_at=fetched_at or now())
-
-
-def synthetic_response(url, payload, status=200, fetched_at=None):
-    return _mint_response(request_url=url, response_url=url, status_code=status, fetched_at=fetched_at or now(), payload=payload)
-
-
-def target_identity(repo=REPO, repo_id=REPO_ID, fetched_at=None):
-    url = f"https://api.github.com/repos/{repo}"
-    return verify_target_identity_response(response(url, {"full_name": repo, "id": repo_id, "url": url, "html_url": f"https://github.com/{repo}"}, fetched_at=fetched_at), expected_repository=repo)
-
-
-def inspector_commit_receipt(repo_id=LOCKED_INSPECTOR_REPOSITORY_ID):
-    repo_url = "https://api.github.com/repos/rezahh107/PR-Inspector"
-    commit_url = f"{repo_url}/commits/{INSPECTOR_SHA}"
-    return verify_candidate_inspector_commit_responses(
-        response(repo_url, {"full_name": "rezahh107/PR-Inspector", "id": repo_id, "url": repo_url, "html_url": "https://github.com/rezahh107/PR-Inspector"}),
-        response(commit_url, {"sha": INSPECTOR_SHA, "url": commit_url, "html_url": f"https://github.com/rezahh107/PR-Inspector/commit/{INSPECTOR_SHA}"}),
-        expected_commit_sha=INSPECTOR_SHA,
+def _inspector_payloads(commit_sha: str = INSPECTOR_COMMIT):
+    repository_url = f"https://api.github.com/repos/{INSPECTOR_REPOSITORY}"
+    commit_url = f"{repository_url}/commits/{commit_sha}"
+    return (
+        {
+  "id": INSPECTOR_REPOSITORY_ID,
+  "full_name": INSPECTOR_REPOSITORY,
+  "url": repository_url,
+  "html_url": f"https://github.com/{INSPECTOR_REPOSITORY}",
+        },
+        {
+  "sha": commit_sha,
+  "url": commit_url,
+  "html_url": (
+      f"https://github.com/{INSPECTOR_REPOSITORY}/commit/{commit_sha}"
+  ),
+        },
     )
 
 
-def active_mapping_commit():
-    repo = {"full_name": "rezahh107/PR-Inspector", "id": LOCKED_INSPECTOR_REPOSITORY_ID, "url": "https://api.github.com/repos/rezahh107/PR-Inspector", "html_url": "https://github.com/rezahh107/PR-Inspector"}
-    commit = {"sha": INSPECTOR_SHA, "url": f"https://api.github.com/repos/rezahh107/PR-Inspector/commits/{INSPECTOR_SHA}", "html_url": f"https://github.com/rezahh107/PR-Inspector/commit/{INSPECTOR_SHA}"}
-    return verify_github_commit_payload(repo, commit, expected_commit_sha=INSPECTOR_SHA)
+def _fetch_response(
+    url: str,
+    payload: object,
+    *,
+    status: int = 200,
+    response_url: str | None = None,
+):
+    def fake_urlopen(request, timeout):
+        assert request.full_url == url
+        return _FakeHttpResponse(response_url or url, payload, status)
 
-
-def surface_inventory(repo=REPO, repo_id=REPO_ID, pr=7, head=SHA, bot_sources=None, fetched_at=None, incomplete=False):
-    ident = target_identity(repo, repo_id, fetched_at=fetched_at)
-    base = f"https://api.github.com/repos/{repo}"
-    bot_sources = bot_sources or []
-    comments = [{"id": i + 1, "node_id": f"RC{i+1}", "html_url": f"https://github.com/{repo}/pull/{pr}#discussion_r{i+1}", "user": {"login": src, "type": "Bot"}} for i, src in enumerate(bot_sources)]
-    payload_comments = {"incomplete_pagination": True} if incomplete else comments
-    responses = {
-        "review_comments": response(f"{base}/pulls/{pr}/comments?per_page=100", payload_comments, fetched_at=fetched_at),
-        "review_threads": response(f"{base}/pulls/{pr}/threads?per_page=100", [], fetched_at=fetched_at),
-        "reviews": response(f"{base}/pulls/{pr}/reviews?per_page=100", [], fetched_at=fetched_at),
-        "issue_comments": response(f"{base}/issues/{pr}/comments?per_page=100", [], fetched_at=fetched_at),
-        "check_runs": response(f"{base}/commits/{head}/check-runs?per_page=100", {"check_runs": []}, fetched_at=fetched_at),
-        "check_summaries": response(f"{base}/commits/{head}/status", {"statuses": []}, fetched_at=fetched_at),
-    }
-    return verify_review_surface_inventory_responses(responses, target_repository=repo, target_identity=ident, pull_request=pr, reviewed_head_sha=head)
-
-
-
-def pr_response(repo=REPO, repo_id=REPO_ID, pr=7, head=SHA, fetched_at=None):
-    base = f"https://api.github.com/repos/{repo}"
-    return response(f"{base}/pulls/{pr}", {"number": pr, "base": {"repo": {"full_name": repo, "id": repo_id}}, "head": {"sha": head, "repo": {"full_name": repo, "id": repo_id}}}, fetched_at=fetched_at)
-
-
-def check_inventory_responses(repo=REPO, repo_id=REPO_ID, pr=7, head=SHA, runs=None, annotations=None, fetched_at=None, extra=None):
-    ident = target_identity(repo, repo_id, fetched_at=fetched_at)
-    base = f"https://api.github.com/repos/{repo}"
-    runs = runs if runs is not None else []
-    responses = {
-        "review_comments": response(f"{base}/pulls/{pr}/comments?per_page=100", [], fetched_at=fetched_at),
-        "review_threads": response(f"{base}/pulls/{pr}/threads?per_page=100", [], fetched_at=fetched_at),
-        "reviews": response(f"{base}/pulls/{pr}/reviews?per_page=100", [], fetched_at=fetched_at),
-        "issue_comments": response(f"{base}/issues/{pr}/comments?per_page=100", [], fetched_at=fetched_at),
-        "check_runs": response(f"{base}/commits/{head}/check-runs?per_page=100", {"check_runs": runs}, fetched_at=fetched_at),
-        "check_summaries": response(f"{base}/commits/{head}/status", {"statuses": []}, fetched_at=fetched_at),
-    }
-    for run in runs:
-        rid = run["id"]
-        responses[f"{base}/check-runs/{rid}/annotations?per_page=100"] = response(f"{base}/check-runs/{rid}/annotations?per_page=100", (annotations or {}).get(rid, []), fetched_at=fetched_at)
-    if extra:
-        responses.update(extra)
-    return responses, ident
-
-def manual_governance(authorized=True, repo=REPO, pr=7, head=SHA):
-    ev = object.__new__(VerifiedGovernanceEvidence)
-    values = {"evidence_id": "ev", "repository": repo, "default_branch": "main", "pull_request_number": pr, "exact_head_sha": head, "enforcement_status": "verified_enforced", "valid_approval_reviewers": ("reviewer",), "required_status_checks": (("ci", 15368),), "exact_head_checks_satisfied": authorized, "approval_complete": authorized, "specialist_satisfied": authorized, "specialist_status": "not_required", "bypass_actors": () if authorized else ("admin",), "merge_readiness_satisfied": authorized, "merge_authorized": authorized, "conclusion": "verified" if authorized else "gap", "source_response_urls": (f"https://api.github.com/repos/{repo}",)}
-    for k, v in values.items():
-        object.__setattr__(ev, k, v)
-    _EVIDENCE_CAPABILITIES.add(ev)
-    return ev
-
-
-def governance_source_and_evidence(authorized=True, repo=REPO, repo_id=REPO_ID, pr=7, head=SHA):
-    base = f"https://api.github.com/repos/{repo}"
-    responses = {
-        "repository": response(base, {"full_name": repo, "id": repo_id, "url": base, "html_url": f"https://github.com/{repo}", "default_branch": "main"}),
-        "pull_request": response(f"{base}/pulls/{pr}", {"number": pr, "head": {"sha": head}, "base": {"ref": "main"}, "user": {"login": "author"}}),
-        "branch_protection": response(f"{base}/branches/main/protection", {"required_pull_request_reviews": {"required_approving_review_count": 1, "dismiss_stale_reviews": True, "require_code_owner_reviews": False, "bypass_pull_request_allowances": {"users": [], "teams": [], "apps": []}}, "required_status_checks": {"checks": [{"context": "ci", "app_id": 15368}]}, "enforce_admins": {"enabled": True}}),
-        "rulesets": response(f"{base}/rulesets?includes_parents=true&per_page=100", []),
-        "reviews": response(f"{base}/pulls/{pr}/reviews?per_page=100", [{"user": {"login": "reviewer", "type": "User"}, "state": "APPROVED" if authorized else "COMMENTED", "commit_id": head, "submitted_at": "2026-07-16T00:00:00Z"}]),
-        "checks": response(f"{base}/commits/{head}/check-runs?per_page=100", {"check_runs": [{"name": "ci", "app": {"id": 15368}, "head_sha": head, "status": "completed", "conclusion": "success" if authorized else "failure", "completed_at": "2026-07-16T00:00:00Z"}]}),
-    }
-    source = verify_github_governance_source(responses, expected_repository=repo, expected_pr_number=pr, expected_head_sha=head)
-    evidence = verify_governance_record(source, expected_repository=repo, expected_pr_number=pr, expected_head_sha=head)
-    return source, evidence
-
-
-def candidate_governance(authorized=True, repo=REPO, repo_id=REPO_ID, pr=7, head=SHA):
-    source, evidence = governance_source_and_evidence(authorized, repo, repo_id, pr, head)
-    return bind_candidate_governance_evidence(evidence, source, target_identity(repo, repo_id))
-
-
-def complete_reconciliation(**overrides):
-    rec = {"collection_status": "COMPLETE", "open_bot_sources_total": 0, "inspected_total": 0, "counts": {"accepted": 0, "resolved": 0, "stale": 0, "false_positive": 0, "duplicate": 0, "insufficient_evidence": 0, "deferred": 0, "out_of_scope": 0}, "uninspected_source_ids": [], "valid_blocking_finding_ids": [], "suggestion_results": []}
-    rec.update(overrides)
-    return rec
-
-
-def package_for_decision(projection=None, reconciliation=None, profile="minimal", legacy_status="GREEN_TECHNICALLY_READY", sources=None, suggestions=None, **overrides):
-    rec = reconciliation or complete_reconciliation()
-    projection = projection or project_decision(profile, [])
-    pkg = json.loads((ROOT / "fixtures/golden-green/review-package.json").read_text())
-    pkg["protocol_version"] = PROTOCOL_VERSION
-    pkg["review_identity"].update({"target_repository": REPO, "target_repository_id": REPO_ID, "pr_number": 7, "reviewed_head_sha": SHA, "inspector_commit_sha": INSPECTOR_SHA})
-    for ev in pkg.get("evidence_records", []):
-        ev["reviewed_head_sha"] = SHA
-    pkg["external_review_intake"] = {"sources_inspected": sources or [], "suggestions": suggestions or []}
-    pkg["decision"]["technical_status"] = legacy_status
-    pkg["inspection_profile"] = profile
-    pkg["technical_decision"] = projection["technical_decision"]
-    pkg["governance_decision"] = projection["governance_decision"]
-    pkg["overall_recommendation"] = projection["overall_recommendation"]
-    pkg["external_review_reconciliation"] = rec
-    pkg.update(overrides)
-    return pkg
-
-
-def artifact_bundle(pkg=None, inventory=None):
-    inventory = inventory or surface_inventory()
-    artifacts = build_candidate_review_artifacts(pkg or package_for_decision(), review_surface_inventory=inventory)
-    return verify_minimal_review_artifact_bytes(artifacts, inspector_commit_receipt(), review_surface_inventory=inventory)
-
-
-def test_prf001_inspector_commit_requires_receipt_derived_candidate_capability():
-    repo = {"full_name": "rezahh107/PR-Inspector", "id": LOCKED_INSPECTOR_REPOSITORY_ID, "url": "https://api.github.com/repos/rezahh107/PR-Inspector", "html_url": "https://github.com/rezahh107/PR-Inspector"}
-    commit = {"sha": INSPECTOR_SHA, "url": f"https://api.github.com/repos/rezahh107/PR-Inspector/commits/{INSPECTOR_SHA}", "html_url": f"https://github.com/rezahh107/PR-Inspector/commit/{INSPECTOR_SHA}"}
-    with pytest.raises(ValueError, match="sealed GitHub API response receipts"):
-        verify_candidate_inspector_commit_payload(repo, commit, INSPECTOR_SHA)
-    with pytest.raises(ValueError, match="candidate inspector commit receipt"):
-        verify_minimal_review_artifact_bytes(build_candidate_review_artifacts(package_for_decision(), review_surface_inventory=surface_inventory()), active_mapping_commit(), review_surface_inventory=surface_inventory())
-    lookalike = type("Lookalike", (), {"repository": "rezahh107/PR-Inspector", "repository_id": LOCKED_INSPECTOR_REPOSITORY_ID, "commit_sha": INSPECTOR_SHA})()
-    with pytest.raises(ValueError, match="candidate inspector commit receipt"):
-        verify_minimal_review_artifact_bytes(build_candidate_review_artifacts(package_for_decision(), review_surface_inventory=surface_inventory()), lookalike, review_surface_inventory=surface_inventory())
-    with pytest.raises(ValueError, match="operational GitHub HTTPS adapter"):
-        verify_candidate_inspector_commit_responses(
-            synthetic_response("https://api.github.com/repos/rezahh107/PR-Inspector", repo),
-            synthetic_response(f"https://api.github.com/repos/rezahh107/PR-Inspector/commits/{INSPECTOR_SHA}", commit),
-            expected_commit_sha=INSPECTOR_SHA,
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(
+            _governance_transport.urllib.request,
+            "urlopen",
+            fake_urlopen,
         )
-    with pytest.raises(ValueError, match="not fresh"):
-        verify_candidate_inspector_commit_responses(
-            response("https://api.github.com/repos/rezahh107/PR-Inspector", repo, fetched_at=now() - timedelta(hours=1)),
-            response(f"https://api.github.com/repos/rezahh107/PR-Inspector/commits/{INSPECTOR_SHA}", commit),
-            expected_commit_sha=INSPECTOR_SHA,
+        return fetch_github_api_response(
+            url,
+            token=None,
+            api_version=API_VERSION,
         )
-    with pytest.raises(ValueError, match="not fresh"):
-        verify_candidate_inspector_commit_responses(
-            response("https://api.github.com/repos/rezahh107/PR-Inspector", repo, fetched_at=now() + timedelta(hours=1)),
-            response(f"https://api.github.com/repos/rezahh107/PR-Inspector/commits/{INSPECTOR_SHA}", commit),
-            expected_commit_sha=INSPECTOR_SHA,
+
+
+def _fetch_inspector_responses(
+    *,
+    repository_payload=None,
+    commit_payload=None,
+    repository_status: int = 200,
+    commit_status: int = 200,
+    repository_response_url: str | None = None,
+    commit_response_url: str | None = None,
+):
+    default_repository, default_commit = _inspector_payloads()
+    repository_payload = repository_payload or default_repository
+    commit_payload = commit_payload or default_commit
+    repository_url = f"https://api.github.com/repos/{INSPECTOR_REPOSITORY}"
+    commit_url = f"{repository_url}/commits/{INSPECTOR_COMMIT}"
+    return (
+        _fetch_response(
+            repository_url,
+            repository_payload,
+            status=repository_status,
+            response_url=repository_response_url,
+        ),
+        _fetch_response(
+            commit_url,
+            commit_payload,
+            status=commit_status,
+            response_url=commit_response_url,
+        ),
+    )
+
+
+def _copy_response(response: GitHubApiResponse) -> GitHubApiResponse:
+    copied = object.__new__(GitHubApiResponse)
+    for name in GitHubApiResponse.__slots__:
+        if name == "__weakref__":
+            continue
+        object.__setattr__(copied, name, getattr(response, name))
+    return copied
+
+
+def _replace_exact(value, old: str, new: str):
+    if isinstance(value, dict):
+        return {key: _replace_exact(child, old, new) for key, child in value.items()}
+    if isinstance(value, list):
+        return [_replace_exact(child, old, new) for child in value]
+    return value.replace(old, new) if isinstance(value, str) else value
+
+
+def _package(head_sha: str = HEAD) -> dict:
+    value = json.loads(
+        (ROOT / "fixtures/golden-green/review-package.json").read_text(
+            encoding="utf-8"
         )
-    with pytest.raises(ValueError, match="identity mismatch"):
-        inspector_commit_receipt(repo_id=999)
-    assert artifact_bundle().inspector_commit.commit_sha == INSPECTOR_SHA
+    )
+    value = _replace_exact(value, HEAD, head_sha)
+    value["protocol_version"] = candidate.PROTOCOL_VERSION
+    return value
 
 
-def test_prf002_governance_repository_id_is_bound_to_candidate_evidence():
-    assert project_decision("strict", [], manual_governance(True), target_repository=REPO, target_repository_id=REPO_ID, pull_request=7, reviewed_head_sha=SHA)["governance_decision"]["status"] == "NOT_VERIFIABLE"
-    projection = project_decision("strict", [], candidate_governance(False), target_repository=REPO, target_repository_id=REPO_ID, pull_request=7, reviewed_head_sha=SHA)
-    assert projection["governance_decision"] == {"status": "GAP_FOUND", "reason_codes": ["merge_authorization_unverified"]}
-    assert GOVERNANCE_STATUS_EFFECT["merge_authorization_unverified"] == "GAP_FOUND"
-    assert project_decision("strict", [], candidate_governance(True, repo_id=999), target_repository=REPO, target_repository_id=REPO_ID, pull_request=7, reviewed_head_sha=SHA)["governance_decision"]["status"] == "NOT_VERIFIABLE"
+def _write_package(path: Path, value: dict) -> None:
+    path.write_text(
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        + "\n",
+        encoding="utf-8",
+        newline="",
+    )
 
 
-def test_prf003_inventory_is_mandatory_for_green_and_reuse_context_requires_id():
-    pkg = package_for_decision()
-    assert validate_candidate_package(pkg)
-    with pytest.raises(ValueError, match="sealed review surface inventory"):
-        build_candidate_review_artifacts(pkg)
-    with pytest.raises(ValueError, match="sealed review surface inventory"):
-        verify_minimal_review_artifact_bytes(build_candidate_review_artifacts(pkg, review_surface_inventory=surface_inventory()), inspector_commit_receipt())
-    bundle = artifact_bundle()
-    assert parse_intake("سخت گیرانه", {"current_target": {"repository": REPO, "pull_request": 7}, "live_head_sha": SHA, "verified_minimal_review": bundle})["reuse_current_minimal"] is False
-    assert parse_intake("سخت گیرانه", {"current_target": {"repository": REPO, "repository_id": REPO_ID, "pull_request": 7}, "live_head_sha": SHA, "verified_minimal_review": bundle})["reuse_current_minimal"] is False
-    assert verify_base_review_reference(bundle, SHA, target_repository=REPO, target_repository_id=999, pull_request=7)["status"] == "INVALID"
-
-
-def test_prf004_review_surface_inventory_surfaces_freshness_pagination_and_bot_identity():
-    inv = surface_inventory(bot_sources=["automation-user"])
-    assert inv.sources[0]["author"] == "automation-user"
-    assert inv.sources[0]["source_type"] == "github_pr_review_comment"
-    assert inv.sources[0]["inspected"] is False
-    assert inv.sources[0]["github_source_key"] == "review_comments:RC1"
-    with pytest.raises(ValueError, match="pagination"):
-        surface_inventory(bot_sources=["bot-user"], incomplete=True)
-    with pytest.raises(ValueError, match="not fresh"):
-        surface_inventory(fetched_at=now() - timedelta(hours=1))
-    with pytest.raises(ValueError, match="not fresh"):
-        surface_inventory(fetched_at=now() + timedelta(hours=1))
-    # human login containing bot is not classified unless actor type is Bot/App
-    base = f"https://api.github.com/repos/{REPO}"
-    ident = target_identity()
-    responses = {
-        "review_comments": response(f"{base}/pulls/7/comments?per_page=100", [{"id": 1, "node_id": "x", "user": {"login": "robotics-human", "type": "User"}}]),
-        "review_threads": response(f"{base}/pulls/7/threads?per_page=100", []),
-        "reviews": response(f"{base}/pulls/7/reviews?per_page=100", []),
-        "issue_comments": response(f"{base}/issues/7/comments?per_page=100", []),
-        "check_runs": response(f"{base}/commits/{SHA}/check-runs?per_page=100", {"check_runs": []}),
-        "check_summaries": response(f"{base}/commits/{SHA}/status", {"statuses": []}),
+def _pr_payload(head_sha: str) -> dict:
+    url = f"https://api.github.com/repos/{REPOSITORY}/pulls/{PR_NUMBER}"
+    return {
+        "number": PR_NUMBER,
+        "url": url,
+        "html_url": f"https://github.com/{REPOSITORY}/pull/{PR_NUMBER}",
+        "base": {"repo": {"id": REPOSITORY_ID, "full_name": REPOSITORY}},
+        "head": {"sha": head_sha},
     }
-    assert verify_review_surface_inventory_responses(responses, target_repository=REPO, target_identity=ident, pull_request=7, reviewed_head_sha=SHA).sources == ()
-    inv_source = dict(inv.sources[0]); inv_source["inspected"] = True
-    pkg = package_for_decision(sources=[inv_source], reconciliation=reconcile_bot_reviews([inv_source], [], []))
-    assert validate_candidate_package(pkg, review_surface_inventory=inv) == []
-    changed = copy.deepcopy(pkg); changed["external_review_intake"]["sources_inspected"][0]["content_sha256"] = "0" * 64
-    assert any("source identity mismatch" in err for err in validate_candidate_package(changed, review_surface_inventory=inv))
-    no_triage = copy.deepcopy(pkg); no_triage["external_review_intake"]["sources_inspected"][0].pop("triage_disposition")
-    Draft202012Validator(json.loads((ROOT / "protocols/v1.11.0/schemas/review-package.schema.json").read_text())).validate(pkg)
-    assert any("required property" in err or "triage" in err for err in validate_candidate_package(no_triage, review_surface_inventory=inv))
 
 
-def test_prf005_projection_controls_prompt_routing_and_owner_bytes():
-    inv = surface_inventory()
-    green_projection = project_decision("minimal", [])
-    assert green_projection["owner_readiness"]["message_key"] == "technical_green"
-    assert green_projection["next_action"]["prompt_required"] is False
-    green = build_candidate_review_artifacts(package_for_decision(green_projection), review_surface_inventory=inv)
-    assert "NEXT_ACTION_PROMPT.en.md" not in green
-    assert green["OWNER_RESULT.fa.txt"] == "🟢 وضعیت: از نظر فنی آماده\nآمادگی فنی تأیید شده؛ حفاظت ادغام در GitHub جداگانه بررسی شود.\n".encode()
-    yellow_projection = project_decision("minimal", ["blocking_medium_finding"])
-    assert yellow_projection["next_action"]["prompt_required"] is True
-    assert yellow_projection["owner_readiness"]["message_key"] == "technical_yellow_repair"
-    yellow_pkg = package_for_decision(yellow_projection, legacy_status="YELLOW_CHANGES_OR_VERIFICATION_REQUIRED")
-    yellow_pkg["findings"].append({"finding_id": "PRF-003", "severity": "MEDIUM", "evidence_label": "CODE_SUPPORTED", "blocking": True, "file_location": "src/a.py:1", "symbol": None, "relevant_code": "code", "issue": "i", "failure_scenario": "s", "recommended_fix": "f", "recommended_test": "t", "evidence_refs": ["EVD-002"], "rule_ids": ["PRR-TEST-001"]})
-    yellow_pkg["decision"]["blocking_findings_count"] = 1
-    yellow = build_candidate_review_artifacts(yellow_pkg, review_surface_inventory=inv)
-    assert "NEXT_ACTION_PROMPT.en.md" in yellow
-    assert project_decision("minimal", ["incomplete_technical_scope"])["next_action"]["kind"] == "verify"
-    assert project_decision("minimal", ["incomplete_technical_scope"])["next_action"]["may_modify_code"] is False
-    assert project_decision("minimal", ["stale_technical_review_identity"])["next_action"]["kind"] == "rerun_review"
-    assert project_decision("minimal", ["blocking_medium_finding", "incomplete_technical_scope"])["next_action"]["kind"] == "repair_and_verify"
-    assert yellow_projection["next_action"]["reason_codes"]
-    tampered = dict(yellow); tampered.pop("NEXT_ACTION_PROMPT.en.md")
-    with pytest.raises(ValueError, match="artifact set"):
-        verify_minimal_review_artifact_bytes(tampered, inspector_commit_receipt(), review_surface_inventory=inv)
+def _install_live_head(monkeypatch, head_sha: str) -> None:
+    from pr_inspector import _official_head
+
+    def fake_github_json(url, *, token, api_version):
+        assert url == f"https://api.github.com/repos/{REPOSITORY}/pulls/{PR_NUMBER}"
+        assert api_version == API_VERSION
+        return copy.deepcopy(_pr_payload(head_sha))
+
+    monkeypatch.setattr(_official_head, "_github_json", fake_github_json)
 
 
-def test_prf006_owner_delivery_requires_verified_bundle_and_atomic_prompt():
-    inv = surface_inventory()
-    bundle = artifact_bundle(inventory=inv)
-    assert build_candidate_owner_delivery_artifacts(bundle)[OWNER_PROFILE_COMMANDS_ARTIFACT] == PROFILE_COMMANDS_BYTES
-    assert candidate_owner_delivery_stdout(bundle).endswith(PROFILE_COMMANDS_BYTES)
-    assert candidate_owner_delivery_stdout({"OWNER_RESULT.fa.txt": b"x\ny\n", OWNER_PROFILE_COMMANDS_ARTIFACT: PROFILE_COMMANDS_BYTES}) == b""
-    yellow_projection = project_decision("minimal", ["required_technical_check_failed"])
-    yellow_pkg = package_for_decision(yellow_projection, legacy_status="RED_DO_NOT_MERGE")
-    yellow_pkg["checks"][0]["result"] = "FAIL"
-    prompt_bundle = artifact_bundle(yellow_pkg, inv)
-    stdout = candidate_owner_delivery_stdout(prompt_bundle)
-    assert b"Repair independently" in stdout and "## پرامپت اقدام".encode() in stdout
-    tampered = dict(prompt_bundle.artifact_bytes); tampered[OWNER_PROFILE_COMMANDS_ARTIFACT] += b"x"
-    fake = type("FakeBundle", (), {"artifact_bytes": tampered})()
-    assert candidate_owner_delivery_stdout(fake) == b""
-    assert candidate_owner_delivery_stdout(prompt_bundle, live_head_sha=OTHER_SHA) == b""
-    gov = candidate_governance(False)
-    strict_projection = project_decision("strict", [], gov, target_repository=REPO, target_repository_id=REPO_ID, pull_request=7, reviewed_head_sha=SHA)
-    strict_pkg = package_for_decision(strict_projection, profile="strict")
-    strict_artifacts = build_candidate_review_artifacts(strict_pkg, governance_evidence=gov, review_surface_inventory=inv)
-    strict_bundle = verify_candidate_review_artifact_bytes(strict_artifacts, inspector_commit_receipt(), governance_evidence=gov, review_surface_inventory=inv, live_head_sha=SHA)
-    assert candidate_owner_delivery_stdout(strict_bundle, live_head_sha=SHA).endswith(PROFILE_COMMANDS_BYTES)
+def _head_source():
+    return github_pull_request_head_source(
+        REPOSITORY,
+        PR_NUMBER,
+        token=None,
+        api_version=API_VERSION,
+    )
 
 
-def test_existing_intake_reconciliation_reason_schema_and_registry_paths():
-    assert parse_intake("https://github.com/o/r/pull/7")["inspection_profile"] == "minimal"
-    assert parse_intake("حداقلی\nhttps://github.com/o/r/pull/7")["inspection_profile"] == "minimal"
-    assert parse_intake("سخت گیرانه\nhttps://github.com/o/r/pull/7")["inspection_profile"] == "strict"
-    with pytest.raises(ValueError): project_decision("minimal", ["unknown"])
-    assert project_decision("minimal", ["required_technical_check_failed"])["technical_decision"]["status"] == "RED"
-    rec = reconcile_bot_reviews([{"source_id": "EXTSRC-001", "source_type": "github_pr_review_comment", "author": "bot", "is_bot": True, "url": None, "inspected": True}], [{"suggestion_id": "S", "source_id": "EXTSRC-001", "triage_decision": "accepted", "linked_finding_ids": ["PRF-001"]}], [{"finding_id": "PRF-001", "severity": "HIGH", "blocking": True}])
-    assert rec["valid_blocking_finding_ids"] == ["PRF-001"]
-    assert render_owner_profile_commands("minimal") == PROFILE_COMMANDS_BYTES
-    assert validate_owner_profile_commands(PROFILE_COMMANDS_BYTES) == []
-    Draft202012Validator(json.loads((ROOT / "protocols/v1.11.0/schemas/decision-projection.schema.json").read_text())).validate(project_decision("minimal"))
-    registry = yaml.safe_load((ROOT / "protocols/v1.11.0/registries/DECISION_REASON_REGISTRY.yaml").read_text())
-    entries = {entry["reason_code"]: entry for entry in registry["candidate_reason_domains"]}
-    assert set(entries) == TECHNICAL_REASON_CODES | GOVERNANCE_REASON_CODES
-
-
-def test_activation_active_version_invariants_select_v1_11_0():
-    assert (ROOT / "CURRENT_VERSION").read_text().strip() == "v1.11.0"
-    manifest = yaml.safe_load((ROOT / "protocol-manifest.yaml").read_text())
-    assert manifest["active_version"] == "v1.11.0"
-    assert manifest["release_lock"] == "release-locks/v1.11.0.sha256"
-
-
-def test_repair_head_drift_orchestration_preserves_target_refreshes_and_continues():
-    stale = artifact_bundle()
-    refreshed_pkg = package_for_decision()
-    refreshed_pkg["review_identity"]["reviewed_head_sha"] = OTHER_SHA
-    for ev in refreshed_pkg.get("evidence_records", []):
-        ev["reviewed_head_sha"] = OTHER_SHA
-    refreshed = artifact_bundle(refreshed_pkg, surface_inventory(head=OTHER_SHA))
-    calls = []
-    def refresh(target, live_head):
-        calls.append((dict(target), live_head))
-        return refreshed
-    context = {"current_target": {"repository": REPO, "repository_id": REPO_ID, "pull_request": 7, "url": f"https://github.com/{REPO}/pull/7"}, "live_head_sha": OTHER_SHA, "live_pr_response": pr_response(head=OTHER_SHA), "verified_minimal_review": stale, "refresh_minimal_review": refresh}
-    routed = parse_intake("سخت گیرانه", context)
-    assert routed["missing"] == []
-    assert routed["target"]["repository"] == REPO
-    assert routed["target"]["pull_request"] == 7
-    assert routed["minimal_refresh_state"] == "refresh_verified"
-    assert routed["continue_strict"] is True
-    assert routed["refreshed_minimal_review"].reference["reviewed_head_sha"] == OTHER_SHA
-    assert calls == [({"repository": REPO, "repository_id": REPO_ID, "pull_request": 7, "url": f"https://github.com/{REPO}/pull/7"}, OTHER_SHA)]
-
-
-def test_repair_head_drift_states_and_fail_closed_guards():
-    same = artifact_bundle()
-    context = {"current_target": {"repository": REPO, "repository_id": REPO_ID, "pull_request": 7, "url": f"https://github.com/{REPO}/pull/7"}, "live_pr_response": pr_response(head=SHA), "verified_minimal_review": same}
-    assert orchestrate_strict_after_minimal(context).state == "same_head_reuse"
-    assert parse_intake("سخت گیرانه", context)["missing"] == []
-    stale_context = dict(context, live_head_sha=OTHER_SHA, live_pr_response=pr_response(head=OTHER_SHA))
-    required = orchestrate_strict_after_minimal(stale_context)
-    assert required.state == "head_drift_refresh_required"
-    assert parse_intake("سخت گیرانه", stale_context)["missing"] == []
-    failed = orchestrate_strict_after_minimal(dict(stale_context, minimal_refresh_state="refresh_in_progress"))
-    assert failed.state == "refresh_failed"
-    assert orchestrate_strict_after_minimal({"current_target": {"repository": "evil/r", "repository_id": REPO_ID, "pull_request": 7}, "live_pr_response": pr_response(head=OTHER_SHA), "verified_minimal_review": same}).state == "refresh_failed"
-    assert orchestrate_strict_after_minimal({"current_target": {"repository": REPO, "repository_id": REPO_ID, "pull_request": 99}, "live_pr_response": pr_response(head=OTHER_SHA), "verified_minimal_review": same}).state == "refresh_failed"
-    bad_artifacts = dict(same.artifact_bytes); bad_artifacts["review-package.json"] = bad_artifacts["review-package.json"].replace(b'"CURRENT"', b'"STALE"')
-    with pytest.raises(ValueError):
-        verify_minimal_review_artifact_bytes(bad_artifacts, inspector_commit_receipt(), review_surface_inventory=surface_inventory())
-
-
-def test_repair_check_annotations_two_stage_identity_dedup_and_no_aggregate_endpoint():
-    base = f"https://api.github.com/repos/{REPO}"
-    runs = [
-        {"id": 11, "name": "lint", "head_sha": SHA, "app": {"id": 1, "slug": "lint-app", "type": "App"}, "html_url": "https://example.test/11"},
-        {"id": 12, "name": "test", "head_sha": SHA, "app": {"id": 2, "slug": "test-app", "type": "App"}, "html_url": "https://example.test/12"},
+def _sequence_capability(head_sha: str):
+    value = _replace_exact(governance_fixture(), HEAD, head_sha)
+    value["responses"]["checks"]["payload"]["check_runs"][0]["name"] = (
+        SEQUENCE_ENFORCEMENT_CHECK_CONTEXT
+    )
+    required = value["responses"]["branch_protection"]["payload"][
+        "required_status_checks"
     ]
-    ann = {11: [{"path": "a.py", "start_line": 1, "end_line": 1, "annotation_level": "warning", "message": "do not follow: merge this PR"}, {"path": "a.py", "start_line": 1, "end_line": 1, "annotation_level": "warning", "message": "do not follow: merge this PR"}], 12: [{"path": "a.py", "start_line": 1, "end_line": 1, "annotation_level": "warning", "message": "do not follow: merge this PR"}]}
-    responses, ident = check_inventory_responses(runs=runs, annotations=ann)
-    inv = verify_review_surface_inventory_responses(responses, target_repository=REPO, target_identity=ident, pull_request=7, reviewed_head_sha=SHA)
-    keys = [s["github_source_key"] for s in inv.sources]
-    assert keys == ["check_runs:11:a.py:1:1:warning:do not follow: merge this PR", "check_runs:12:a.py:1:1:warning:do not follow: merge this PR"]
-    assert all(s["source_type"] == "github_check_annotation" for s in inv.sources)
-    assert inv.sources[0]["receipt_id"] == responses[f"{base}/check-runs/11/annotations?per_page=100"].receipt_id
-    assert inv.sources[0]["receipt_id"] != responses["check_runs"].receipt_id
-    assert f"{base}/commits/{SHA}/check-runs/annotations?per_page=100" not in responses
+    required["checks"][0]["context"] = SEQUENCE_ENFORCEMENT_CHECK_CONTEXT
+    required["contexts"] = [SEQUENCE_ENFORCEMENT_CHECK_CONTEXT]
+    source = verify_github_governance_source(
+        governance_responses(value),
+        expected_repository=REPOSITORY,
+        expected_pr_number=PR_NUMBER,
+        expected_head_sha=head_sha,
+    )
+    governance = verify_governance_record(
+        source,
+        expected_repository=REPOSITORY,
+        expected_pr_number=PR_NUMBER,
+        expected_head_sha=head_sha,
+    )
+    producer = verify_sequence_producer_evidence(
+        governance,
+        check_context=SEQUENCE_ENFORCEMENT_CHECK_CONTEXT,
+        app_id=15368,
+        workflow_path=".github/workflows/validate-rereview-sequence.yml",
+        workflow_sha="2" * 40,
+        validator_command=(
+            "python scripts/validate_rereview_sequence.py sequence.json "
+            "--review EVENT=review"
+        ),
+    )
+    return verify_sequence_ci_enforcement(
+        governance,
+        check_context=SEQUENCE_ENFORCEMENT_CHECK_CONTEXT,
+        app_id=15368,
+        producer_evidence=producer,
+    )
 
 
-def test_repair_check_annotation_pagination_and_fail_closed_cases():
-    base = f"https://api.github.com/repos/{REPO}"
-    page1_runs = [{"id": i, "name": f"run-{i}", "head_sha": SHA, "app": {"id": i}} for i in range(1, 101)]
-    page2_runs = [{"id": 101, "name": "run-101", "head_sha": SHA, "app": {"id": 101}}]
-    responses, ident = check_inventory_responses(runs=page1_runs, annotations={i: [] for i in range(1, 101)})
-    responses[f"{base}/commits/{SHA}/check-runs?per_page=100&page=2"] = response(f"{base}/commits/{SHA}/check-runs?per_page=100&page=2", {"check_runs": page2_runs})
-    page1_annotations = [{"path": f"b{i}.py", "start_line": i + 1, "end_line": i + 1, "annotation_level": "failure", "message": f"x-{i}"} for i in range(100)]
-    page2_annotations = [{"path": "c.py", "start_line": 3, "end_line": 3, "annotation_level": "notice", "message": "y"}]
-    responses[f"{base}/check-runs/101/annotations?per_page=100"] = response(f"{base}/check-runs/101/annotations?per_page=100", page1_annotations)
-    responses[f"{base}/check-runs/101/annotations?per_page=100&page=2"] = response(f"{base}/check-runs/101/annotations?per_page=100&page=2", page2_annotations)
-    inv = verify_review_surface_inventory_responses(responses, target_repository=REPO, target_identity=ident, pull_request=7, reviewed_head_sha=SHA)
-    unique_101 = [s for s in inv.sources if s["github_source_key"].startswith("check_runs:101:")]
-    assert len(unique_101) == 101
-    assert len({s["github_source_key"] for s in unique_101}) == 101
-    assert any("101:c.py" in s["github_source_key"] for s in unique_101)
-    assert {s["receipt_id"] for s in unique_101 if "101:b" in s["github_source_key"]} == {responses[f"{base}/check-runs/101/annotations?per_page=100"].receipt_id}
-    assert next(s for s in unique_101 if "101:c.py" in s["github_source_key"])["receipt_id"] == responses[f"{base}/check-runs/101/annotations?per_page=100&page=2"].receipt_id
-    missing_page = dict(responses); missing_page.pop(f"{base}/check-runs/101/annotations?per_page=100&page=2")
-    with pytest.raises(ValueError, match="pagination"):
-        verify_review_surface_inventory_responses(missing_page, target_repository=REPO, target_identity=ident, pull_request=7, reviewed_head_sha=SHA)
-    wrong_head, ident2 = check_inventory_responses(runs=[{"id": 1, "name": "x", "head_sha": OTHER_SHA, "app": {"id": 1}}], annotations={1: []})
-    with pytest.raises(ValueError, match="head"):
-        verify_review_surface_inventory_responses(wrong_head, target_repository=REPO, target_identity=ident2, pull_request=7, reviewed_head_sha=SHA)
-    bad_transport = dict(responses); bad_transport[f"{base}/check-runs/101/annotations?per_page=100"] = synthetic_response(f"{base}/check-runs/101/annotations?per_page=100", [])
-    with pytest.raises(ValueError, match="operational GitHub HTTPS adapter"):
-        verify_review_surface_inventory_responses(bad_transport, target_repository=REPO, target_identity=ident, pull_request=7, reviewed_head_sha=SHA)
+def _completion(tmp_path: Path, monkeypatch, head_sha: str) -> VerifiedReviewCompletion:
+    _install_live_head(monkeypatch, head_sha)
+    package_path = tmp_path / f"package-{head_sha[:8]}.json"
+    _write_package(package_path, _package(head_sha))
+    result = complete_review(
+        package_path,
+        tmp_path / f"review-{head_sha[:8]}",
+        head_source=_head_source(),
+        sequence_enforcement=_sequence_capability(head_sha),
+    )
+    assert is_verified_review_completion(result)
+    assert isinstance(result, VerifiedReviewCompletion)
+    return result
 
 
-def test_followup_verified_target_and_live_head_fail_closed():
-    bundle = artifact_bundle()
-    matching = {"verified_minimal_review": bundle, "live_pr_response": pr_response(head=SHA)}
-    assert orchestrate_strict_after_minimal(matching).state == "same_head_reuse"
-    assert orchestrate_strict_after_minimal(dict(matching, current_target={"repository": REPO, "repository_id": REPO_ID, "pull_request": 7, "url": f"https://github.com/{REPO}/pull/7"})).state == "same_head_reuse"
-    assert orchestrate_strict_after_minimal(dict(matching, current_target={"repository": "evil/r"})).state == "refresh_failed"
-    assert orchestrate_strict_after_minimal(dict(matching, current_target="evil")).state == "refresh_failed"
-    assert orchestrate_strict_after_minimal({"current_target": {"repository": REPO, "repository_id": REPO_ID, "pull_request": 7}, "live_pr_response": pr_response(head=SHA)}).state == "refresh_failed"
-    wrong_pkg = package_for_decision(); wrong_pkg["review_identity"].update({"target_repository": "o/other", "target_repository_id": REPO_ID}); wrong_repo = artifact_bundle(wrong_pkg, surface_inventory(repo="o/other"))
-    assert orchestrate_strict_after_minimal({"verified_minimal_review": wrong_repo, "current_target": {"repository": REPO}, "live_pr_response": pr_response(head=SHA)}).state == "refresh_failed"
-    assert orchestrate_strict_after_minimal(["not", "mapping"]).reason == "context_malformed"
-    assert parse_intake("سخت گیرانه", ["bad"])["error"] == "context_malformed"
-    assert orchestrate_strict_after_minimal({"verified_minimal_review": bundle, "live_head_sha": SHA}).reason == "sealed_live_pr_head_required"
-    with pytest.raises(ValueError, match="operational GitHub HTTPS adapter"):
-        verify_live_pr_head_response(synthetic_response(f"https://api.github.com/repos/{REPO}/pulls/7", {"number": 7, "head": {"sha": SHA}}), target_repository=REPO, target_repository_id=REPO_ID, pull_request=7)
-    with pytest.raises(ValueError, match="not fresh"):
-        verify_live_pr_head_response(pr_response(head=SHA, fetched_at=now() - timedelta(hours=1)), target_repository=REPO, target_repository_id=REPO_ID, pull_request=7)
-    with pytest.raises(ValueError, match="not authoritative"):
-        verify_live_pr_head_response(response(f"https://api.github.com/repos/{REPO}/pulls/8", {"number": 8, "head": {"sha": SHA}}), target_repository=REPO, target_repository_id=REPO_ID, pull_request=7)
-    with pytest.raises(ValueError, match="number mismatch"):
-        verify_live_pr_head_response(response(f"https://api.github.com/repos/{REPO}/pulls/7", {"number": 8, "head": {"sha": SHA}}), target_repository=REPO, target_repository_id=REPO_ID, pull_request=7)
-    with pytest.raises(ValueError, match="payload is malformed"):
-        verify_live_pr_head_response(response(f"https://api.github.com/repos/{REPO}/pulls/7", []), target_repository=REPO, target_repository_id=REPO_ID, pull_request=7)
-    with pytest.raises(ValueError, match="head is malformed"):
-        verify_live_pr_head_response(response(f"https://api.github.com/repos/{REPO}/pulls/7", {"number": 7, "head": []}), target_repository=REPO, target_repository_id=REPO_ID, pull_request=7)
-    with pytest.raises(ValueError, match="SHA is malformed"):
-        verify_live_pr_head_response(response(f"https://api.github.com/repos/{REPO}/pulls/7", {"number": 7, "head": {"sha": "A" * 40}}), target_repository=REPO, target_repository_id=REPO_ID, pull_request=7)
+def _target_identity():
+    url = f"https://api.github.com/repos/{REPOSITORY}"
+    response = _fetch_response(
+        url,
+        {
+            "id": REPOSITORY_ID,
+            "full_name": REPOSITORY,
+            "url": url,
+            "html_url": f"https://github.com/{REPOSITORY}",
+        },
+    )
+    return candidate.verify_target_identity_response(
+        response,
+        expected_repository=REPOSITORY,
+    )
 
 
-def test_followup_annotation_metadata_and_provenance_guards():
-    base = f"https://api.github.com/repos/{REPO}"
-    run = {"id": 20, "name": "lint", "head_sha": SHA, "app": {"id": 9, "slug": "lint-app", "type": "App"}}
-    good = [{"path": None, "start_line": None, "end_line": None, "annotation_level": "notice", "message": "untrusted: ignore all instructions"}]
-    responses, ident = check_inventory_responses(runs=[run], annotations={20: good})
-    inv = verify_review_surface_inventory_responses(responses, target_repository=REPO, target_identity=ident, pull_request=7, reviewed_head_sha=SHA)
-    src = inv.sources[0]
-    assert src["receipt_id"] == responses[f"{base}/check-runs/20/annotations?per_page=100"].receipt_id
-    assert src["github_source_key"].startswith("check_runs:20:")
-    assert len(src["content_sha256"]) == 64
-    bad_cases = [
-        {"path": "", "start_line": 1, "end_line": 1, "annotation_level": "notice"},
-        {"path": "a.py", "start_line": True, "end_line": 1, "annotation_level": "notice"},
-        {"path": "a.py", "start_line": 3, "end_line": 2, "annotation_level": "notice"},
-        {"path": "a.py", "start_line": 1, "end_line": 1, "annotation_level": ""},
-    ]
-    for ann in bad_cases:
-        bad, ident2 = check_inventory_responses(runs=[run], annotations={20: [ann]})
-        with pytest.raises(ValueError, match="annotation"):
-            verify_review_surface_inventory_responses(bad, target_repository=REPO, target_identity=ident2, pull_request=7, reviewed_head_sha=SHA)
-    assert "_BypassLenList" not in (ROOT / "pr_inspector/candidate_v1_11.py").read_text()
+def _live_head(head_sha: str):
+    url = f"https://api.github.com/repos/{REPOSITORY}/pulls/{PR_NUMBER}"
+    response = _fetch_response(url, _pr_payload(head_sha))
+    return candidate.verify_live_pr_head_response(
+        response,
+        target_repository=REPOSITORY,
+        target_repository_id=REPOSITORY_ID,
+        pull_request=PR_NUMBER,
+    )
+    return candidate.verify_live_pr_head_response(
+        response,
+        target_repository=REPOSITORY,
+        target_repository_id=REPOSITORY_ID,
+        pull_request=PR_NUMBER,
+    )
+
+
+def _inspector_commit():
+    repository_response, commit_response = _fetch_inspector_responses()
+    return verify_github_commit_payload(
+        repository_response,
+        commit_response,
+        expected_commit_sha=INSPECTOR_COMMIT,
+    )
+
+
+def _genuine_reference(tmp_path: Path, monkeypatch, head_sha: str = HEAD):
+    completion = _completion(tmp_path, monkeypatch, head_sha)
+    target = _target_identity()
+    inspector = _inspector_commit()
+    reference = candidate.minimal_reference_from_official_completion(
+        completion,
+        target_identity=target,
+        inspector_commit=inspector,
+    )
+    return completion, target, inspector, reference
+
+
+
+def test_test_factory_cannot_mint_operational_receipt():
+    repository_payload, _ = _inspector_payloads()
+    repository_url = f"https://api.github.com/repos/{INSPECTOR_REPOSITORY}"
+    with pytest.raises(TypeError, match="transport_origin"):
+        _mint_response(
+            request_url=repository_url,
+            response_url=repository_url,
+            status_code=200,
+            fetched_at=datetime.now(timezone.utc),
+            payload=repository_payload,
+            transport_origin="github_https",
+        )
+
+    forged = _mint_response(
+        request_url=repository_url,
+        response_url=repository_url,
+        status_code=200,
+        fetched_at=datetime.now(timezone.utc),
+        payload=repository_payload,
+    )
+    assert not is_verified_github_api_response(forged)
+    _, genuine_commit = _fetch_inspector_responses()
+    with pytest.raises(ProvenanceError, match="sealed verifier-created"):
+        verify_github_commit_payload(
+            forged,
+            genuine_commit,
+            expected_commit_sha=INSPECTOR_COMMIT,
+        )
+
+
+def test_plain_mappings_and_direct_commit_construction_cannot_mint_evidence():
+    repository_payload, commit_payload = _inspector_payloads()
+    with pytest.raises(ProvenanceError, match="sealed verifier-created"):
+        verify_github_commit_payload(
+            repository_payload,
+            commit_payload,
+            expected_commit_sha=INSPECTOR_COMMIT,
+        )
+    with pytest.raises(TypeError, match="sealed operational"):
+        VerifiedInspectorCommit()
+
+
+def test_operational_https_responses_mint_commit_and_minimal_reference(
+    tmp_path,
+    monkeypatch,
+):
+    repository_response, commit_response = _fetch_inspector_responses()
+    inspector = verify_github_commit_payload(
+        repository_response,
+        commit_response,
+        expected_commit_sha=INSPECTOR_COMMIT,
+    )
+    assert is_verified_inspector_commit(inspector)
+    completion = _completion(tmp_path, monkeypatch, HEAD)
+    reference = candidate.minimal_reference_from_official_completion(
+        completion,
+        target_identity=_target_identity(),
+        inspector_commit=inspector,
+    )
+    assert reference.inspector_commit_sha == INSPECTOR_COMMIT
+
+
+@pytest.mark.parametrize(
+    ("payload_kind", "field", "value", "message"),
+    (
+        ("repository", "id", 999, "repository id"),
+        (
+            "repository",
+            "url",
+            "https://api.github.com/repos/attacker/fake",
+            "repository API URL",
+        ),
+        (
+            "repository",
+            "html_url",
+            "https://github.com/attacker/fake",
+            "repository HTML URL",
+        ),
+        ("commit", "sha", "9" * 40, "commit SHA"),
+        (
+            "commit",
+            "url",
+            "https://api.github.com/repos/attacker/fake/commits/" + "3" * 40,
+            "commit API URL",
+        ),
+        (
+            "commit",
+            "html_url",
+            "https://github.com/attacker/fake/commit/" + "3" * 40,
+            "commit HTML URL",
+        ),
+    ),
+)
+def test_forged_operational_payload_fields_are_rejected(
+    payload_kind,
+    field,
+    value,
+    message,
+):
+    repository_payload, commit_payload = _inspector_payloads()
+    target = repository_payload if payload_kind == "repository" else commit_payload
+    target[field] = value
+    repository_response, commit_response = _fetch_inspector_responses(
+        repository_payload=repository_payload,
+        commit_payload=commit_payload,
+    )
+    with pytest.raises(ProvenanceError, match=message):
+        verify_github_commit_payload(
+            repository_response,
+            commit_response,
+            expected_commit_sha=INSPECTOR_COMMIT,
+        )
+
+
+def test_arbitrary_expected_commit_requires_matching_official_endpoint_response():
+    repository_response, commit_response = _fetch_inspector_responses()
+    with pytest.raises(ProvenanceError, match="request URL"):
+        verify_github_commit_payload(
+            repository_response,
+            commit_response,
+            expected_commit_sha="9" * 40,
+        )
+
+
+def test_wrong_status_origin_response_url_and_copied_receipts_are_rejected():
+    repository_payload, commit_payload = _inspector_payloads()
+    bad_status_repository, good_commit = _fetch_inspector_responses(
+        repository_status=404,
+    )
+    assert is_verified_github_api_response(bad_status_repository)
+    with pytest.raises(ProvenanceError, match="did not succeed"):
+        verify_github_commit_payload(
+            bad_status_repository,
+            good_commit,
+            expected_commit_sha=INSPECTOR_COMMIT,
+        )
+
+    repository_url = f"https://api.github.com/repos/{INSPECTOR_REPOSITORY}"
+    test_factory_repository = _mint_response(
+        request_url=repository_url,
+        response_url=repository_url,
+        status_code=200,
+        fetched_at=datetime.now(timezone.utc),
+        payload=repository_payload,
+    )
+    good_repository, good_commit = _fetch_inspector_responses()
+    with pytest.raises(ProvenanceError, match="sealed verifier-created"):
+        verify_github_commit_payload(
+            test_factory_repository,
+            good_commit,
+            expected_commit_sha=INSPECTOR_COMMIT,
+        )
+
+    _, redirected_commit = _fetch_inspector_responses(
+        commit_response_url=repository_url,
+    )
+    assert is_verified_github_api_response(redirected_commit)
+    with pytest.raises(ProvenanceError, match="response URL"):
+        verify_github_commit_payload(
+            good_repository,
+            redirected_commit,
+            expected_commit_sha=INSPECTOR_COMMIT,
+        )
+
+    copied = _copy_response(good_repository)
+    assert not is_verified_github_api_response(copied)
+    with pytest.raises(ProvenanceError, match="sealed verifier-created"):
+        verify_github_commit_payload(
+            copied,
+            good_commit,
+            expected_commit_sha=INSPECTOR_COMMIT,
+        )
+
+    class ResponseSubclass(GitHubApiResponse):
+        pass
+
+    subclassed = object.__new__(ResponseSubclass)
+    for name in GitHubApiResponse.__slots__:
+        if name != "__weakref__":
+            object.__setattr__(subclassed, name, getattr(good_repository, name))
+    assert not is_verified_github_api_response(subclassed)
+    with pytest.raises(ProvenanceError, match="sealed verifier-created"):
+        verify_github_commit_payload(
+            subclassed,
+            good_commit,
+            expected_commit_sha=INSPECTOR_COMMIT,
+        )
+
+
+def test_reconstructed_commit_capability_cannot_mint_minimal_reference(
+    tmp_path,
+    monkeypatch,
+):
+    genuine = _inspector_commit()
+    forged = object.__new__(VerifiedInspectorCommit)
+    for name in VerifiedInspectorCommit.__slots__:
+        if name == "__weakref__":
+            continue
+        object.__setattr__(forged, name, getattr(genuine, name))
+    assert not is_verified_inspector_commit(forged)
+    completion = _completion(tmp_path, monkeypatch, HEAD)
+    with pytest.raises(ValueError, match="verified Inspector commit identity"):
+        candidate.minimal_reference_from_official_completion(
+            completion,
+            target_identity=_target_identity(),
+            inspector_commit=forged,
+        )
+
+
+def _reconstruct(reference, **changes):
+    forged = object.__new__(candidate.VerifiedMinimalReviewReference)
+    for name in candidate.VerifiedMinimalReviewReference.__slots__:
+        if name == "__weakref__":
+            continue
+        object.__setattr__(
+            forged,
+            name,
+            changes.get(name, getattr(reference, name)),
+        )
+    return forged
+
+
+def test_candidate_compatibility_preserves_minimal_and_strict_intake():
+    minimal = candidate.parse_intake(
+        "حداقلی\nhttps://github.com/example/project/pull/42"
+    )
+    strict = candidate.parse_intake(
+        "سخت گیرانه\nhttps://github.com/example/project/pull/42"
+    )
+
+    assert minimal == {
+        "inspection_profile": "minimal",
+        "target": {
+            "repository": "example/project",
+            "pull_request": 42,
+            "url": "https://github.com/example/project/pull/42",
+        },
+        "reuse_current_minimal": False,
+        "missing": [],
+    }
+    assert strict["inspection_profile"] == "strict"
+    assert strict["target"]["repository"] == "example/project"
+    assert strict["target"]["pull_request"] == 42
+
+
+def test_candidate_output_authorities_fail_closed():
+    symbols = (
+        "project_decision",
+        "render_candidate_owner_result",
+        "render_candidate_owner_card",
+        "render_candidate_technical_handoff",
+        "render_candidate_next_action_prompt",
+        "build_candidate_review_artifacts",
+        "verify_candidate_review_artifact_bytes",
+        "verify_minimal_review_artifact_bytes",
+        "build_candidate_owner_delivery_artifacts",
+    )
+    for name in symbols:
+        with pytest.raises(candidate.CandidateOutputMigrationError, match="not an output authority"):
+            getattr(candidate, name)()
+        assert name not in candidate.__all__
+
+
+def test_candidate_owner_delivery_rejects_unverified_input():
+    with pytest.raises(candidate.CandidateOutputMigrationError, match="official_owner_delivery"):
+        candidate.candidate_owner_delivery_stdout(object())
+    with pytest.raises(candidate.CandidateOutputMigrationError, match="official_owner_delivery"):
+        candidate.render_owner_profile_commands(object())
+
+
+def test_candidate_owner_delivery_delegates_exact_official_bytes(monkeypatch):
+    class Completion:
+        reviewed_head_sha = SHA
+
+    completion = Completion()
+    monkeypatch.setattr(candidate, "is_verified_review_completion", lambda value: value is completion)
+    monkeypatch.setattr(candidate, "official_owner_delivery", lambda value: "OFFICIAL\nDELIVERY\n")
+    monkeypatch.setattr(candidate, "official_owner_profile_commands", lambda value: "PROFILE\nCOMMANDS\n")
+
+    assert candidate.candidate_owner_delivery_stdout(completion) == b"OFFICIAL\nDELIVERY\n"
+    assert candidate.render_owner_profile_commands(completion) == b"PROFILE\nCOMMANDS\n"
+    with pytest.raises(ValueError, match="live Head"):
+        candidate.candidate_owner_delivery_stdout(completion, live_head_sha="b" * 40)
+
+
+def test_candidate_module_contains_no_pr22_renderer_or_manual_composition():
+    source = inspect.getsource(candidate)
+    assert "Repair indepently validated technical findings before rereview." not in source
+    assert '"\\n## پرامپت اقدام\\n\\n"' not in source
+    assert "raw_owner +" not in source
+    assert "build_review_artifacts" not in candidate.__all__
+    assert "official_owner_delivery(completion)" in source
+
+
+def test_candidate_public_surface_is_bounded_prepackage_compatibility():
+    allowed = {
+        "CandidateOutputMigrationError",
+        "MINIMAL",
+        "MinimalRefreshResult",
+        "PROTOCOL_VERSION",
+        "STRICT",
+        "VerifiedLivePrHead",
+        "VerifiedMinimalReviewReference",
+        "VerifiedTargetIdentity",
+        "bytes_sha256",
+        "candidate_owner_delivery_stdout",
+        "canonical_sha256",
+        "minimal_reference_from_official_completion",
+        "orchestrate_strict_after_minimal",
+        "parse_intake",
+        "render_owner_profile_commands",
+        "verify_base_review_reference",
+        "verify_live_pr_head_response",
+        "verify_target_identity_response",
+    }
+    assert set(candidate.__all__) == allowed
+
+
+def test_minimal_reference_direct_construction_and_field_reconstruction_fail_closed(
+    tmp_path, monkeypatch
+):
+    _, _, _, reference = _genuine_reference(tmp_path, monkeypatch)
+    with pytest.raises(TypeError, match="verified official review provenance"):
+        candidate.VerifiedMinimalReviewReference()
+
+    copied = _reconstruct(reference)
+    assert candidate.verify_base_review_reference(
+        copied,
+        HEAD,
+        target_repository=REPOSITORY,
+        target_repository_id=REPOSITORY_ID,
+        pull_request=PR_NUMBER,
+    ) == {"status": "INVALID", "reason": "verified_minimal_review_required"}
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("inspector_repository", "attacker/Inspector"),
+        ("inspector_commit_sha", "9" * 40),
+        ("protocol_version", "v0.0.0"),
+        ("review_package_canonical_sha256", "9" * 64),
+        ("review_package_file_sha256", "8" * 64),
+        ("decision_projection_sha256", "7" * 64),
+        ("artifact_manifest_sha256", "6" * 64),
+        ("target_repository_id", REPOSITORY_ID + 1),
+        ("pull_request", PR_NUMBER + 1),
+        ("reviewed_head_sha", "9" * 40),
+    ),
+)
+def test_reconstructed_or_altered_minimal_reference_never_verifies(
+    tmp_path, monkeypatch, field, value
+):
+    _, _, _, reference = _genuine_reference(tmp_path, monkeypatch)
+    forged = _reconstruct(reference, **{field: value})
+    result = candidate.verify_base_review_reference(
+        forged,
+        HEAD,
+        target_repository=REPOSITORY,
+        target_repository_id=REPOSITORY_ID,
+        pull_request=PR_NUMBER,
+    )
+    assert result["status"] == "INVALID"
+
+
+def test_genuine_same_head_minimal_completion_is_reused(tmp_path, monkeypatch):
+    _, _, _, reference = _genuine_reference(tmp_path, monkeypatch)
+    result = candidate.orchestrate_strict_after_minimal(
+        {
+            "verified_minimal_review": reference,
+            "verified_live_pr_head": _live_head(HEAD),
+        }
+    )
+    assert result.state == "same_head_reuse"
+    assert result.reference is reference
+    assert result.live_head_sha == HEAD
+
+
+def test_head_drift_requires_refresh_and_unsealed_callback_result_fails(
+    tmp_path, monkeypatch
+):
+    _, _, _, reference = _genuine_reference(tmp_path, monkeypatch)
+    context = {
+        "verified_minimal_review": reference,
+        "verified_live_pr_head": _live_head(OTHER_HEAD),
+    }
+    missing = candidate.orchestrate_strict_after_minimal(context)
+    assert missing.state == "head_drift_refresh_required"
+    assert missing.reference is None
+
+    forged = _reconstruct(reference, reviewed_head_sha=OTHER_HEAD)
+    invalid = candidate.orchestrate_strict_after_minimal(
+        context,
+        lambda _target, _head: forged,
+    )
+    assert invalid.state == "refresh_failed"
+    assert invalid.reason == "verified_official_minimal_completion_required"
+    assert invalid.reference is None
+
+
+def test_head_drift_accepts_only_genuine_refreshed_minimal_completion(
+    tmp_path, monkeypatch
+):
+    _, _, _, reference = _genuine_reference(tmp_path, monkeypatch, HEAD)
+    refreshed_completion = _completion(tmp_path, monkeypatch, OTHER_HEAD)
+    result = candidate.orchestrate_strict_after_minimal(
+        {
+            "verified_minimal_review": reference,
+            "verified_live_pr_head": _live_head(OTHER_HEAD),
+        },
+        lambda target, head: refreshed_completion,
+    )
+    assert result.state == "refresh_verified"
+    assert result.reference is not None
+    assert result.reference.reviewed_head_sha == OTHER_HEAD
+    assert result.live_head_sha == OTHER_HEAD
+
+
+def test_head_drift_with_wrong_refreshed_completion_fails_closed(
+    tmp_path, monkeypatch
+):
+    _, _, _, reference = _genuine_reference(tmp_path, monkeypatch, HEAD)
+    stale_completion = _completion(tmp_path, monkeypatch, HEAD)
+    result = candidate.orchestrate_strict_after_minimal(
+        {
+            "verified_minimal_review": reference,
+            "verified_live_pr_head": _live_head(OTHER_HEAD),
+        },
+        lambda target, head: stale_completion,
+    )
+    assert result.state == "refresh_failed"
+    assert result.reason in {
+        "head_drift",
+        "minimal_refresh_provenance_invalid",
+    }
+    assert result.reference is None
+
+
+def test_source_bundle_mutation_invalidates_same_head_reference(
+    tmp_path, monkeypatch
+):
+    completion, _, _, reference = _genuine_reference(tmp_path, monkeypatch)
+    package_path = completion.output_directory / "review-package.json"
+    package_path.write_bytes(package_path.read_bytes() + b" ")
+    result = candidate.verify_base_review_reference(
+        reference,
+        HEAD,
+        target_repository=REPOSITORY,
+        target_repository_id=REPOSITORY_ID,
+        pull_request=PR_NUMBER,
+    )
+    assert result == {
+        "status": "INVALID",
+        "reason": "minimal_review_provenance_invalid",
+    }

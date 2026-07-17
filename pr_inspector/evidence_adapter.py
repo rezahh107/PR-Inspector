@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 from pathlib import Path
-from ._governance_transport import _mint_response
+from typing import Any
+
+from ._governance_transport import fetch_github_api_response
 from .governance import (
     VerifiedGovernanceEvidence,
     verify_github_governance_source,
@@ -17,21 +18,35 @@ from .sequence_enforcement import (
 )
 
 
-def _responses_from_fixture(path: Path):
+def _fixture_endpoint_urls(path: Path) -> dict[str, str]:
     value = json.loads(path.read_text(encoding="utf-8"))
     responses = value.get("responses")
     if not isinstance(responses, dict):
         raise ValueError("governance evidence fixture must contain a responses object")
-    observed = datetime.now(timezone.utc)
+    endpoints: dict[str, str] = {}
+    for name, item in responses.items():
+        if not isinstance(name, str) or not name or not isinstance(item, dict):
+            raise ValueError("governance evidence fixture contains an invalid response entry")
+        url = item.get("url")
+        if not isinstance(url, str) or not url:
+            raise ValueError(f"governance evidence fixture endpoint {name} has no URL")
+        endpoints[name] = url
+    return endpoints
+
+
+def _fetch_responses_from_fixture_urls(
+    path: Path,
+    *,
+    token: str | None,
+    api_version: str,
+) -> dict[str, Any]:
     return {
-        name: _mint_response(
-            request_url=item["url"],
-            response_url=item["url"],
-            status_code=item["status_code"],
-            fetched_at=observed,
-            payload=item["payload"],
+        name: fetch_github_api_response(
+            url,
+            token=token,
+            api_version=api_version,
         )
-        for name, item in responses.items()
+        for name, url in _fixture_endpoint_urls(path).items()
     }
 
 
@@ -45,17 +60,22 @@ def mint_evidence_from_governance_fixture(
     sequence_workflow_path: str,
     sequence_workflow_sha: str,
     sequence_validator_command: str,
+    token: str | None = None,
+    api_version: str = "2022-11-28",
 ) -> tuple[VerifiedGovernanceEvidence, VerifiedSequenceEnforcement]:
-    """Mint opaque evidence from raw GitHub response receipts for CLI operation.
+    """Fetch and verify live evidence for the endpoint set declared by a fixture.
 
-    The fixture is treated as raw receipt material, not as a serialized capability:
-    governance and sequence capabilities are minted in-process only after the same
-    verifiers used by the Python API bind repository, PR, exact head, check/App,
-    immutable workflow identity, and validator command execution.
+    The file supplies endpoint names and canonical URLs only. Its status codes and payloads
+    are untrusted and ignored; every capability is minted by the operational HTTPS fetch
+    boundary from the response actually observed during this invocation.
     """
 
     source = verify_github_governance_source(
-        _responses_from_fixture(path),
+        _fetch_responses_from_fixture_urls(
+            path,
+            token=token,
+            api_version=api_version,
+        ),
         expected_repository=repository,
         expected_pr_number=pr_number,
         expected_head_sha=head_sha,

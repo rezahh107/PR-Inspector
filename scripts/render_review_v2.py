@@ -76,6 +76,8 @@ def main() -> int:
             sequence_workflow_path=args.sequence_workflow_path,
             sequence_workflow_sha=args.sequence_workflow_sha,
             sequence_validator_command=args.sequence_validator_command,
+            token=os.environ.get(args.github_token_env),
+            api_version=api_version,
         )
 
     outcome = complete_review(
