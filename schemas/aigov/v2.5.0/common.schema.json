@@ -1,0 +1,408 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rezahh107/PR-Inspector/schemas/aigov/v2.5.0/common.schema.json",
+  "title": "AIGOV v2.5.0 Inactive Shared Contract Definitions",
+  "description": "Inactive, non-authoritative schema definitions for future PR-Inspector support.",
+  "$defs": {
+    "non_empty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "record_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "git_commit_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "tagged_sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "positive_integer": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "repository_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository_full_name": {
+          "type": "string",
+          "pattern": "^[^/\\s]+/[^/\\s]+$"
+        },
+        "repository_id": {
+          "$ref": "#/$defs/positive_integer"
+        }
+      },
+      "required": [
+        "repository_full_name",
+        "repository_id"
+      ]
+    },
+    "pr_target_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "$ref": "#/$defs/repository_identity"
+        },
+        "pr_number": {
+          "$ref": "#/$defs/positive_integer"
+        },
+        "head_sha": {
+          "$ref": "#/$defs/git_commit_sha"
+        }
+      },
+      "required": [
+        "repository",
+        "pr_number",
+        "head_sha"
+      ]
+    },
+    "default_branch_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "$ref": "#/$defs/repository_identity"
+        },
+        "default_branch": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "commit_sha": {
+          "$ref": "#/$defs/git_commit_sha"
+        }
+      },
+      "required": [
+        "repository",
+        "default_branch",
+        "commit_sha"
+      ]
+    },
+    "protocol_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "protocol_name": {
+          "const": "PR Inspector"
+        },
+        "protocol_version": {
+          "type": "string",
+          "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
+        }
+      },
+      "required": [
+        "protocol_name",
+        "protocol_version"
+      ]
+    },
+    "inspector_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository_full_name": {
+          "const": "rezahh107/PR-Inspector"
+        },
+        "repository_id": {
+          "const": 1288323264
+        },
+        "commit_sha": {
+          "$ref": "#/$defs/git_commit_sha"
+        }
+      },
+      "required": [
+        "repository_full_name",
+        "repository_id",
+        "commit_sha"
+      ]
+    },
+    "policy_reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "policy_id": {
+          "$ref": "#/$defs/record_id"
+        },
+        "policy_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "policy_digest": {
+          "$ref": "#/$defs/tagged_sha256"
+        }
+      },
+      "required": [
+        "policy_id",
+        "policy_version",
+        "policy_digest"
+      ]
+    },
+    "record_reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "record_type": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "record_id": {
+          "$ref": "#/$defs/record_id"
+        },
+        "record_digest": {
+          "$ref": "#/$defs/tagged_sha256"
+        }
+      },
+      "required": [
+        "record_type",
+        "record_id",
+        "record_digest"
+      ]
+    },
+    "authority_reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "authority_id": {
+          "$ref": "#/$defs/record_id"
+        },
+        "authority_kind": {
+          "enum": [
+            "canonical_document",
+            "repository_policy",
+            "protocol_rule",
+            "owner_transition",
+            "verified_tool_evidence",
+            "trusted_completion"
+          ]
+        },
+        "source_path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*\\.\\.)[^\\x00]+$"
+        },
+        "source_digest": {
+          "$ref": "#/$defs/tagged_sha256"
+        }
+      },
+      "required": [
+        "authority_id",
+        "authority_kind",
+        "source_path",
+        "source_digest"
+      ]
+    },
+    "evidence_reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "evidence_id": {
+          "$ref": "#/$defs/record_id"
+        },
+        "evidence_type": {
+          "enum": [
+            "repository_api",
+            "pull_request_api",
+            "commit_api",
+            "workflow_run",
+            "workflow_job",
+            "artifact",
+            "review_package",
+            "decision_projection",
+            "owner_merge",
+            "exact_main_verification",
+            "structured_record"
+          ]
+        },
+        "target": {
+          "$ref": "#/$defs/pr_target_identity"
+        },
+        "source_digest": {
+          "$ref": "#/$defs/tagged_sha256"
+        },
+        "retrieval_method": {
+          "enum": [
+            "github_api",
+            "artifact_download",
+            "local_verified_read",
+            "trusted_record_reference"
+          ]
+        }
+      },
+      "required": [
+        "evidence_id",
+        "evidence_type",
+        "target",
+        "source_digest",
+        "retrieval_method"
+      ]
+    },
+    "artifact_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "artifact_name": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "artifact_digest": {
+          "$ref": "#/$defs/tagged_sha256"
+        },
+        "media_type": {
+          "$ref": "#/$defs/non_empty_string"
+        }
+      },
+      "required": [
+        "artifact_name",
+        "artifact_digest",
+        "media_type"
+      ]
+    },
+    "inspection_profile": {
+      "enum": [
+        "minimal",
+        "standard",
+        "strict"
+      ]
+    },
+    "evidence_profile": {
+      "enum": [
+        "minimal",
+        "standard",
+        "strict"
+      ]
+    },
+    "execution_urgency": {
+      "enum": [
+        "routine",
+        "elevated",
+        "urgent"
+      ]
+    },
+    "policy_lifecycle": {
+      "enum": [
+        "candidate",
+        "trial",
+        "active",
+        "superseded",
+        "inactive"
+      ]
+    },
+    "enforcement_status": {
+      "enum": [
+        "prose_only",
+        "schema_backed",
+        "validator_backed",
+        "fixture_tested",
+        "ci_enforced",
+        "downstream_contract_enforced"
+      ]
+    },
+    "evidence_sufficiency": {
+      "enum": [
+        "sufficient",
+        "insufficient",
+        "unresolved"
+      ]
+    },
+    "publication_result": {
+      "enum": [
+        "not_attempted",
+        "publishing",
+        "published_verified",
+        "publication_failed",
+        "conflict_detected"
+      ]
+    },
+    "merge_method": {
+      "enum": [
+        "merge_commit",
+        "squash",
+        "rebase"
+      ]
+    },
+    "merge_readiness_result": {
+      "enum": [
+        "authorized",
+        "blocked",
+        "unresolved"
+      ]
+    },
+    "closure_outcome": {
+      "enum": [
+        "content_equivalence_verified",
+        "history_topology_verified",
+        "history_topology_not_preserved_by_merge_method",
+        "content_loss_detected",
+        "insufficient_evidence",
+        "blocked_status_drift"
+      ]
+    },
+    "tool_execution_conclusion": {
+      "enum": [
+        "success",
+        "failure",
+        "cancelled",
+        "skipped",
+        "neutral",
+        "timed_out",
+        "action_required"
+      ]
+    },
+    "activation_result": {
+      "enum": [
+        "not_started",
+        "blocked",
+        "activated",
+        "rejected"
+      ]
+    },
+    "technical_status": {
+      "enum": [
+        "GREEN_TECHNICALLY_READY",
+        "YELLOW_CHANGES_OR_VERIFICATION_REQUIRED",
+        "RED_DO_NOT_MERGE"
+      ]
+    },
+    "component_requirement_result": {
+      "enum": [
+        "satisfied",
+        "not_required",
+        "blocked",
+        "unresolved"
+      ]
+    },
+    "pagination_completeness_reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "collection_id": {
+          "$ref": "#/$defs/record_id"
+        },
+        "pages_fetched": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "pagination_complete": {
+          "const": true
+        },
+        "evidence_reference": {
+          "$ref": "#/$defs/evidence_reference"
+        }
+      },
+      "required": [
+        "collection_id",
+        "pages_fetched",
+        "pagination_complete",
+        "evidence_reference"
+      ]
+    }
+  }
+}
