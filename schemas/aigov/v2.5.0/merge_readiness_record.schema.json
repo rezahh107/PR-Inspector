@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rezahh107/PR-Inspector/schemas/aigov/v2.5.0/merge_readiness_record.schema.json",
+  "title": "AIGOV Inactive Merge Readiness Record Contract",
+  "description": "Inactive, non-authoritative AIGOV v2.5.0 contract carrier.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contract_type": {"const": "merge_readiness_record"},
+    "contract_version": {"const": "1.0"},
+    "readiness_id": {"$ref": "common.schema.json#/$defs/record_id"},
+    "target": {"$ref": "common.schema.json#/$defs/pr_target_identity"},
+    "technical_status_reference": {"$ref": "common.schema.json#/$defs/record_reference"},
+    "policy_resolution_reference": {"$ref": "common.schema.json#/$defs/record_reference"},
+    "receipt_requirement_result": {"$ref": "common.schema.json#/$defs/component_requirement_result"},
+    "publication_result": {"$ref": "common.schema.json#/$defs/component_requirement_result"},
+    "repository_enforcement_result": {"$ref": "common.schema.json#/$defs/component_requirement_result"},
+    "merge_readiness_result": {"$ref": "common.schema.json#/$defs/merge_readiness_result"},
+    "merge_authorization_state": {"enum": ["not_authorized", "owner_authorized"]},
+    "unresolved_evidence": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/non_empty_string"}, "uniqueItems": true},
+    "blocking_reasons": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/record_id"}, "uniqueItems": true}
+  },
+  "required": ["contract_type", "contract_version", "readiness_id", "target", "technical_status_reference", "policy_resolution_reference", "receipt_requirement_result", "publication_result", "repository_enforcement_result", "merge_readiness_result", "merge_authorization_state", "unresolved_evidence", "blocking_reasons"],
+  "allOf": [{
+    "if": {"properties": {"merge_readiness_result": {"const": "authorized"}}, "required": ["merge_readiness_result"]},
+    "then": {"properties": {
+      "receipt_requirement_result": {"enum": ["satisfied", "not_required"]},
+      "publication_result": {"enum": ["satisfied", "not_required"]},
+      "repository_enforcement_result": {"enum": ["satisfied", "not_required"]},
+      "merge_authorization_state": {"const": "owner_authorized"},
+      "unresolved_evidence": {"maxItems": 0},
+      "blocking_reasons": {"maxItems": 0}
+    }},
+    "else": {"properties": {"merge_authorization_state": {"const": "not_authorized"}}}
+  }]
+}

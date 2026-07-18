@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rezahh107/PR-Inspector/schemas/aigov/v2.5.0/post_merge_closure.schema.json",
+  "title": "AIGOV Inactive Post-Merge Closure Contract",
+  "description": "Inactive, non-authoritative AIGOV v2.5.0 contract carrier.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contract_type": {"const": "post_merge_closure"},
+    "contract_version": {"const": "1.0"},
+    "closure_id": {"$ref": "common.schema.json#/$defs/record_id"},
+    "pre_merge_identity": {"$ref": "common.schema.json#/$defs/pr_target_identity"},
+    "resulting_default_branch_identity": {"$ref": "common.schema.json#/$defs/default_branch_identity"},
+    "merge_method": {"$ref": "common.schema.json#/$defs/merge_method"},
+    "merge_method_evidence": {"$ref": "common.schema.json#/$defs/evidence_reference"},
+    "content_equivalence_result": {"enum": ["verified", "not_verified", "content_loss_detected", "insufficient_evidence"]},
+    "history_topology_result": {"enum": ["verified", "not_preserved_by_merge_method", "insufficient_evidence"]},
+    "active_policy_verification": {"$ref": "common.schema.json#/$defs/component_requirement_result"},
+    "status_drift_result": {"enum": ["none_detected", "detected_reconciled", "detected_unresolved", "insufficient_evidence"]},
+    "reconciliation_result": {"enum": ["not_required", "reconciled", "blocked", "insufficient_evidence"]},
+    "closure_outcome": {"$ref": "common.schema.json#/$defs/closure_outcome"}
+  },
+  "required": ["contract_type", "contract_version", "closure_id", "pre_merge_identity", "resulting_default_branch_identity", "merge_method", "merge_method_evidence", "content_equivalence_result", "history_topology_result", "active_policy_verification", "status_drift_result", "reconciliation_result", "closure_outcome"],
+  "allOf": [
+    {"if": {"properties": {"content_equivalence_result": {"const": "content_loss_detected"}}, "required": ["content_equivalence_result"]}, "then": {"properties": {"closure_outcome": {"const": "content_loss_detected"}}}},
+    {"if": {"properties": {"status_drift_result": {"const": "detected_unresolved"}}, "required": ["status_drift_result"]}, "then": {"properties": {"closure_outcome": {"const": "blocked_status_drift"}, "reconciliation_result": {"const": "blocked"}}}},
+    {"if": {"anyOf": [
+      {"properties": {"content_equivalence_result": {"const": "insufficient_evidence"}}, "required": ["content_equivalence_result"]},
+      {"properties": {"history_topology_result": {"const": "insufficient_evidence"}}, "required": ["history_topology_result"]},
+      {"properties": {"status_drift_result": {"const": "insufficient_evidence"}}, "required": ["status_drift_result"]},
+      {"properties": {"reconciliation_result": {"const": "insufficient_evidence"}}, "required": ["reconciliation_result"]}
+    ]}, "then": {"properties": {"closure_outcome": {"const": "insufficient_evidence"}}}}
+  ]
+}

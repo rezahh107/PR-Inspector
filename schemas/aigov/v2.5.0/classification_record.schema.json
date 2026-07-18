@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rezahh107/PR-Inspector/schemas/aigov/v2.5.0/classification_record.schema.json",
+  "title": "AIGOV Inactive Classification Record Contract",
+  "description": "Inactive, non-authoritative AIGOV v2.5.0 contract carrier.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contract_type": {
+      "const": "classification_record"
+    },
+    "contract_version": {
+      "const": "1.0"
+    },
+    "classification_id": {
+      "$ref": "common.schema.json#/$defs/record_id"
+    },
+    "target": {
+      "$ref": "common.schema.json#/$defs/pr_target_identity"
+    },
+    "observed_facts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "fact_id": {
+            "$ref": "common.schema.json#/$defs/record_id"
+          },
+          "statement": {
+            "$ref": "common.schema.json#/$defs/non_empty_string"
+          },
+          "evidence_reference": {
+            "$ref": "common.schema.json#/$defs/evidence_reference"
+          }
+        },
+        "required": [
+          "fact_id",
+          "statement",
+          "evidence_reference"
+        ]
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "derived_classification": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "change_class": {
+              "enum": [
+                "L0",
+                "L1",
+                "L2",
+                "L3",
+                "L4"
+              ]
+            },
+            "boundary_ids": {
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/record_id"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "classification_value": {
+              "$ref": "common.schema.json#/$defs/non_empty_string"
+            }
+          },
+          "required": [
+            "change_class",
+            "boundary_ids",
+            "classification_value"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "source_evidence": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/evidence_reference"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "evidence_sufficiency": {
+      "$ref": "common.schema.json#/$defs/evidence_sufficiency"
+    },
+    "confidence": {
+      "enum": [
+        "high",
+        "medium",
+        "low",
+        "not_applicable"
+      ]
+    },
+    "classification_authority": {
+      "$ref": "common.schema.json#/$defs/authority_reference"
+    }
+  },
+  "required": [
+    "contract_type",
+    "contract_version",
+    "classification_id",
+    "target",
+    "observed_facts",
+    "derived_classification",
+    "source_evidence",
+    "evidence_sufficiency",
+    "confidence",
+    "classification_authority"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "evidence_sufficiency": {
+            "const": "sufficient"
+          }
+        },
+        "required": [
+          "evidence_sufficiency"
+        ]
+      },
+      "then": {
+        "properties": {
+          "derived_classification": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "change_class": {
+                "enum": [
+                  "L0",
+                  "L1",
+                  "L2",
+                  "L3",
+                  "L4"
+                ]
+              },
+              "boundary_ids": {
+                "type": "array",
+                "items": {
+                  "$ref": "common.schema.json#/$defs/record_id"
+                },
+                "minItems": 1,
+                "uniqueItems": true
+              },
+              "classification_value": {
+                "$ref": "common.schema.json#/$defs/non_empty_string"
+              }
+            },
+            "required": [
+              "change_class",
+              "boundary_ids",
+              "classification_value"
+            ]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "derived_classification": {
+            "type": "null"
+          },
+          "confidence": {
+            "const": "not_applicable"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rezahh107/PR-Inspector/schemas/aigov/v2.5.0/policy_transition_record.schema.json",
+  "title": "AIGOV Inactive Policy Transition Record Contract",
+  "description": "Inactive, non-authoritative AIGOV v2.5.0 contract carrier.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contract_type": {"const": "policy_transition_record"},
+    "contract_version": {"const": "1.0"},
+    "transition_id": {"$ref": "common.schema.json#/$defs/record_id"},
+    "transition_target": {"$ref": "common.schema.json#/$defs/pr_target_identity"},
+    "current_policy": {"$ref": "common.schema.json#/$defs/policy_reference"},
+    "target_policy": {"$ref": "common.schema.json#/$defs/policy_reference"},
+    "evaluation_policy": {"$ref": "common.schema.json#/$defs/policy_reference"},
+    "evaluation_policy_role": {"const": "current_policy"},
+    "activation_preconditions": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/record_reference"}, "minItems": 1, "uniqueItems": true},
+    "owner_merge_required": {"const": true},
+    "owner_merge_evidence": {"anyOf": [{"$ref": "common.schema.json#/$defs/evidence_reference"}, {"type": "null"}]},
+    "exact_main_verification": {"anyOf": [{
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "verified": {"const": true},
+        "resulting_main": {"$ref": "common.schema.json#/$defs/default_branch_identity"},
+        "evidence_reference": {"$ref": "common.schema.json#/$defs/evidence_reference"}
+      },
+      "required": ["verified", "resulting_main", "evidence_reference"]
+    }, {"type": "null"}]},
+    "activation_result": {"$ref": "common.schema.json#/$defs/activation_result"},
+    "missing_historical_evidence": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/non_empty_string"}, "uniqueItems": true}
+  },
+  "required": ["contract_type", "contract_version", "transition_id", "transition_target", "current_policy", "target_policy", "evaluation_policy", "evaluation_policy_role", "activation_preconditions", "owner_merge_required", "owner_merge_evidence", "exact_main_verification", "activation_result", "missing_historical_evidence"],
+  "allOf": [{
+    "if": {"properties": {"activation_result": {"const": "activated"}}, "required": ["activation_result"]},
+    "then": {"properties": {
+      "owner_merge_evidence": {"$ref": "common.schema.json#/$defs/evidence_reference"},
+      "exact_main_verification": {"type": "object"},
+      "missing_historical_evidence": {"maxItems": 0}
+    }}
+  }]
+}
