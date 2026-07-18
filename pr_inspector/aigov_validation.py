@@ -5,11 +5,27 @@ import json
 import math
 from typing import Any, Mapping, Sequence
 
-from .aigov_errors import AIGOVValidationError, diagnostic
-from .aigov_models import AIGOVContract, AIGOVValidationProvenance, _MODEL_FACTORY_TOKEN, _mint_validated_contract
-from .aigov_schema_registry import CONTRACT_TYPES, LocalAIGOVSchemaRegistry, local_aigov_schema_registry
+from .aigov_errors import AIGOVDiagnostic, AIGOVValidationError, diagnostic
+from .aigov_models import (
+    AIGOVContract,
+    AIGOVValidationProvenance,
+    _MODEL_FACTORY_TOKEN,
+    _mint_validated_contract,
+)
+from .aigov_schema_registry import (
+    CONTRACT_TYPES,
+    LocalAIGOVSchemaRegistry,
+    _canonical_mint_registry,
+    local_aigov_schema_registry,
+)
 from .aigov_semantic_validation import _semantic_diagnostics
-from .aigov_validation_support import AIGOVValidationContext, SEMANTIC_VALIDATOR_VERSION, _pointer, canonical_scope_digest
+from .aigov_validation_support import (
+    AIGOVValidationContext,
+    SEMANTIC_VALIDATOR_VERSION,
+    _pointer,
+    canonical_scope_digest,
+)
+
 
 class _BoundaryError(ValueError):
     def __init__(self, path: str, reason: str):
@@ -82,12 +98,23 @@ def _duplicate_key_object(pairs: Sequence[tuple[str, object]]) -> dict[str, obje
     return result
 
 
+def _canonical_registry_for_mint(
+    registry: LocalAIGOVSchemaRegistry | object | None,
+) -> LocalAIGOVSchemaRegistry:
+    public_canonical = local_aigov_schema_registry()
+    if registry is not None and registry is not public_canonical:
+        raise TypeError(
+            "AIGOV model minting accepts only the canonical pinned schema registry"
+        )
+    return _canonical_mint_registry()
+
+
 def load_aigov_json(
     contract_type: str,
     raw_json: str | bytes,
     *,
     context: AIGOVValidationContext | None = None,
-    registry: LocalAIGOVSchemaRegistry | None = None,
+    registry: LocalAIGOVSchemaRegistry | object | None = None,
 ) -> AIGOVContract:
     if isinstance(raw_json, bytes):
         if len(raw_json) > 2_000_000:
@@ -193,7 +220,7 @@ def validate_aigov_contract(
     payload: Mapping[str, object],
     *,
     context: AIGOVValidationContext | None = None,
-    registry: LocalAIGOVSchemaRegistry | None = None,
+    registry: LocalAIGOVSchemaRegistry | object | None = None,
 ) -> tuple[AIGOVDiagnostic, ...]:
     if contract_type not in CONTRACT_TYPES:
         return (
@@ -228,9 +255,9 @@ def validate_aigov_contract(
             ),
         )
     schema_registry = registry or local_aigov_schema_registry()
-    schema_diagnostics = schema_registry.validate(contract_type, plain)
+    schema_diagnostics = schema_registry.validate(contract_type, plain)  # type: ignore[attr-defined]
     if schema_diagnostics:
-        return schema_diagnostics
+        return tuple(schema_diagnostics)
     return tuple(_semantic_diagnostics(contract_type, plain, context))
 
 
@@ -239,18 +266,19 @@ def load_aigov_contract(
     payload: Mapping[str, object],
     *,
     context: AIGOVValidationContext | None = None,
-    registry: LocalAIGOVSchemaRegistry | None = None,
+    registry: LocalAIGOVSchemaRegistry | object | None = None,
 ) -> AIGOVContract:
+    schema_registry = _canonical_registry_for_mint(registry)
     diagnostics = validate_aigov_contract(
         contract_type,
         payload,
         context=context,
-        registry=registry,
+        registry=schema_registry,
     )
     if diagnostics:
         raise AIGOVValidationError(diagnostics)
     plain = _plain_json(payload)
-    schema_registry = registry or local_aigov_schema_registry()
+    binding = schema_registry._canonical_mint_binding(contract_type)
     canonical = json.dumps(
         plain,
         ensure_ascii=False,
@@ -260,8 +288,8 @@ def load_aigov_contract(
     provenance = AIGOVValidationProvenance(
         contract_type=contract_type,
         contract_version=str(plain["contract_version"]),
-        schema_id=schema_registry.schema_id(contract_type),
-        schema_sha256=schema_registry.schema_sha256(contract_type),
+        schema_id=binding.schema_id,
+        schema_sha256=binding.schema_sha256,
         payload_sha256=hashlib.sha256(canonical).hexdigest(),
         semantic_validator_version=SEMANTIC_VALIDATOR_VERSION,
     )
@@ -271,6 +299,7 @@ def load_aigov_contract(
         provenance=provenance,
         factory_token=_MODEL_FACTORY_TOKEN,
     )
+
 
 __all__ = [
     "AIGOVValidationContext",
