@@ -176,17 +176,18 @@ def test_active_and_historical_protocol_release_locks_remain_byte_valid():
             if not line or line.startswith("#"):
                 continue
             separator = line.find("  ")
-            assert separator >= 0, f"{lock_path}:{number}: invalid lock line"
+            assert separator >= 0, f"Malformed entry in release-lock file {lock_path} at line {number}: missing double-space separator"
             digest = line[:separator]
             relative = line[separator + 2 :]
-            assert re.fullmatch(r"[0-9a-f]{64}", digest)
-            assert relative not in entries
-            entries[relative] = digest
-        assert entries, lock_path
-        for relative, digest in entries.items():
+            assert re.fullmatch(r"[0-9a-f]{64}", digest), f"Malformed entry in release-lock file {lock_path} at line {number}: digest must be a 64-character hex string, got '{digest}'"
+            assert relative not in entries, f"Duplicate entry in release-lock file {lock_path} at line {number}: path '{relative}' already defined"
+            entries[relative] = (number, digest)
+        assert entries, f"Invalid release-lock file {lock_path}: file is empty or contains no valid entries"
+        for relative, (number, digest) in entries.items():
             path = ROOT / relative
-            assert path.is_file(), f"{lock_path.name}: {relative}"
-            assert _sha256(path) == digest, f"{lock_path.name}: {relative}"
+            assert path.is_file(), f"Invalid entry in release-lock file {lock_path} at line {number}: referenced path '{relative}' does not exist or is not a file"
+            actual_hash = _sha256(path)
+            assert actual_hash == digest, f"Integrity mismatch in release-lock file {lock_path} at line {number}: expected digest '{digest}' for '{relative}', but got '{actual_hash}'"
 
 
 def test_pinned_documents_are_not_executable_runtime_configuration():
