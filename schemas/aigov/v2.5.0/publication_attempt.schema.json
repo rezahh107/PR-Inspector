@@ -3,6 +3,16 @@
   "$id": "https://github.com/rezahh107/PR-Inspector/schemas/aigov/v2.5.0/publication_attempt.schema.json",
   "title": "AIGOV Inactive Publication Attempt Contract",
   "description": "Inactive, non-authoritative append-only publication attempt envelope separate from Receipt Core.",
+  "$defs": {
+    "publication_attempt_status": {
+      "enum": [
+        "not_attempted",
+        "publishing",
+        "published_verified",
+        "publication_failed"
+      ]
+    }
+  },
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -28,7 +38,7 @@
       "$ref": "common.schema.json#/$defs/tagged_sha256"
     },
     "publication_status": {
-      "$ref": "common.schema.json#/$defs/receipt_publication_status"
+      "$ref": "#/$defs/publication_attempt_status"
     },
     "receipt_validation_status": {
       "enum": [
@@ -232,6 +242,76 @@
       "if": {
         "properties": {
           "publication_status": {
+            "const": "not_attempted"
+          }
+        },
+        "required": [
+          "publication_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "published_object_id": {
+            "type": "null"
+          },
+          "published_at": {
+            "type": "null"
+          },
+          "readback_verified_at": {
+            "type": "null"
+          },
+          "published_body_sha256": {
+            "type": "null"
+          },
+          "failure_reason": {
+            "type": "null"
+          },
+          "readback_status": {
+            "const": "NOT_PERFORMED"
+          },
+          "readback_evidence_ref": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "publication_status": {
+            "const": "publishing"
+          }
+        },
+        "required": [
+          "publication_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "readback_verified_at": {
+            "type": "null"
+          },
+          "failure_reason": {
+            "type": "null"
+          },
+          "readback_status": {
+            "enum": [
+              "FAILED",
+              "NOT_PERFORMED"
+            ]
+          },
+          "receipt_validation_status": {
+            "not": {
+              "const": "current_valid"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "publication_status": {
             "const": "published_verified"
           }
         },
@@ -282,6 +362,48 @@
         "properties": {
           "failure_reason": {
             "type": "string"
+          },
+          "readback_verified_at": {
+            "type": "null"
+          },
+          "readback_status": {
+            "enum": [
+              "FAILED",
+              "NOT_PERFORMED"
+            ]
+          },
+          "receipt_validation_status": {
+            "not": {
+              "const": "current_valid"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "receipt_validation_status": {
+            "const": "current_valid"
+          }
+        },
+        "required": [
+          "receipt_validation_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "publication_status": {
+            "const": "published_verified"
+          },
+          "readback_status": {
+            "const": "VERIFIED"
+          },
+          "readback_verified_at": {
+            "$ref": "common.schema.json#/$defs/timestamp"
+          },
+          "readback_evidence_ref": {
+            "$ref": "common.schema.json#/$defs/evidence_reference"
           }
         }
       }
@@ -307,6 +429,47 @@
       "else": {
         "properties": {
           "conflicting_receipt_ref": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "readback_status": {
+            "const": "NOT_PERFORMED"
+          }
+        },
+        "required": [
+          "readback_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "readback_verified_at": {
+            "type": "null"
+          },
+          "readback_evidence_ref": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "readback_status": {
+            "const": "FAILED"
+          }
+        },
+        "required": [
+          "readback_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "readback_verified_at": {
             "type": "null"
           }
         }
