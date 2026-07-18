@@ -147,15 +147,6 @@
   ],
   "allOf": [
     {
-      "properties": {
-        "evaluation_policy_identity": {
-          "const": {
-            "$data": "1/current_policy_identity"
-          }
-        }
-      }
-    },
-    {
       "if": {
         "properties": {
           "post_merge_closure_status": {
