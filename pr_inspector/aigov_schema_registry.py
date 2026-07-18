@@ -4,6 +4,7 @@ import copy
 import hashlib
 import json
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Mapping
@@ -32,6 +33,16 @@ CONTRACT_TYPES = (
     "tool_execution_attestation",
 )
 
+_CANONICAL_REGISTRY_CAPABILITY = object()
+
+
+@dataclass(frozen=True, slots=True)
+class _CanonicalRegistryBinding:
+    schema_directory: str
+    schema_id: str
+    schema_sha256: str
+    capability: object
+
 
 def _json_object(path: Path) -> dict[str, Any]:
     try:
@@ -55,9 +66,24 @@ def _refs(value: object):
 
 
 class LocalAIGOVSchemaRegistry:
-    """Pinned local-only JSON Schema registry for inactive AIGOV contracts."""
+    """Pinned local-only JSON Schema registry for inactive AIGOV contracts.
+
+    Public instances are diagnostic-only. Only a private fresh canonical instance
+    carries the capability required by the model-minting path.
+    """
 
     def __init__(self, schema_dir: Path = SCHEMA_DIR):
+        self._initialize(schema_dir)
+        self._canonical_capability: object | None = None
+
+    @classmethod
+    def _canonical_instance(cls) -> LocalAIGOVSchemaRegistry:
+        value = cls.__new__(cls)
+        value._initialize(SCHEMA_DIR)
+        value._canonical_capability = _CANONICAL_REGISTRY_CAPABILITY
+        return value
+
+    def _initialize(self, schema_dir: Path) -> None:
         try:
             resolved_schema_dir = schema_dir.resolve(strict=True)
         except OSError as exc:
@@ -150,6 +176,37 @@ class LocalAIGOVSchemaRegistry:
                 format_checker=FormatChecker(),
             )
 
+    def _canonical_mint_binding(self, contract_type: str) -> _CanonicalRegistryBinding:
+        try:
+            canonical_directory = SCHEMA_DIR.resolve(strict=True)
+        except OSError as exc:
+            raise RuntimeError(f"cannot resolve canonical AIGOV schema directory: {exc}") from exc
+        if (
+            self._canonical_capability is not _CANONICAL_REGISTRY_CAPABILITY
+            or self._schema_dir != canonical_directory
+        ):
+            raise RuntimeError(
+                "AIGOV model minting requires the canonical pinned schema registry"
+            )
+        if contract_type not in CONTRACT_TYPES:
+            raise RuntimeError("unknown AIGOV contract cannot be canonically bound")
+
+        schema_path = self._local_regular_file(f"{contract_type}.schema.json")
+        raw = schema_path.read_bytes()
+        current_digest = hashlib.sha256(raw).hexdigest()
+        current_schema = _json_object(schema_path)
+        current_id = current_schema.get("$id")
+        if current_id != self.schema_id(contract_type):
+            raise RuntimeError("canonical AIGOV schema ID changed after registry load")
+        if current_digest != self.schema_sha256(contract_type):
+            raise RuntimeError("canonical AIGOV schema digest changed after registry load")
+        return _CanonicalRegistryBinding(
+            schema_directory=str(canonical_directory),
+            schema_id=str(current_id),
+            schema_sha256=current_digest,
+            capability=_CANONICAL_REGISTRY_CAPABILITY,
+        )
+
     @property
     def contract_types(self) -> tuple[str, ...]:
         return CONTRACT_TYPES
@@ -222,3 +279,7 @@ def local_aigov_schema_registry() -> LocalAIGOVSchemaRegistry:
     if _DEFAULT_REGISTRY is None:
         _DEFAULT_REGISTRY = LocalAIGOVSchemaRegistry()
     return _DEFAULT_REGISTRY
+
+
+def _canonical_mint_registry() -> LocalAIGOVSchemaRegistry:
+    return LocalAIGOVSchemaRegistry._canonical_instance()
