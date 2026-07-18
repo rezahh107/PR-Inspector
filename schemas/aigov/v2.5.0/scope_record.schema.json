@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rezahh107/PR-Inspector/schemas/aigov/v2.5.0/scope_record.schema.json",
+  "title": "AIGOV Inactive Scope Record Contract",
+  "description": "Inactive, non-authoritative authority-bound Scope Gate carrier.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contract_type": {
+      "const": "scope_record"
+    },
+    "contract_version": {
+      "const": "1.0"
+    },
+    "activation_state": {
+      "const": "inactive"
+    },
+    "scope_id": {
+      "$ref": "common.schema.json#/$defs/record_id"
+    },
+    "repository_identity": {
+      "$ref": "common.schema.json#/$defs/repository_identity"
+    },
+    "target_identity": {
+      "$ref": "common.schema.json#/$defs/target_identity"
+    },
+    "base_sha": {
+      "$ref": "common.schema.json#/$defs/git_commit_sha"
+    },
+    "head_sha": {
+      "$ref": "common.schema.json#/$defs/git_commit_sha"
+    },
+    "included_paths": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/non_empty_string"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "excluded_paths": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/non_empty_string"
+      },
+      "uniqueItems": true
+    },
+    "deferred_items": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/non_empty_string"
+      },
+      "uniqueItems": true
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/record_reference"
+      },
+      "uniqueItems": true
+    },
+    "scope_authority_binding_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/record_reference"
+      },
+      "uniqueItems": true
+    },
+    "governing_revision": {
+      "$ref": "common.schema.json#/$defs/non_empty_string"
+    },
+    "unresolved_scope": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/non_empty_string"
+      },
+      "uniqueItems": true
+    },
+    "scope_digest": {
+      "$ref": "common.schema.json#/$defs/tagged_sha256"
+    },
+    "scope_authority_ref": {
+      "$ref": "common.schema.json#/$defs/authority_reference"
+    },
+    "scope_status": {
+      "enum": [
+        "resolved",
+        "blocked_insufficient_evidence"
+      ]
+    }
+  },
+  "required": [
+    "contract_type",
+    "contract_version",
+    "activation_state",
+    "scope_id",
+    "repository_identity",
+    "target_identity",
+    "base_sha",
+    "head_sha",
+    "included_paths",
+    "excluded_paths",
+    "deferred_items",
+    "dependencies",
+    "scope_authority_binding_refs",
+    "governing_revision",
+    "unresolved_scope",
+    "scope_digest",
+    "scope_authority_ref",
+    "scope_status"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "scope_status": {
+            "const": "resolved"
+          }
+        },
+        "required": [
+          "scope_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "unresolved_scope": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "anyOf": [
+          {
+            "properties": {
+              "excluded_paths": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "excluded_paths"
+            ]
+          },
+          {
+            "properties": {
+              "deferred_items": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "deferred_items"
+            ]
+          }
+        ]
+      },
+      "then": {
+        "properties": {
+          "scope_authority_binding_refs": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ]
+}

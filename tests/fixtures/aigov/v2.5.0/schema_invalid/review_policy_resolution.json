@@ -1,0 +1,37 @@
+{
+  "contract_type": "review_policy_resolution",
+  "contract_version": "1.0",
+  "activation_state": "inactive",
+  "resolution_id": "resolution-001",
+  "target_identity": {
+    "repository_full_name": "rezahh107/example",
+    "repository_id": 42,
+    "pr_number": 7,
+    "reviewed_head_sha": "bad-head"
+  },
+  "status": "RESOLVED",
+  "effective_requirement": "required",
+  "effective_inspection_profile": "standard",
+  "effective_evidence_profile": "full",
+  "effective_merge_enforcement_profile": "owner_controlled",
+  "effective_execution_urgency": "normal",
+  "receipt_publication_required": true,
+  "authoritative": true,
+  "matched_sources": [
+    {
+      "authority_ref": "governance/aigov/v2.5.0/AI_AUTHORITY_DETERMINISTIC_GOVERNANCE_SSOT_v2.5.0.fa.md",
+      "authority_identity": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "source_locator": "Section 4"
+    }
+  ],
+  "activated_conditions": [],
+  "evidence_refs": [
+    {
+      "evidence_id": "evidence-1",
+      "evidence_type": "pull_request_api",
+      "exact_identity": "rezahh107/example#7",
+      "source_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "retrieval_method": "github_api"
+    }
+  ]
+}

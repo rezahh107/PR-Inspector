@@ -1,0 +1,54 @@
+{
+  "contract_type": "obligation_authority_binding",
+  "contract_version": "1.0",
+  "activation_state": "inactive",
+  "carrier_id": "obligation_authority_binding",
+  "governed_rules": [
+    "AIGOV-EVIDENCE-001"
+  ],
+  "obligation_id": "obligation-001",
+  "obligation_type": "evidence_requirement",
+  "authority_ref": "governance/aigov/v2.5.0/AI_AUTHORITY_DETERMINISTIC_GOVERNANCE_SSOT_v2.5.0.fa.md",
+  "authority_identity": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "source_locator": "Section 14.6",
+  "resolution_status": "VERIFIED_SOURCE_BOUND",
+  "affected_actor_or_component": "PR-Inspector",
+  "required_evidence_refs": [
+    {
+      "evidence_id": "evidence-1",
+      "evidence_type": "source_document",
+      "exact_identity": "AIGOV-v2.5.0#14.6",
+      "source_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "retrieval_method": "local_verified_read"
+    }
+  ],
+  "enforcement_carrier_ref": {
+    "record_type": "schema",
+    "record_id": "obligation-schema",
+    "record_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  },
+  "current_enforcement_status": "fixture_tested",
+  "schema_carrier_ref": {
+    "evidence_id": "schema-1",
+    "evidence_type": "artifact",
+    "exact_identity": "schemas/aigov/v2.5.0/obligation_authority_binding.schema.json",
+    "source_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "retrieval_method": "local_verified_read"
+  },
+  "validator_ref": {
+    "evidence_id": "validator-1",
+    "evidence_type": "artifact",
+    "exact_identity": "tests/test_aigov_schemas.py",
+    "source_digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "retrieval_method": "local_verified_read"
+  },
+  "fixture_evidence_ref": {
+    "evidence_id": "fixtures-1",
+    "evidence_type": "artifact",
+    "exact_identity": "tests/fixtures/aigov/v2.5.0",
+    "source_digest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "retrieval_method": "local_verified_read"
+  },
+  "ci_evidence_ref": null,
+  "downstream_consumer_ref": null
+}

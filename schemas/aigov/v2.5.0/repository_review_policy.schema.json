@@ -1,0 +1,216 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rezahh107/PR-Inspector/schemas/aigov/v2.5.0/repository_review_policy.schema.json",
+  "title": "AIGOV Inactive Repository Review Policy Contract",
+  "description": "Inactive, non-authoritative carrier aligned with the canonical Repository Review Policy fields.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contract_type": {
+      "const": "repository_review_policy"
+    },
+    "contract_version": {
+      "const": "1.0"
+    },
+    "activation_state": {
+      "const": "inactive"
+    },
+    "schema_version": {
+      "const": "1.1"
+    },
+    "repository_identity": {
+      "$ref": "common.schema.json#/$defs/repository_identity"
+    },
+    "policy_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+(?:\\.[0-9]+)?$"
+    },
+    "policy_authority_ref": {
+      "$ref": "common.schema.json#/$defs/authority_reference"
+    },
+    "policy_identity": {
+      "$ref": "common.schema.json#/$defs/tagged_sha256"
+    },
+    "lifecycle_state": {
+      "$ref": "common.schema.json#/$defs/policy_lifecycle"
+    },
+    "default_requirement": {
+      "$ref": "common.schema.json#/$defs/review_requirement"
+    },
+    "default_inspection_profile": {
+      "$ref": "common.schema.json#/$defs/inspection_profile"
+    },
+    "default_evidence_profile": {
+      "$ref": "common.schema.json#/$defs/evidence_profile"
+    },
+    "default_merge_enforcement_profile": {
+      "$ref": "common.schema.json#/$defs/merge_enforcement_profile"
+    },
+    "default_execution_urgency": {
+      "$ref": "common.schema.json#/$defs/execution_urgency"
+    },
+    "boundary_overrides": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/record_reference"
+      },
+      "uniqueItems": true
+    },
+    "target_overrides": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/record_reference"
+      },
+      "uniqueItems": true
+    },
+    "publication_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required_when_review_required": {
+          "type": "boolean"
+        },
+        "allowed_carriers": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "structured_pr_comment",
+              "github_check_run",
+              "immutable_ledger_pointer",
+              "repository_defined"
+            ]
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "required_when_review_required",
+        "allowed_carriers"
+      ]
+    },
+    "merge_readiness_authority": {
+      "enum": [
+        "owner_only",
+        "owner_with_ci_enforcement",
+        "owner_with_repository_enforcement"
+      ]
+    },
+    "repository_hosted_enforcement_claim": {
+      "enum": [
+        "not_claimed",
+        "configured_unverified",
+        "verified",
+        "conflicting"
+      ]
+    },
+    "repository_hosted_enforcement_evidence_ref": {
+      "$ref": "common.schema.json#/$defs/nullable_evidence_reference"
+    },
+    "transition_record_ref": {
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/record_reference"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "fail_closed_on_missing_required_evidence": {
+      "const": true
+    }
+  },
+  "required": [
+    "contract_type",
+    "contract_version",
+    "activation_state",
+    "schema_version",
+    "repository_identity",
+    "policy_version",
+    "policy_authority_ref",
+    "policy_identity",
+    "lifecycle_state",
+    "default_requirement",
+    "default_inspection_profile",
+    "default_evidence_profile",
+    "default_merge_enforcement_profile",
+    "default_execution_urgency",
+    "boundary_overrides",
+    "target_overrides",
+    "publication_policy",
+    "merge_readiness_authority",
+    "repository_hosted_enforcement_claim",
+    "repository_hosted_enforcement_evidence_ref",
+    "transition_record_ref",
+    "fail_closed_on_missing_required_evidence"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "repository_hosted_enforcement_claim": {
+            "const": "verified"
+          }
+        },
+        "required": [
+          "repository_hosted_enforcement_claim"
+        ]
+      },
+      "then": {
+        "properties": {
+          "repository_hosted_enforcement_evidence_ref": {
+            "$ref": "common.schema.json#/$defs/evidence_reference"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "lifecycle_state": {
+            "const": "active"
+          }
+        },
+        "required": [
+          "lifecycle_state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "transition_record_ref": {
+            "$ref": "common.schema.json#/$defs/record_reference"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "lifecycle_state": {
+            "enum": [
+              "candidate",
+              "trial",
+              "inactive"
+            ]
+          }
+        },
+        "required": [
+          "lifecycle_state"
+        ]
+      },
+      "then": {
+        "not": {
+          "properties": {
+            "repository_hosted_enforcement_claim": {
+              "const": "verified"
+            }
+          },
+          "required": [
+            "repository_hosted_enforcement_claim"
+          ]
+        }
+      }
+    }
+  ]
+}

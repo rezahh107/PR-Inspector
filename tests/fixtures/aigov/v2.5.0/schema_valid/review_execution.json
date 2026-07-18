@@ -1,0 +1,38 @@
+{
+  "contract_type": "review_execution",
+  "contract_version": "1.0",
+  "activation_state": "inactive",
+  "review_id": "review-001",
+  "repository_full_name": "rezahh107/example",
+  "repository_id": 42,
+  "pr_number": 7,
+  "reviewed_head_sha": "1111111111111111111111111111111111111111",
+  "scope_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "protocol_version": "v1.11.1",
+  "inspector_identity": {
+    "repository": "rezahh107/PR-Inspector",
+    "repository_id": 1288323264,
+    "commit_sha": "2222222222222222222222222222222222222222"
+  },
+  "inspection_profile": "standard",
+  "evidence_profile": "full",
+  "execution_urgency": "normal",
+  "policy_resolution_ref": {
+    "record_type": "review_policy_resolution",
+    "record_id": "resolution-001",
+    "record_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "tool_execution_attestation_refs": [
+    {
+      "record_type": "tool_execution_attestation",
+      "record_id": "attestation-001",
+      "record_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+  ],
+  "execution_status": "performed",
+  "technical_status": "GREEN_TECHNICALLY_READY",
+  "canonical_package_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "decision_projection_digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "performed_at": "2026-07-18T12:00:00Z",
+  "completion_claim": "not_proven_by_this_record"
+}

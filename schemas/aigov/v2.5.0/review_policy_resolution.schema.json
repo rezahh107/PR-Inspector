@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rezahh107/PR-Inspector/schemas/aigov/v2.5.0/review_policy_resolution.schema.json",
+  "title": "AIGOV Inactive Review Policy Resolution Contract",
+  "description": "Inactive carrier aligned with canonical policy resolution vocabulary and strongest-applicable-minimum dimensions.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contract_type": {
+      "const": "review_policy_resolution"
+    },
+    "contract_version": {
+      "const": "1.0"
+    },
+    "activation_state": {
+      "const": "inactive"
+    },
+    "resolution_id": {
+      "$ref": "common.schema.json#/$defs/record_id"
+    },
+    "target_identity": {
+      "$ref": "common.schema.json#/$defs/target_identity"
+    },
+    "status": {
+      "$ref": "common.schema.json#/$defs/review_policy_resolution_status"
+    },
+    "effective_requirement": {
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/review_requirement"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "effective_inspection_profile": {
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/inspection_profile"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "effective_evidence_profile": {
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/evidence_profile"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "effective_merge_enforcement_profile": {
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/merge_enforcement_profile"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "effective_execution_urgency": {
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/execution_urgency"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "receipt_publication_required": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "authoritative": {
+      "type": "boolean"
+    },
+    "matched_sources": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/authority_reference"
+      },
+      "uniqueItems": true
+    },
+    "activated_conditions": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/record_reference"
+      },
+      "uniqueItems": true
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/evidence_reference"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "contract_type",
+    "contract_version",
+    "activation_state",
+    "resolution_id",
+    "target_identity",
+    "status",
+    "effective_requirement",
+    "effective_inspection_profile",
+    "effective_evidence_profile",
+    "effective_merge_enforcement_profile",
+    "effective_execution_urgency",
+    "receipt_publication_required",
+    "authoritative",
+    "matched_sources",
+    "activated_conditions",
+    "evidence_refs"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "RESOLVED"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "effective_requirement": {
+            "$ref": "common.schema.json#/$defs/review_requirement"
+          },
+          "effective_inspection_profile": {
+            "$ref": "common.schema.json#/$defs/inspection_profile"
+          },
+          "effective_evidence_profile": {
+            "$ref": "common.schema.json#/$defs/evidence_profile"
+          },
+          "effective_merge_enforcement_profile": {
+            "$ref": "common.schema.json#/$defs/merge_enforcement_profile"
+          },
+          "effective_execution_urgency": {
+            "$ref": "common.schema.json#/$defs/execution_urgency"
+          },
+          "receipt_publication_required": {
+            "type": "boolean"
+          },
+          "authoritative": {
+            "const": true
+          },
+          "matched_sources": {
+            "minItems": 1
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "effective_requirement": {
+            "type": "null"
+          },
+          "effective_inspection_profile": {
+            "type": "null"
+          },
+          "effective_evidence_profile": {
+            "type": "null"
+          },
+          "effective_merge_enforcement_profile": {
+            "type": "null"
+          },
+          "effective_execution_urgency": {
+            "type": "null"
+          },
+          "receipt_publication_required": {
+            "type": "null"
+          },
+          "authoritative": {
+            "const": false
+          }
+        }
+      }
+    }
+  ]
+}

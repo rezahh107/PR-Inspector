@@ -1,0 +1,63 @@
+{
+  "schema_index_version": "1.0",
+  "aigov_source_version": "2.5.0",
+  "activation_state": "inactive",
+  "authoritative_runtime": false,
+  "active_protocol_integration": false,
+  "canonical_source_paths": [
+    "governance/aigov/v2.5.0/AI_AUTHORITY_DETERMINISTIC_GOVERNANCE_SSOT_v2.5.0.fa.md",
+    "governance/aigov/v2.5.0/PERSONAL_AI_OPERATED_REPOSITORY_REVIEW_PROFILE_v1.2.0.fa.md",
+    "governance/aigov/v2.5.0/PR_INSPECTOR_REVIEW_RECEIPT_PUBLICATION_CONTRACT_v1.2.0.fa.md",
+    "governance/aigov/v2.5.0/AIGOV_BEHAVIORAL_RULE_COVERAGE_CONTRACT_v1.2.0.fa.md"
+  ],
+  "schemas": [
+    {
+      "contract_type": "repository_review_policy",
+      "path": "schemas/aigov/v2.5.0/repository_review_policy.schema.json"
+    },
+    {
+      "contract_type": "review_policy_resolution",
+      "path": "schemas/aigov/v2.5.0/review_policy_resolution.schema.json"
+    },
+    {
+      "contract_type": "obligation_authority_binding",
+      "path": "schemas/aigov/v2.5.0/obligation_authority_binding.schema.json"
+    },
+    {
+      "contract_type": "classification_record",
+      "path": "schemas/aigov/v2.5.0/classification_record.schema.json"
+    },
+    {
+      "contract_type": "scope_record",
+      "path": "schemas/aigov/v2.5.0/scope_record.schema.json"
+    },
+    {
+      "contract_type": "review_execution",
+      "path": "schemas/aigov/v2.5.0/review_execution.schema.json"
+    },
+    {
+      "contract_type": "review_receipt_core",
+      "path": "schemas/aigov/v2.5.0/review_receipt_core.schema.json"
+    },
+    {
+      "contract_type": "publication_attempt",
+      "path": "schemas/aigov/v2.5.0/publication_attempt.schema.json"
+    },
+    {
+      "contract_type": "policy_transition_record",
+      "path": "schemas/aigov/v2.5.0/policy_transition_record.schema.json"
+    },
+    {
+      "contract_type": "merge_readiness_record",
+      "path": "schemas/aigov/v2.5.0/merge_readiness_record.schema.json"
+    },
+    {
+      "contract_type": "post_merge_closure",
+      "path": "schemas/aigov/v2.5.0/post_merge_closure.schema.json"
+    },
+    {
+      "contract_type": "tool_execution_attestation",
+      "path": "schemas/aigov/v2.5.0/tool_execution_attestation.schema.json"
+    }
+  ]
+}

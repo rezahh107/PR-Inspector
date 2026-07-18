@@ -1,0 +1,102 @@
+{
+  "contract_type": "tool_execution_attestation",
+  "contract_version": "1.0",
+  "activation_state": "inactive",
+  "carrier_id": "tool_execution_attestation",
+  "governed_rule_id": "AIGOV-TOOL-EXECUTION-001",
+  "attestation_id": "attestation-001",
+  "capability_authority_ref": {
+    "authority_ref": "tool-capability-policy",
+    "authority_identity": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "source_locator": "capabilities/publisher"
+  },
+  "selected_tool": "github.create-comment",
+  "tool_schema_identity": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "target_identity": {
+    "target_type": "pr",
+    "exact_identity": "rezahh107/example#7@1111111111111111111111111111111111111111"
+  },
+  "provider_identity": "caller-authored workflow description",
+  "workflow_identity": {
+    "workflow_name": "Publish Receipt",
+    "workflow_file": ".github/workflows/publish.yml",
+    "trusted_revision_sha": "2222222222222222222222222222222222222222"
+  },
+  "run_identity": {
+    "run_id": 101,
+    "run_attempt": 1
+  },
+  "job_identity": {
+    "job_id": 201,
+    "job_name": "publish"
+  },
+  "step_identity": {
+    "step_number": 3,
+    "step_name": "Publish"
+  },
+  "command_or_validator_identity": "publisher-v1",
+  "parameter_bindings": [
+    {
+      "parameter_name": "pr_number",
+      "supplied_value_or_canonical_digest": "7",
+      "source_ref": {
+        "authority_ref": "verified-pr-target",
+        "authority_identity": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "source_locator": "target/pr_number"
+      },
+      "source_field_path": "/pr_number",
+      "source_identity": "rezahh107/example#7",
+      "parameter_constraint_authority_refs": [],
+      "transformation": {
+        "transformation_id": "identity",
+        "validation_ref": null
+      },
+      "binding_status": "VERIFIED_SOURCE_BOUND"
+    }
+  ],
+  "invocation_record": {
+    "invocation_id": "invocation-001",
+    "claimed_execution": true,
+    "execution_status": "success",
+    "executed_at": "2026-07-18T12:00:00Z"
+  },
+  "execution_result": {
+    "result_identity": "comment-900",
+    "captured_result_fields": [
+      "comment_id",
+      "created_at"
+    ]
+  },
+  "state_changed": true,
+  "readback_status": "VERIFIED",
+  "readback_ref": {
+    "evidence_id": "readback-1",
+    "evidence_type": "structured_record",
+    "exact_identity": "comment-900",
+    "source_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "retrieval_method": "github_api"
+  },
+  "readback_not_required_authority_ref": null,
+  "final_claim_bindings": [
+    {
+      "claim_id": "claim-1",
+      "result_field_refs": [
+        "comment_id"
+      ],
+      "binding_status": "VERIFIED_READBACK_BOUND"
+    }
+  ],
+  "evidence_retrieval_method": "github_api",
+  "pagination_completeness_ref": null,
+  "authentication_provenance": {
+    "authentication_method": "github_app_installation",
+    "authenticated_subject": "app:publisher",
+    "provenance_evidence_ref": {
+      "evidence_id": "auth-1",
+      "evidence_type": "structured_record",
+      "exact_identity": "installation-300",
+      "source_digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "retrieval_method": "github_api"
+    }
+  }
+}

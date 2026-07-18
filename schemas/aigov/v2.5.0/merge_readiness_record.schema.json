@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rezahh107/PR-Inspector/schemas/aigov/v2.5.0/merge_readiness_record.schema.json",
+  "title": "AIGOV Inactive Merge Readiness Record Contract",
+  "description": "Inactive, non-authoritative carrier that keeps technical status separate from Merge readiness.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contract_type": {
+      "const": "merge_readiness_record"
+    },
+    "contract_version": {
+      "const": "1.0"
+    },
+    "activation_state": {
+      "const": "inactive"
+    },
+    "readiness_id": {
+      "$ref": "common.schema.json#/$defs/record_id"
+    },
+    "target_identity": {
+      "$ref": "common.schema.json#/$defs/target_identity"
+    },
+    "technical_status_ref": {
+      "$ref": "common.schema.json#/$defs/record_reference"
+    },
+    "policy_resolution_ref": {
+      "$ref": "common.schema.json#/$defs/record_reference"
+    },
+    "receipt_requirement_result": {
+      "enum": [
+        "satisfied",
+        "not_required",
+        "blocking",
+        "unresolved"
+      ]
+    },
+    "publication_result": {
+      "$ref": "common.schema.json#/$defs/receipt_publication_status"
+    },
+    "merge_enforcement_profile": {
+      "$ref": "common.schema.json#/$defs/merge_enforcement_profile"
+    },
+    "merge_governance_status": {
+      "$ref": "common.schema.json#/$defs/merge_governance_status"
+    },
+    "merge_readiness_result": {
+      "$ref": "common.schema.json#/$defs/merge_readiness_result"
+    },
+    "merge_authorization_state": {
+      "enum": [
+        "not_authorized",
+        "owner_only_authorized"
+      ]
+    },
+    "unresolved_evidence_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/evidence_reference"
+      },
+      "uniqueItems": true
+    },
+    "blocking_reasons": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/record_id"
+      },
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "contract_type",
+    "contract_version",
+    "activation_state",
+    "readiness_id",
+    "target_identity",
+    "technical_status_ref",
+    "policy_resolution_ref",
+    "receipt_requirement_result",
+    "publication_result",
+    "merge_enforcement_profile",
+    "merge_governance_status",
+    "merge_readiness_result",
+    "merge_authorization_state",
+    "unresolved_evidence_refs",
+    "blocking_reasons"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "merge_readiness_result": {
+            "const": "READY_FOR_USER_MERGE"
+          }
+        },
+        "required": [
+          "merge_readiness_result"
+        ]
+      },
+      "then": {
+        "properties": {
+          "receipt_requirement_result": {
+            "enum": [
+              "satisfied",
+              "not_required"
+            ]
+          },
+          "publication_result": {
+            "enum": [
+              "not_required",
+              "published_verified"
+            ]
+          },
+          "merge_governance_status": {
+            "enum": [
+              "enforcement_verified",
+              "enforcement_not_required"
+            ]
+          },
+          "merge_authorization_state": {
+            "const": "owner_only_authorized"
+          },
+          "unresolved_evidence_refs": {
+            "maxItems": 0
+          },
+          "blocking_reasons": {
+            "maxItems": 0
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "merge_authorization_state": {
+            "const": "not_authorized"
+          }
+        }
+      }
+    }
+  ]
+}

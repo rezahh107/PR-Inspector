@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rezahh107/PR-Inspector/schemas/aigov/v2.5.0/review_receipt_core.schema.json",
+  "title": "AIGOV Inactive Review Receipt Core Contract",
+  "description": "Inactive immutable Receipt Core carrier; publication metadata is structurally forbidden.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contract_type": {
+      "const": "review_receipt_core"
+    },
+    "contract_version": {
+      "const": "1.0"
+    },
+    "activation_state": {
+      "const": "inactive"
+    },
+    "receipt_schema_version": {
+      "const": "1.0"
+    },
+    "review_id": {
+      "$ref": "common.schema.json#/$defs/record_id"
+    },
+    "sequence_number": {
+      "$ref": "common.schema.json#/$defs/positive_integer"
+    },
+    "supersedes_review_id": {
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/record_id"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "supersession_reason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1
+    },
+    "repository_full_name": {
+      "type": "string",
+      "pattern": "^[^/\\s]+/[^/\\s]+$"
+    },
+    "repository_id": {
+      "$ref": "common.schema.json#/$defs/positive_integer"
+    },
+    "pr_number": {
+      "$ref": "common.schema.json#/$defs/positive_integer"
+    },
+    "reviewed_head_sha": {
+      "$ref": "common.schema.json#/$defs/git_commit_sha"
+    },
+    "scope_digest": {
+      "$ref": "common.schema.json#/$defs/tagged_sha256"
+    },
+    "protocol_version": {
+      "type": "string",
+      "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "inspector_repository": {
+      "const": "rezahh107/PR-Inspector"
+    },
+    "inspector_repository_id": {
+      "const": 1288323264
+    },
+    "inspector_commit_sha": {
+      "$ref": "common.schema.json#/$defs/git_commit_sha"
+    },
+    "inspection_profile": {
+      "$ref": "common.schema.json#/$defs/inspection_profile"
+    },
+    "evidence_profile": {
+      "$ref": "common.schema.json#/$defs/evidence_profile"
+    },
+    "execution_urgency": {
+      "$ref": "common.schema.json#/$defs/execution_urgency"
+    },
+    "technical_status": {
+      "$ref": "common.schema.json#/$defs/technical_status"
+    },
+    "canonical_package_digest": {
+      "$ref": "common.schema.json#/$defs/tagged_sha256"
+    },
+    "decision_projection_digest": {
+      "$ref": "common.schema.json#/$defs/tagged_sha256"
+    },
+    "performed_at": {
+      "$ref": "common.schema.json#/$defs/timestamp"
+    }
+  },
+  "required": [
+    "contract_type",
+    "contract_version",
+    "activation_state",
+    "receipt_schema_version",
+    "review_id",
+    "sequence_number",
+    "supersedes_review_id",
+    "supersession_reason",
+    "repository_full_name",
+    "repository_id",
+    "pr_number",
+    "reviewed_head_sha",
+    "scope_digest",
+    "protocol_version",
+    "inspector_repository",
+    "inspector_repository_id",
+    "inspector_commit_sha",
+    "inspection_profile",
+    "evidence_profile",
+    "execution_urgency",
+    "technical_status",
+    "canonical_package_digest",
+    "decision_projection_digest",
+    "performed_at"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "supersedes_review_id": {
+            "type": "null"
+          }
+        },
+        "required": [
+          "supersedes_review_id"
+        ]
+      },
+      "then": {
+        "properties": {
+          "supersession_reason": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "supersession_reason": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  ]
+}

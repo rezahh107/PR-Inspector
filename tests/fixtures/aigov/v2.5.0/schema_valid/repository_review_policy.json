@@ -1,0 +1,36 @@
+{
+  "contract_type": "repository_review_policy",
+  "contract_version": "1.0",
+  "activation_state": "inactive",
+  "schema_version": "1.1",
+  "repository_identity": {
+    "repository_full_name": "rezahh107/example",
+    "repository_id": 42
+  },
+  "policy_version": "1.0",
+  "policy_authority_ref": {
+    "authority_ref": "governance/aigov/v2.5.0/AI_AUTHORITY_DETERMINISTIC_GOVERNANCE_SSOT_v2.5.0.fa.md",
+    "authority_identity": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "source_locator": "Section 4.2"
+  },
+  "policy_identity": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "lifecycle_state": "inactive",
+  "default_requirement": "required",
+  "default_inspection_profile": "standard",
+  "default_evidence_profile": "full",
+  "default_merge_enforcement_profile": "owner_controlled",
+  "default_execution_urgency": "normal",
+  "boundary_overrides": [],
+  "target_overrides": [],
+  "publication_policy": {
+    "required_when_review_required": true,
+    "allowed_carriers": [
+      "structured_pr_comment"
+    ]
+  },
+  "merge_readiness_authority": "owner_only",
+  "repository_hosted_enforcement_claim": "not_claimed",
+  "repository_hosted_enforcement_evidence_ref": null,
+  "transition_record_ref": null,
+  "fail_closed_on_missing_required_evidence": true
+}

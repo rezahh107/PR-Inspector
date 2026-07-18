@@ -1,0 +1,61 @@
+{
+  "contract_type": "post_merge_closure",
+  "contract_version": "1.0",
+  "activation_state": "inactive",
+  "closure_id": "closure-001",
+  "pre_merge_target_identity": {
+    "repository_full_name": "rezahh107/example",
+    "repository_id": 42,
+    "pr_number": 7,
+    "reviewed_head_sha": "1111111111111111111111111111111111111111"
+  },
+  "resulting_default_branch_identity": {
+    "repository_identity": {
+      "repository_full_name": "rezahh107/example",
+      "repository_id": 42
+    },
+    "default_branch": "main",
+    "commit_sha": "2222222222222222222222222222222222222222"
+  },
+  "detected_merge_method": "merge_commit",
+  "merge_method_evidence_ref": {
+    "evidence_id": "method-evidence",
+    "evidence_type": "owner_merge",
+    "exact_identity": "merge-method-7",
+    "source_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "retrieval_method": "github_api"
+  },
+  "merge_result_proof_ref": {
+    "evidence_id": "merge-proof",
+    "evidence_type": "owner_merge",
+    "exact_identity": "merge-result-7",
+    "source_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "retrieval_method": "github_api"
+  },
+  "content_equivalence_result": "content_equivalence_verified",
+  "history_topology_result": "history_topology_verified",
+  "active_policy_verification_result": "PASS",
+  "current_main_validation": "PASS",
+  "status_drift_result": "no_drift",
+  "status_authority_ref": {
+    "evidence_id": "status-authority",
+    "evidence_type": "structured_record",
+    "exact_identity": "docs/status@2222222222222222222222222222222222222222",
+    "source_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "retrieval_method": "local_verified_read"
+  },
+  "reconciliation_result": "reconciled",
+  "post_merge_closure_status": "closure_recorded",
+  "dependent_work_authorization": "allowed",
+  "closure_outcomes": [
+    "content_equivalence_verified",
+    "history_topology_verified"
+  ],
+  "closure_receipt_ref": {
+    "evidence_id": "closure-receipt",
+    "evidence_type": "structured_record",
+    "exact_identity": "closure-receipt-001",
+    "source_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "retrieval_method": "local_verified_read"
+  }
+}

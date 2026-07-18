@@ -1,0 +1,31 @@
+{
+  "contract_type": "merge_readiness_record",
+  "contract_version": "1.0",
+  "activation_state": "inactive",
+  "readiness_id": "ready-001",
+  "target_identity": {
+    "repository_full_name": "rezahh107/example",
+    "repository_id": 42,
+    "pr_number": 7,
+    "reviewed_head_sha": "1111111111111111111111111111111111111111"
+  },
+  "technical_status": "GREEN_TECHNICALLY_READY",
+  "technical_status_ref": {
+    "record_type": "decision_projection",
+    "record_id": "projection-1",
+    "record_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "policy_resolution_ref": {
+    "record_type": "review_policy_resolution",
+    "record_id": "resolution-001",
+    "record_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  },
+  "receipt_requirement_result": "satisfied",
+  "publication_result": "published_verified",
+  "merge_enforcement_profile": "owner_controlled",
+  "merge_governance_status": "enforcement_verified",
+  "merge_readiness_result": "READY_FOR_USER_MERGE",
+  "merge_authorization_state": "owner_only_authorized",
+  "unresolved_evidence_refs": [],
+  "blocking_reasons": []
+}

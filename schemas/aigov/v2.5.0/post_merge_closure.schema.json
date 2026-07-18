@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rezahh107/PR-Inspector/schemas/aigov/v2.5.0/post_merge_closure.schema.json",
+  "title": "AIGOV Inactive Post-Merge Closure Contract",
+  "description": "Inactive, non-authoritative method-aware post-Merge closure carrier.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contract_type": {
+      "const": "post_merge_closure"
+    },
+    "contract_version": {
+      "const": "1.0"
+    },
+    "activation_state": {
+      "const": "inactive"
+    },
+    "closure_id": {
+      "$ref": "common.schema.json#/$defs/record_id"
+    },
+    "pre_merge_target_identity": {
+      "$ref": "common.schema.json#/$defs/target_identity"
+    },
+    "resulting_default_branch_identity": {
+      "$ref": "common.schema.json#/$defs/default_branch_identity"
+    },
+    "detected_merge_method": {
+      "$ref": "common.schema.json#/$defs/merge_method"
+    },
+    "merge_method_evidence_ref": {
+      "$ref": "common.schema.json#/$defs/evidence_reference"
+    },
+    "merge_result_proof_ref": {
+      "$ref": "common.schema.json#/$defs/evidence_reference"
+    },
+    "content_equivalence_result": {
+      "$ref": "common.schema.json#/$defs/method_aware_outcome"
+    },
+    "history_topology_result": {
+      "$ref": "common.schema.json#/$defs/method_aware_outcome"
+    },
+    "active_policy_verification_result": {
+      "$ref": "common.schema.json#/$defs/validation_result"
+    },
+    "current_main_validation": {
+      "$ref": "common.schema.json#/$defs/validation_result"
+    },
+    "status_drift_result": {
+      "enum": [
+        "no_drift",
+        "STATUS_DRIFT",
+        "not_assessed"
+      ]
+    },
+    "status_authority_ref": {
+      "$ref": "common.schema.json#/$defs/evidence_reference"
+    },
+    "reconciliation_result": {
+      "enum": [
+        "not_started",
+        "not_required",
+        "reconciled",
+        "blocked"
+      ]
+    },
+    "post_merge_closure_status": {
+      "$ref": "common.schema.json#/$defs/post_merge_closure_status"
+    },
+    "dependent_work_authorization": {
+      "$ref": "common.schema.json#/$defs/dependent_work_authorization"
+    },
+    "closure_outcomes": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "content_equivalence_verified",
+          "history_topology_verified",
+          "history_topology_not_preserved_by_merge_method",
+          "content_loss_detected",
+          "insufficient_evidence",
+          "blocked_status_drift"
+        ]
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "closure_receipt_ref": {
+      "$ref": "common.schema.json#/$defs/nullable_evidence_reference"
+    }
+  },
+  "required": [
+    "contract_type",
+    "contract_version",
+    "activation_state",
+    "closure_id",
+    "pre_merge_target_identity",
+    "resulting_default_branch_identity",
+    "detected_merge_method",
+    "merge_method_evidence_ref",
+    "merge_result_proof_ref",
+    "content_equivalence_result",
+    "history_topology_result",
+    "active_policy_verification_result",
+    "current_main_validation",
+    "status_drift_result",
+    "status_authority_ref",
+    "reconciliation_result",
+    "post_merge_closure_status",
+    "dependent_work_authorization",
+    "closure_outcomes",
+    "closure_receipt_ref"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status_drift_result": {
+            "const": "STATUS_DRIFT"
+          }
+        },
+        "required": [
+          "status_drift_result"
+        ]
+      },
+      "then": {
+        "properties": {
+          "post_merge_closure_status": {
+            "const": "blocked_status_drift"
+          },
+          "dependent_work_authorization": {
+            "const": "blocked_status_drift"
+          },
+          "closure_outcomes": {
+            "contains": {
+              "const": "blocked_status_drift"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "detected_merge_method": {
+            "enum": [
+              "squash_merge",
+              "rebase_merge"
+            ]
+          }
+        },
+        "required": [
+          "detected_merge_method"
+        ]
+      },
+      "then": {
+        "properties": {
+          "history_topology_result": {
+            "enum": [
+              "history_topology_verified",
+              "history_topology_not_preserved_by_merge_method",
+              "insufficient_evidence"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

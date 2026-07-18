@@ -1,0 +1,36 @@
+{
+  "contract_type": "scope_record",
+  "contract_version": "1.0",
+  "activation_state": "inactive",
+  "scope_id": "scope-001",
+  "repository_identity": {
+    "repository_full_name": "rezahh107/example",
+    "repository_id": 42
+  },
+  "target_identity": {
+    "repository_full_name": "rezahh107/example",
+    "repository_id": 42,
+    "pr_number": 7,
+    "reviewed_head_sha": "1111111111111111111111111111111111111111"
+  },
+  "base_sha": "0000000000000000000000000000000000000000",
+  "head_sha": "1111111111111111111111111111111111111111",
+  "included_paths": [
+    "schemas/aigov/**"
+  ],
+  "excluded_paths": [],
+  "deferred_items": [],
+  "dependencies": [],
+  "scope_authority_binding_refs": [],
+  "governing_revision": "AIGOV-v2.5.0",
+  "unresolved_scope": [
+    "unknown generated output"
+  ],
+  "scope_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "scope_authority_ref": {
+    "authority_ref": "governance/aigov/v2.5.0/AI_AUTHORITY_DETERMINISTIC_GOVERNANCE_SSOT_v2.5.0.fa.md",
+    "authority_identity": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "source_locator": "Section 7"
+  },
+  "scope_status": "resolved"
+}
