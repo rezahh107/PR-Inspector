@@ -6,214 +6,90 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "contract_type": {
-      "const": "policy_transition_record"
-    },
-    "contract_version": {
-      "const": "1.0"
-    },
-    "activation_state": {
-      "const": "inactive"
-    },
-    "schema_version": {
-      "const": "1.0"
-    },
-    "transition_id": {
-      "$ref": "common.schema.json#/$defs/record_id"
-    },
-    "repository_identity": {
-      "$ref": "common.schema.json#/$defs/repository_identity"
-    },
-    "current_policy_identity": {
-      "$ref": "common.schema.json#/$defs/tagged_sha256"
-    },
-    "target_policy_identity": {
-      "$ref": "common.schema.json#/$defs/tagged_sha256"
-    },
-    "evaluation_policy_identity": {
-      "$ref": "common.schema.json#/$defs/tagged_sha256"
-    },
-    "evaluation_policy_role": {
-      "const": "current_policy"
-    },
-    "transition_pr_number": {
-      "$ref": "common.schema.json#/$defs/positive_integer"
-    },
-    "exact_head_sha": {
-      "$ref": "common.schema.json#/$defs/git_commit_sha"
-    },
-    "transition_scope_digest": {
-      "$ref": "common.schema.json#/$defs/tagged_sha256"
-    },
-    "owner_authority_verified": {
-      "type": "boolean"
-    },
-    "exact_head_ci": {
-      "$ref": "common.schema.json#/$defs/validation_result"
-    },
-    "scope_validation": {
-      "$ref": "common.schema.json#/$defs/validation_result"
-    },
-    "secret_or_credential_change": {
-      "type": "boolean"
-    },
-    "unauthorized_permission_escalation": {
-      "type": "boolean"
-    },
-    "ruleset_or_branch_protection_mutation": {
-      "type": "boolean"
-    },
-    "external_repository_write": {
-      "type": "boolean"
-    },
-    "destructive_or_irreversible_action": {
-      "type": "boolean"
-    },
-    "unrelated_implementation_bundled": {
-      "type": "boolean"
-    },
+    "contract_type": {"const": "policy_transition_record"},
+    "contract_version": {"const": "1.0"},
+    "activation_state": {"const": "inactive"},
+    "schema_version": {"const": "1.0"},
+    "transition_id": {"$ref": "common.schema.json#/$defs/record_id"},
+    "repository_identity": {"$ref": "common.schema.json#/$defs/repository_identity"},
+    "current_policy_identity": {"$ref": "common.schema.json#/$defs/tagged_sha256"},
+    "target_policy_identity": {"$ref": "common.schema.json#/$defs/tagged_sha256"},
+    "evaluation_policy_identity": {"$ref": "common.schema.json#/$defs/tagged_sha256"},
+    "evaluation_policy_role": {"const": "current_policy"},
+    "transition_pr_number": {"$ref": "common.schema.json#/$defs/positive_integer"},
+    "exact_head_sha": {"$ref": "common.schema.json#/$defs/git_commit_sha"},
+    "transition_scope_digest": {"$ref": "common.schema.json#/$defs/tagged_sha256"},
+    "owner_authority_verified": {"type": "boolean"},
+    "exact_head_ci": {"$ref": "common.schema.json#/$defs/validation_result"},
+    "scope_validation": {"$ref": "common.schema.json#/$defs/validation_result"},
+    "secret_or_credential_change": {"type": "boolean"},
+    "unauthorized_permission_escalation": {"type": "boolean"},
+    "ruleset_or_branch_protection_mutation": {"type": "boolean"},
+    "external_repository_write": {"type": "boolean"},
+    "destructive_or_irreversible_action": {"type": "boolean"},
+    "unrelated_implementation_bundled": {"type": "boolean"},
     "activation_condition_record_refs": {
       "type": "array",
-      "items": {
-        "$ref": "common.schema.json#/$defs/record_reference"
-      },
+      "items": {"$ref": "common.schema.json#/$defs/record_reference"},
       "uniqueItems": true
     },
-    "owner_merge_required": {
-      "const": true
-    },
-    "owner_merge_evidence_ref": {
-      "$ref": "common.schema.json#/$defs/nullable_evidence_reference"
-    },
-    "merge_method": {
-      "$ref": "common.schema.json#/$defs/merge_method"
-    },
-    "merge_result_proof_ref": {
-      "$ref": "common.schema.json#/$defs/nullable_evidence_reference"
-    },
-    "current_main_validation": {
-      "$ref": "common.schema.json#/$defs/validation_result"
-    },
-    "post_merge_closure_status": {
-      "$ref": "common.schema.json#/$defs/post_merge_closure_status"
-    },
-    "status_reconciliation_ref": {
-      "$ref": "common.schema.json#/$defs/nullable_evidence_reference"
-    },
-    "transition_receipt_ref": {
-      "$ref": "common.schema.json#/$defs/nullable_evidence_reference"
-    },
+    "owner_merge_required": {"const": true},
+    "owner_merge_evidence_ref": {"$ref": "common.schema.json#/$defs/nullable_evidence_reference"},
+    "merge_method": {"$ref": "common.schema.json#/$defs/merge_method"},
+    "merge_result_proof_ref": {"$ref": "common.schema.json#/$defs/nullable_evidence_reference"},
+    "current_main_validation": {"$ref": "common.schema.json#/$defs/validation_result"},
+    "post_merge_closure_status": {"$ref": "common.schema.json#/$defs/post_merge_closure_status"},
+    "status_reconciliation_ref": {"$ref": "common.schema.json#/$defs/nullable_evidence_reference"},
+    "transition_receipt_ref": {"$ref": "common.schema.json#/$defs/nullable_evidence_reference"},
     "missing_historical_evidence_disclosures": {
       "type": "array",
-      "items": {
-        "$ref": "common.schema.json#/$defs/non_empty_string"
-      },
+      "items": {"$ref": "common.schema.json#/$defs/non_empty_string"},
       "uniqueItems": true
     }
   },
   "required": [
-    "contract_type",
-    "contract_version",
-    "activation_state",
-    "schema_version",
-    "transition_id",
-    "repository_identity",
-    "current_policy_identity",
-    "target_policy_identity",
-    "evaluation_policy_identity",
-    "evaluation_policy_role",
-    "transition_pr_number",
-    "exact_head_sha",
-    "transition_scope_digest",
-    "owner_authority_verified",
-    "exact_head_ci",
-    "scope_validation",
-    "secret_or_credential_change",
-    "unauthorized_permission_escalation",
-    "ruleset_or_branch_protection_mutation",
-    "external_repository_write",
-    "destructive_or_irreversible_action",
-    "unrelated_implementation_bundled",
-    "activation_condition_record_refs",
-    "owner_merge_required",
-    "owner_merge_evidence_ref",
-    "merge_method",
-    "merge_result_proof_ref",
-    "current_main_validation",
-    "post_merge_closure_status",
-    "status_reconciliation_ref",
-    "transition_receipt_ref",
+    "contract_type", "contract_version", "activation_state", "schema_version",
+    "transition_id", "repository_identity", "current_policy_identity",
+    "target_policy_identity", "evaluation_policy_identity", "evaluation_policy_role",
+    "transition_pr_number", "exact_head_sha", "transition_scope_digest",
+    "owner_authority_verified", "exact_head_ci", "scope_validation",
+    "secret_or_credential_change", "unauthorized_permission_escalation",
+    "ruleset_or_branch_protection_mutation", "external_repository_write",
+    "destructive_or_irreversible_action", "unrelated_implementation_bundled",
+    "activation_condition_record_refs", "owner_merge_required", "owner_merge_evidence_ref",
+    "merge_method", "merge_result_proof_ref", "current_main_validation",
+    "post_merge_closure_status", "status_reconciliation_ref", "transition_receipt_ref",
     "missing_historical_evidence_disclosures"
   ],
   "allOf": [
     {
       "if": {
-        "properties": {
-          "post_merge_closure_status": {
-            "const": "closure_recorded"
-          }
-        },
-        "required": [
-          "post_merge_closure_status"
-        ]
+        "properties": {"post_merge_closure_status": {"const": "closure_recorded"}},
+        "required": ["post_merge_closure_status"]
       },
       "then": {
         "properties": {
-          "owner_authority_verified": {
-            "const": true
-          },
-          "exact_head_ci": {
-            "const": "PASS"
-          },
-          "scope_validation": {
-            "const": "PASS"
-          },
-          "secret_or_credential_change": {
-            "const": false
-          },
-          "unauthorized_permission_escalation": {
-            "const": false
-          },
-          "ruleset_or_branch_protection_mutation": {
-            "const": false
-          },
-          "external_repository_write": {
-            "const": false
-          },
-          "destructive_or_irreversible_action": {
-            "const": false
-          },
-          "unrelated_implementation_bundled": {
-            "const": false
-          },
-          "owner_merge_evidence_ref": {
-            "$ref": "common.schema.json#/$defs/evidence_reference"
-          },
-          "merge_result_proof_ref": {
-            "$ref": "common.schema.json#/$defs/evidence_reference"
-          },
-          "current_main_validation": {
-            "const": "PASS"
-          },
-          "status_reconciliation_ref": {
-            "$ref": "common.schema.json#/$defs/evidence_reference"
-          },
-          "transition_receipt_ref": {
-            "$ref": "common.schema.json#/$defs/evidence_reference"
-          }
+          "owner_authority_verified": {"const": true},
+          "exact_head_ci": {"const": "PASS"},
+          "scope_validation": {"const": "PASS"},
+          "secret_or_credential_change": {"const": false},
+          "unauthorized_permission_escalation": {"const": false},
+          "ruleset_or_branch_protection_mutation": {"const": false},
+          "external_repository_write": {"const": false},
+          "destructive_or_irreversible_action": {"const": false},
+          "unrelated_implementation_bundled": {"const": false},
+          "owner_merge_evidence_ref": {"$ref": "common.schema.json#/$defs/evidence_reference"},
+          "merge_result_proof_ref": {"$ref": "common.schema.json#/$defs/evidence_reference"},
+          "current_main_validation": {"const": "PASS"},
+          "status_reconciliation_ref": {"$ref": "common.schema.json#/$defs/evidence_reference"},
+          "transition_receipt_ref": {"$ref": "common.schema.json#/$defs/evidence_reference"}
         }
       }
     },
     {
       "not": {
-        "properties": {
-          "evaluation_policy_role": {
-            "const": "target_policy"
-          }
-        },
-        "required": [
-          "evaluation_policy_role"
-        ]
+        "properties": {"evaluation_policy_role": {"const": "target_policy"}},
+        "required": ["evaluation_policy_role"]
       }
     }
   ]
