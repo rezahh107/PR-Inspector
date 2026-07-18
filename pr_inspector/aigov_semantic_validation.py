@@ -4,6 +4,7 @@ from fnmatch import fnmatchcase
 from typing import Any, Mapping
 
 from .aigov_errors import AIGOVDiagnostic, diagnostic
+from .aigov_paths import normalize_repository_relative_path
 from .aigov_validation_support import (
     AIGOVValidationContext,
     _EXECUTABLE_EXPRESSION,
@@ -35,12 +36,7 @@ def _list_string_diagnostics(
     value: object,
     path: str = "/",
 ) -> list[AIGOVDiagnostic]:
-    """Cover primitive strings stored directly in arrays.
-
-    `_global_diagnostics` already handles mapping values, including mappings nested
-    in arrays. This helper closes the direct-list-element gap without duplicating
-    diagnostics for ordinary object fields.
-    """
+    """Cover primitive strings stored directly in arrays."""
 
     out: list[AIGOVDiagnostic] = []
     if isinstance(value, Mapping):
@@ -72,15 +68,7 @@ def _list_string_diagnostics(
     return out
 
 
-def _normalized_path(value: str) -> str:
-    while value.startswith("./"):
-        value = value[2:]
-    return value.replace("\\", "/")
-
-
 def _precise_path_overlap(left: str, right: str) -> bool:
-    left = _normalized_path(left)
-    right = _normalized_path(right)
     if left == right:
         return True
     if left.endswith("/**"):
@@ -96,19 +84,46 @@ def _precise_path_overlap(left: str, right: str) -> bool:
     return fnmatchcase(left, right) or fnmatchcase(right, left)
 
 
+def _validated_scope_paths(
+    payload: dict[str, Any],
+) -> tuple[list[AIGOVDiagnostic], dict[int, str], dict[int, str]]:
+    out: list[AIGOVDiagnostic] = []
+    normalized: dict[str, dict[int, str]] = {
+        "included_paths": {},
+        "excluded_paths": {},
+    }
+    for field in ("included_paths", "excluded_paths"):
+        for index, value in enumerate(payload[field]):
+            try:
+                normalized[field][index] = normalize_repository_relative_path(value)
+            except (TypeError, ValueError) as exc:
+                out.append(
+                    diagnostic(
+                        "AIGOV-SEM-143",
+                        payload["contract_type"],
+                        f"/{field}/{index}",
+                        "bounded repository-relative path",
+                        str(exc),
+                    )
+                )
+    return out, normalized["included_paths"], normalized["excluded_paths"]
+
+
 def _scope_record(
     payload: dict[str, Any],
     context: AIGOVValidationContext | None,
 ) -> list[AIGOVDiagnostic]:
-    # Retain all base scope semantics except its broad wildcard-prefix overlap
-    # diagnostic, then re-apply overlap detection with directory-boundary rules.
+    # Retain base scope identity and digest semantics, but replace both legacy path
+    # checks with one deterministic repository-relative path validator.
     out = [
         item
         for item in _scope_record_base(payload, context)
-        if item.code != "AIGOV-SEM-144"
+        if item.code not in {"AIGOV-SEM-143", "AIGOV-SEM-144"}
     ]
-    for left_index, left in enumerate(payload["included_paths"]):
-        for right_index, right in enumerate(payload["excluded_paths"]):
+    path_diagnostics, included, excluded = _validated_scope_paths(payload)
+    out.extend(path_diagnostics)
+    for left_index, left in included.items():
+        for right_index, right in excluded.items():
             if _precise_path_overlap(left, right):
                 out.append(
                     diagnostic(
