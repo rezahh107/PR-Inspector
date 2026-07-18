@@ -1,0 +1,209 @@
+{
+  "fixture_manifest_version": "1.0",
+  "activation_state": "inactive",
+  "cases": [
+    {
+      "case_id": "semantic-invalid-repository_review_policy-inactive_verified_enforcement",
+      "contract_type": "repository_review_policy",
+      "source_fixture": "../schema_valid/repository_review_policy.json",
+      "mutation": "inactive_verified_enforcement",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-repository_review_policy-active_without_transition",
+      "contract_type": "repository_review_policy",
+      "source_fixture": "../schema_valid/repository_review_policy.json",
+      "mutation": "active_without_transition",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-review_policy_resolution-minimum_profile_downgrade",
+      "contract_type": "review_policy_resolution",
+      "source_fixture": "../schema_valid/review_policy_resolution.json",
+      "mutation": "minimum_profile_downgrade",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-review_policy_resolution-self_reference",
+      "contract_type": "review_policy_resolution",
+      "source_fixture": "../schema_valid/review_policy_resolution.json",
+      "mutation": "self_reference",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-review_policy_resolution-duplicate_evidence_identity",
+      "contract_type": "review_policy_resolution",
+      "source_fixture": "../schema_valid/review_policy_resolution.json",
+      "mutation": "duplicate_evidence_identity",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-obligation_authority_binding-ci_without_carrier",
+      "contract_type": "obligation_authority_binding",
+      "source_fixture": "../schema_valid/obligation_authority_binding.json",
+      "mutation": "ci_without_carrier",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-obligation_authority_binding-one_sided_fixture_evidence",
+      "contract_type": "obligation_authority_binding",
+      "source_fixture": "../schema_valid/obligation_authority_binding.json",
+      "mutation": "one_sided_fixture_evidence",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-classification_record-detached_fact_evidence",
+      "contract_type": "classification_record",
+      "source_fixture": "../schema_valid/classification_record.json",
+      "mutation": "detached_fact_evidence",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-classification_record-duplicate_fact_identity",
+      "contract_type": "classification_record",
+      "source_fixture": "../schema_valid/classification_record.json",
+      "mutation": "duplicate_fact_identity",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-scope_record-included_excluded_overlap",
+      "contract_type": "scope_record",
+      "source_fixture": "../schema_valid/scope_record.json",
+      "mutation": "included_excluded_overlap",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-scope_record-path_traversal",
+      "contract_type": "scope_record",
+      "source_fixture": "../schema_valid/scope_record.json",
+      "mutation": "path_traversal",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-scope_record-digest_mismatch",
+      "contract_type": "scope_record",
+      "source_fixture": "../schema_valid/scope_record.json",
+      "mutation": "digest_mismatch",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-review_execution-performed_without_tool_evidence",
+      "contract_type": "review_execution",
+      "source_fixture": "../schema_valid/review_execution.json",
+      "mutation": "performed_without_tool_evidence",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-review_execution-target_identity_mismatch",
+      "contract_type": "review_execution",
+      "source_fixture": "../schema_valid/review_execution.json",
+      "mutation": "target_identity_mismatch",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-review_receipt_core-broken_supersession_chain",
+      "contract_type": "review_receipt_core",
+      "source_fixture": "../schema_valid/review_receipt_core.json",
+      "mutation": "broken_supersession_chain",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-review_receipt_core-publication_metadata_in_core",
+      "contract_type": "review_receipt_core",
+      "source_fixture": "../schema_valid/review_receipt_core.json",
+      "mutation": "publication_metadata_in_core",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-review_receipt_core-uppercase_digest",
+      "contract_type": "review_receipt_core",
+      "source_fixture": "../schema_valid/review_receipt_core.json",
+      "mutation": "uppercase_digest",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-publication_attempt-idempotency_identity_mismatch",
+      "contract_type": "publication_attempt",
+      "source_fixture": "../schema_valid/publication_attempt.json",
+      "mutation": "idempotency_identity_mismatch",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-publication_attempt-core_mutation_field",
+      "contract_type": "publication_attempt",
+      "source_fixture": "../schema_valid/publication_attempt.json",
+      "mutation": "core_mutation_field",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-policy_transition_record-target_policy_self_evaluation",
+      "contract_type": "policy_transition_record",
+      "source_fixture": "../schema_valid/policy_transition_record.json",
+      "mutation": "target_policy_self_evaluation",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-policy_transition_record-progressed_without_merge_evidence",
+      "contract_type": "policy_transition_record",
+      "source_fixture": "../schema_valid/policy_transition_record.json",
+      "mutation": "progressed_without_merge_evidence",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-merge_readiness_record-technical_green_direct_authority",
+      "contract_type": "merge_readiness_record",
+      "source_fixture": "../schema_valid/merge_readiness_record.json",
+      "mutation": "technical_green_direct_authority",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-merge_readiness_record-non_ready_without_reason",
+      "contract_type": "merge_readiness_record",
+      "source_fixture": "../schema_valid/merge_readiness_record.json",
+      "mutation": "non_ready_without_reason",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-post_merge_closure-insufficient_evidence_success",
+      "contract_type": "post_merge_closure",
+      "source_fixture": "../schema_valid/post_merge_closure.json",
+      "mutation": "insufficient_evidence_success",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-post_merge_closure-content_loss_success",
+      "contract_type": "post_merge_closure",
+      "source_fixture": "../schema_valid/post_merge_closure.json",
+      "mutation": "content_loss_success",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-tool_execution_attestation-caller_text_as_authentication",
+      "contract_type": "tool_execution_attestation",
+      "source_fixture": "../schema_valid/tool_execution_attestation.json",
+      "mutation": "caller_text_as_authentication",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-tool_execution_attestation-pagination_incomplete",
+      "contract_type": "tool_execution_attestation",
+      "source_fixture": "../schema_valid/tool_execution_attestation.json",
+      "mutation": "pagination_incomplete",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-tool_execution_attestation-untrusted_workflow_revision",
+      "contract_type": "tool_execution_attestation",
+      "source_fixture": "../schema_valid/tool_execution_attestation.json",
+      "mutation": "untrusted_workflow_revision",
+      "expected": "rejected"
+    },
+    {
+      "case_id": "semantic-invalid-tool_execution_attestation-embedded_expression",
+      "contract_type": "tool_execution_attestation",
+      "source_fixture": "../schema_valid/tool_execution_attestation.json",
+      "mutation": "embedded_expression",
+      "expected": "rejected"
+    }
+  ]
+}

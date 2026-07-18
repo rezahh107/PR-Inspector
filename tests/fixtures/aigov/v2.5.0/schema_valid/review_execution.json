@@ -7,7 +7,7 @@
   "repository_id": 42,
   "pr_number": 7,
   "reviewed_head_sha": "1111111111111111111111111111111111111111",
-  "scope_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "scope_digest": "sha256:32f25aed5565012bfa3c58bab9e2dbdbcc0a2efed9fa132480f65416ca72cf90",
   "protocol_version": "v1.11.1",
   "inspector_identity": {
     "repository": "rezahh107/PR-Inspector",

@@ -24,7 +24,7 @@
   "scope_authority_binding_refs": [],
   "governing_revision": "AIGOV-v2.5.0",
   "unresolved_scope": [],
-  "scope_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "scope_digest": "sha256:32f25aed5565012bfa3c58bab9e2dbdbcc0a2efed9fa132480f65416ca72cf90",
   "scope_authority_ref": {
     "authority_ref": "governance/aigov/v2.5.0/AI_AUTHORITY_DETERMINISTIC_GOVERNANCE_SSOT_v2.5.0.fa.md",
     "authority_identity": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",

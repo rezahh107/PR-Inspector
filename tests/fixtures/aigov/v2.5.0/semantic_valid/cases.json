@@ -1,0 +1,78 @@
+{
+  "fixture_manifest_version": "1.0",
+  "activation_state": "inactive",
+  "cases": [
+    {
+      "case_id": "semantic-valid-01",
+      "contract_type": "repository_review_policy",
+      "source_fixture": "../schema_valid/repository_review_policy.json",
+      "expected": "valid_immutable_model"
+    },
+    {
+      "case_id": "semantic-valid-02",
+      "contract_type": "review_policy_resolution",
+      "source_fixture": "../schema_valid/review_policy_resolution.json",
+      "expected": "valid_immutable_model"
+    },
+    {
+      "case_id": "semantic-valid-03",
+      "contract_type": "obligation_authority_binding",
+      "source_fixture": "../schema_valid/obligation_authority_binding.json",
+      "expected": "valid_immutable_model"
+    },
+    {
+      "case_id": "semantic-valid-04",
+      "contract_type": "classification_record",
+      "source_fixture": "../schema_valid/classification_record.json",
+      "expected": "valid_immutable_model"
+    },
+    {
+      "case_id": "semantic-valid-05",
+      "contract_type": "scope_record",
+      "source_fixture": "../schema_valid/scope_record.json",
+      "expected": "valid_immutable_model"
+    },
+    {
+      "case_id": "semantic-valid-06",
+      "contract_type": "review_execution",
+      "source_fixture": "../schema_valid/review_execution.json",
+      "expected": "valid_immutable_model"
+    },
+    {
+      "case_id": "semantic-valid-07",
+      "contract_type": "review_receipt_core",
+      "source_fixture": "../schema_valid/review_receipt_core.json",
+      "expected": "valid_immutable_model"
+    },
+    {
+      "case_id": "semantic-valid-08",
+      "contract_type": "publication_attempt",
+      "source_fixture": "../schema_valid/publication_attempt.json",
+      "expected": "valid_immutable_model"
+    },
+    {
+      "case_id": "semantic-valid-09",
+      "contract_type": "policy_transition_record",
+      "source_fixture": "../schema_valid/policy_transition_record.json",
+      "expected": "valid_immutable_model"
+    },
+    {
+      "case_id": "semantic-valid-10",
+      "contract_type": "merge_readiness_record",
+      "source_fixture": "../schema_valid/merge_readiness_record.json",
+      "expected": "valid_immutable_model"
+    },
+    {
+      "case_id": "semantic-valid-11",
+      "contract_type": "post_merge_closure",
+      "source_fixture": "../schema_valid/post_merge_closure.json",
+      "expected": "valid_immutable_model"
+    },
+    {
+      "case_id": "semantic-valid-12",
+      "contract_type": "tool_execution_attestation",
+      "source_fixture": "../schema_valid/tool_execution_attestation.json",
+      "expected": "valid_immutable_model"
+    }
+  ]
+}
