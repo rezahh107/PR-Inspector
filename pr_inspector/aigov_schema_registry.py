@@ -58,14 +58,42 @@ class LocalAIGOVSchemaRegistry:
     """Pinned local-only JSON Schema registry for inactive AIGOV contracts."""
 
     def __init__(self, schema_dir: Path = SCHEMA_DIR):
-        self._schema_dir = schema_dir.resolve()
+        try:
+            resolved_schema_dir = schema_dir.resolve(strict=True)
+        except OSError as exc:
+            raise RuntimeError(f"cannot resolve local AIGOV schema directory: {exc}") from exc
+        if not resolved_schema_dir.is_dir():
+            raise RuntimeError("local AIGOV schema directory is not a directory")
+        self._schema_dir = resolved_schema_dir
         self._schemas: dict[str, dict[str, Any]] = {}
         self._schema_sha256: dict[str, str] = {}
         self._validators: dict[str, Draft202012Validator] = {}
         self._load()
 
+    def _local_regular_file(self, filename: str) -> Path:
+        candidate = self._schema_dir / filename
+        if candidate.is_symlink():
+            raise RuntimeError(f"AIGOV schema file is symlinked: {filename}")
+        try:
+            resolved = candidate.resolve(strict=True)
+        except OSError as exc:
+            raise RuntimeError(f"cannot resolve local AIGOV schema file {filename}: {exc}") from exc
+        try:
+            resolved.relative_to(self._schema_dir)
+        except ValueError as exc:
+            raise RuntimeError(
+                f"AIGOV schema file escaped pinned directory: {filename}"
+            ) from exc
+        if resolved.parent != self._schema_dir:
+            raise RuntimeError(
+                f"AIGOV schema file is not an exact child of pinned directory: {filename}"
+            )
+        if not resolved.is_file():
+            raise RuntimeError(f"AIGOV schema path is not a regular file: {filename}")
+        return resolved
+
     def _load(self) -> None:
-        index_path = self._schema_dir / ("schema-" + "index.json")
+        index_path = self._local_regular_file("schema-index.json")
         index = _json_object(index_path)
         if index.get("activation_state") != "inactive":
             raise RuntimeError("AIGOV schema index must remain inactive")
@@ -83,9 +111,7 @@ class LocalAIGOVSchemaRegistry:
 
         names = ("common", *CONTRACT_TYPES)
         for name in names:
-            path = self._schema_dir / f"{name}.schema.json"
-            if path.parent.resolve() != self._schema_dir:
-                raise RuntimeError("AIGOV schema path escaped pinned directory")
+            path = self._local_regular_file(f"{name}.schema.json")
             raw = path.read_bytes()
             schema = _json_object(path)
             Draft202012Validator.check_schema(schema)
