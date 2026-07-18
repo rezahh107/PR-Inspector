@@ -132,6 +132,153 @@ def _tool_execution_attestation(
                 )
             )
 
+    readback_status = payload["readback_status"]
+    readback_ref = payload["readback_ref"]
+    not_required_authority = payload["readback_not_required_authority_ref"]
+    result_identity = result["result_identity"]
+    verified_readback_claims = [
+        index
+        for index, claim in enumerate(payload["final_claim_bindings"])
+        if claim["binding_status"] == "VERIFIED_READBACK_BOUND"
+    ]
+
+    if readback_status == "VERIFIED":
+        requirements = (
+            (
+                "/execution_result/result_identity",
+                isinstance(result_identity, str) and bool(result_identity),
+                "VERIFIED readback requires a non-null execution result identity",
+            ),
+            (
+                "/readback_ref",
+                isinstance(readback_ref, Mapping),
+                "VERIFIED readback requires exact schema-valid readback evidence",
+            ),
+            (
+                "/readback_ref/exact_identity",
+                isinstance(readback_ref, Mapping)
+                and isinstance(readback_ref.get("exact_identity"), str)
+                and readback_ref.get("exact_identity") == result_identity,
+                "VERIFIED readback evidence must be exact-bound to the execution result identity",
+            ),
+            (
+                "/readback_not_required_authority_ref",
+                not_required_authority is None,
+                "VERIFIED readback cannot also claim readback-not-required authority",
+            ),
+        )
+        for path, satisfied, reason in requirements:
+            if not satisfied:
+                out.append(
+                    diagnostic(
+                        "AIGOV-SEM-220",
+                        payload["contract_type"],
+                        path,
+                        "globally valid VERIFIED readback state",
+                        reason,
+                    )
+                )
+
+    elif readback_status == "READBACK_NOT_REQUIRED":
+        requirements = (
+            (
+                "/state_changed",
+                payload["state_changed"] is False,
+                "READBACK_NOT_REQUIRED is forbidden when state_changed is true",
+            ),
+            (
+                "/readback_not_required_authority_ref",
+                isinstance(not_required_authority, Mapping),
+                "READBACK_NOT_REQUIRED requires schema-valid authority evidence",
+            ),
+            (
+                "/readback_ref",
+                readback_ref is None,
+                "READBACK_NOT_REQUIRED cannot carry a readback projection",
+            ),
+            (
+                "/final_claim_bindings",
+                not verified_readback_claims,
+                "READBACK_NOT_REQUIRED cannot support VERIFIED_READBACK_BOUND claims",
+            ),
+        )
+        for path, satisfied, reason in requirements:
+            if not satisfied:
+                out.append(
+                    diagnostic(
+                        "AIGOV-SEM-221",
+                        payload["contract_type"],
+                        path,
+                        "globally valid READBACK_NOT_REQUIRED state",
+                        reason,
+                    )
+                )
+
+    elif readback_status == "NOT_PERFORMED":
+        requirements = (
+            (
+                "/readback_ref",
+                readback_ref is None,
+                "NOT_PERFORMED cannot carry readback evidence",
+            ),
+            (
+                "/readback_not_required_authority_ref",
+                not_required_authority is None,
+                "NOT_PERFORMED cannot carry readback-not-required authority",
+            ),
+            (
+                "/final_claim_bindings",
+                not verified_readback_claims,
+                "NOT_PERFORMED cannot support VERIFIED_READBACK_BOUND claims",
+            ),
+        )
+        for path, satisfied, reason in requirements:
+            if not satisfied:
+                out.append(
+                    diagnostic(
+                        "AIGOV-SEM-222",
+                        payload["contract_type"],
+                        path,
+                        "globally valid NOT_PERFORMED readback state",
+                        reason,
+                    )
+                )
+
+    elif readback_status == "FAILED":
+        verified_projection = (
+            isinstance(result_identity, str)
+            and isinstance(readback_ref, Mapping)
+            and readback_ref.get("exact_identity") == result_identity
+        )
+        requirements = (
+            (
+                "/final_claim_bindings",
+                not verified_readback_claims,
+                "FAILED readback cannot support VERIFIED_READBACK_BOUND claims",
+            ),
+            (
+                "/readback_ref/exact_identity",
+                not verified_projection,
+                "FAILED readback cannot present an exact verified result projection",
+            ),
+            (
+                "/readback_not_required_authority_ref",
+                not_required_authority is None,
+                "FAILED readback cannot carry readback-not-required authority",
+            ),
+        )
+        for path, satisfied, reason in requirements:
+            if not satisfied:
+                out.append(
+                    diagnostic(
+                        "AIGOV-SEM-223",
+                        payload["contract_type"],
+                        path,
+                        "globally valid FAILED readback state",
+                        reason,
+                    )
+                )
+
     captured = set(result["captured_result_fields"])
     for index, claim in enumerate(payload["final_claim_bindings"]):
         status = claim["binding_status"]
@@ -148,7 +295,7 @@ def _tool_execution_attestation(
                     "verified final claims require truthfully claimed successful execution",
                 )
             )
-        if result["result_identity"] is None:
+        if result_identity is None:
             out.append(
                 diagnostic(
                     "AIGOV-SEM-214",
@@ -169,12 +316,11 @@ def _tool_execution_attestation(
                 )
             )
         if status == "VERIFIED_READBACK_BOUND":
-            readback = payload["readback_ref"]
             exact_readback = (
-                payload["readback_status"] == "VERIFIED"
-                and isinstance(readback, Mapping)
-                and isinstance(readback.get("exact_identity"), str)
-                and readback.get("exact_identity") == result["result_identity"]
+                readback_status == "VERIFIED"
+                and isinstance(readback_ref, Mapping)
+                and isinstance(readback_ref.get("exact_identity"), str)
+                and readback_ref.get("exact_identity") == result_identity
             )
             if not exact_readback:
                 out.append(
