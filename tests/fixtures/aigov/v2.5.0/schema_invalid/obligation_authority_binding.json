@@ -1,1 +1,54 @@
-{"affected_actor_or_component":"PR-Inspector future AIGOV adapter","authority_source":{"authority_id":"AIGOV-RULE-001","authority_kind":"canonical_document","source_digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","source_path":"governance/aigov/v2.5.0/AI_AUTHORITY_DETERMINISTIC_GOVERNANCE_SSOT_v2.5.0.fa.md"},"ci_carrier_reference":null,"contract_type":"obligation_authority_binding","contract_version":"1.0","current_enforcement_status":"ci_enforced","downstream_consumer":null,"enforcement_carrier":{"carrier_reference":{"record_digest":"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","record_id":"aigov-schema-fixtures","record_type":"fixture_suite"},"carrier_type":"fixture_suite"},"invalid_fixture_reference":{"record_digest":"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","record_id":"tool-attestation-invalid","record_type":"fixture"},"obligation_id":"AIGOV-TOOL-EXECUTION-001","required_evidence":[{"evidence_id":"ev-obligation","evidence_type":"structured_record","retrieval_method":"github_api","source_digest":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","target":{"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","pr_number":7,"repository":{"repository_full_name":"rezahh107/example-repo","repository_id":123456}}}],"schema_carrier_reference":{"record_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","record_id":"tool_execution_attestation","record_type":"json_schema"},"semantic_validator_reference":{"record_digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","record_id":"future-s003-validator","record_type":"semantic_validator"},"valid_fixture_reference":{"record_digest":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","record_id":"tool-attestation-valid","record_type":"fixture"}}
+{
+  "contract_type": "obligation_authority_binding",
+  "contract_version": "1.0",
+  "activation_state": "inactive",
+  "carrier_id": "obligation_authority_binding",
+  "governed_rules": [
+    "AIGOV-EVIDENCE-001"
+  ],
+  "obligation_id": "obligation-001",
+  "obligation_type": "evidence_requirement",
+  "authority_ref": "governance/aigov/v2.5.0/AI_AUTHORITY_DETERMINISTIC_GOVERNANCE_SSOT_v2.5.0.fa.md",
+  "authority_identity": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "source_locator": "Section 14.6",
+  "resolution_status": "VERIFIED_SOURCE_BOUND",
+  "affected_actor_or_component": "PR-Inspector",
+  "required_evidence_refs": [
+    {
+      "evidence_id": "evidence-1",
+      "evidence_type": "source_document",
+      "exact_identity": "AIGOV-v2.5.0#14.6",
+      "source_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "retrieval_method": "local_verified_read"
+    }
+  ],
+  "enforcement_carrier_ref": {
+    "record_type": "schema",
+    "record_id": "obligation-schema",
+    "record_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  },
+  "current_enforcement_status": "ci_enforced",
+  "schema_carrier_ref": {
+    "evidence_id": "schema-1",
+    "evidence_type": "artifact",
+    "exact_identity": "schemas/aigov/v2.5.0/obligation_authority_binding.schema.json",
+    "source_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "retrieval_method": "local_verified_read"
+  },
+  "validator_ref": {
+    "evidence_id": "validator-1",
+    "evidence_type": "artifact",
+    "exact_identity": "tests/test_aigov_schemas.py",
+    "source_digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "retrieval_method": "local_verified_read"
+  },
+  "fixture_evidence_ref": {
+    "evidence_id": "fixtures-1",
+    "evidence_type": "artifact",
+    "exact_identity": "tests/fixtures/aigov/v2.5.0",
+    "source_digest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "retrieval_method": "local_verified_read"
+  },
+  "ci_evidence_ref": null,
+  "downstream_consumer_ref": null
+}

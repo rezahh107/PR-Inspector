@@ -1,1 +1,247 @@
-{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://github.com/rezahh107/PR-Inspector/schemas/aigov/v2.5.0/obligation_authority_binding.schema.json","title":"AIGOV Inactive Obligation Authority Binding Contract","description":"Inactive, non-authoritative AIGOV v2.5.0 contract carrier.","type":"object","additionalProperties":false,"properties":{"contract_type":{"const":"obligation_authority_binding"},"contract_version":{"const":"1.0"},"obligation_id":{"$ref":"common.schema.json#/$defs/record_id"},"authority_source":{"$ref":"common.schema.json#/$defs/authority_reference"},"affected_actor_or_component":{"$ref":"common.schema.json#/$defs/non_empty_string"},"required_evidence":{"type":"array","items":{"$ref":"common.schema.json#/$defs/evidence_reference"},"minItems":1,"uniqueItems":true},"enforcement_carrier":{"type":"object","additionalProperties":false,"properties":{"carrier_type":{"enum":["prose","schema","semantic_validator","fixture_suite","ci_workflow","downstream_contract"]},"carrier_reference":{"$ref":"common.schema.json#/$defs/record_reference"}},"required":["carrier_type","carrier_reference"]},"current_enforcement_status":{"$ref":"common.schema.json#/$defs/enforcement_status"},"schema_carrier_reference":{"anyOf":[{"$ref":"common.schema.json#/$defs/record_reference"},{"type":"null"}]},"semantic_validator_reference":{"anyOf":[{"$ref":"common.schema.json#/$defs/record_reference"},{"type":"null"}]},"valid_fixture_reference":{"anyOf":[{"$ref":"common.schema.json#/$defs/record_reference"},{"type":"null"}]},"invalid_fixture_reference":{"anyOf":[{"$ref":"common.schema.json#/$defs/record_reference"},{"type":"null"}]},"ci_carrier_reference":{"anyOf":[{"$ref":"common.schema.json#/$defs/record_reference"},{"type":"null"}]},"downstream_consumer":{"anyOf":[{"$ref":"common.schema.json#/$defs/record_reference"},{"type":"null"}]}},"required":["contract_type","contract_version","obligation_id","authority_source","affected_actor_or_component","required_evidence","enforcement_carrier","current_enforcement_status","schema_carrier_reference","semantic_validator_reference","valid_fixture_reference","invalid_fixture_reference","ci_carrier_reference","downstream_consumer"],"allOf":[{"if":{"properties":{"current_enforcement_status":{"enum":["schema_backed","validator_backed","fixture_tested","ci_enforced","downstream_contract_enforced"]}},"required":["current_enforcement_status"]},"then":{"properties":{"schema_carrier_reference":{"$ref":"common.schema.json#/$defs/record_reference"}}}},{"if":{"properties":{"current_enforcement_status":{"enum":["validator_backed","fixture_tested","ci_enforced","downstream_contract_enforced"]}},"required":["current_enforcement_status"]},"then":{"properties":{"semantic_validator_reference":{"$ref":"common.schema.json#/$defs/record_reference"}}}},{"if":{"properties":{"current_enforcement_status":{"enum":["fixture_tested","ci_enforced","downstream_contract_enforced"]}},"required":["current_enforcement_status"]},"then":{"properties":{"valid_fixture_reference":{"$ref":"common.schema.json#/$defs/record_reference"},"invalid_fixture_reference":{"$ref":"common.schema.json#/$defs/record_reference"}}}},{"if":{"properties":{"current_enforcement_status":{"enum":["ci_enforced","downstream_contract_enforced"]}},"required":["current_enforcement_status"]},"then":{"properties":{"ci_carrier_reference":{"$ref":"common.schema.json#/$defs/record_reference"}}}},{"if":{"properties":{"current_enforcement_status":{"const":"downstream_contract_enforced"}},"required":["current_enforcement_status"]},"then":{"properties":{"downstream_consumer":{"$ref":"common.schema.json#/$defs/record_reference"}}}}]}
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rezahh107/PR-Inspector/schemas/aigov/v2.5.0/obligation_authority_binding.schema.json",
+  "title": "AIGOV Inactive Obligation Authority Binding Contract",
+  "description": "Inactive carrier aligned with the minimum normative obligation_authority_binding shape.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contract_type": {
+      "const": "obligation_authority_binding"
+    },
+    "contract_version": {
+      "const": "1.0"
+    },
+    "activation_state": {
+      "const": "inactive"
+    },
+    "carrier_id": {
+      "const": "obligation_authority_binding"
+    },
+    "governed_rules": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^AIGOV-[A-Z0-9-]+$"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "obligation_id": {
+      "$ref": "common.schema.json#/$defs/record_id"
+    },
+    "obligation_type": {
+      "$ref": "common.schema.json#/$defs/obligation_type"
+    },
+    "authority_ref": {
+      "$ref": "common.schema.json#/$defs/non_empty_string"
+    },
+    "authority_identity": {
+      "$ref": "common.schema.json#/$defs/non_empty_string"
+    },
+    "source_locator": {
+      "$ref": "common.schema.json#/$defs/non_empty_string"
+    },
+    "resolution_status": {
+      "$ref": "common.schema.json#/$defs/obligation_resolution_status"
+    },
+    "affected_actor_or_component": {
+      "$ref": "common.schema.json#/$defs/non_empty_string"
+    },
+    "required_evidence_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/evidence_reference"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "enforcement_carrier_ref": {
+      "$ref": "common.schema.json#/$defs/record_reference"
+    },
+    "current_enforcement_status": {
+      "$ref": "common.schema.json#/$defs/behavioral_enforcement_status"
+    },
+    "schema_carrier_ref": {
+      "$ref": "common.schema.json#/$defs/nullable_evidence_reference"
+    },
+    "validator_ref": {
+      "$ref": "common.schema.json#/$defs/nullable_evidence_reference"
+    },
+    "fixture_evidence_ref": {
+      "$ref": "common.schema.json#/$defs/nullable_evidence_reference"
+    },
+    "ci_evidence_ref": {
+      "$ref": "common.schema.json#/$defs/nullable_evidence_reference"
+    },
+    "downstream_consumer_ref": {
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/record_reference"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "contract_type",
+    "contract_version",
+    "activation_state",
+    "carrier_id",
+    "governed_rules",
+    "obligation_id",
+    "obligation_type",
+    "authority_ref",
+    "authority_identity",
+    "source_locator",
+    "resolution_status",
+    "affected_actor_or_component",
+    "required_evidence_refs",
+    "enforcement_carrier_ref",
+    "current_enforcement_status",
+    "schema_carrier_ref",
+    "validator_ref",
+    "fixture_evidence_ref",
+    "ci_evidence_ref",
+    "downstream_consumer_ref"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "resolution_status": {
+            "const": "VERIFIED_SOURCE_BOUND"
+          }
+        },
+        "required": [
+          "resolution_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "authority_identity": {
+            "minLength": 1
+          },
+          "source_locator": {
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "current_enforcement_status": {
+            "enum": [
+              "schema_backed",
+              "validator_backed",
+              "fixture_tested",
+              "ci_enforced",
+              "downstream_contract_enforced"
+            ]
+          }
+        },
+        "required": [
+          "current_enforcement_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "schema_carrier_ref": {
+            "$ref": "common.schema.json#/$defs/evidence_reference"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "current_enforcement_status": {
+            "enum": [
+              "validator_backed",
+              "fixture_tested",
+              "ci_enforced",
+              "downstream_contract_enforced"
+            ]
+          }
+        },
+        "required": [
+          "current_enforcement_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "validator_ref": {
+            "$ref": "common.schema.json#/$defs/evidence_reference"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "current_enforcement_status": {
+            "enum": [
+              "fixture_tested",
+              "ci_enforced",
+              "downstream_contract_enforced"
+            ]
+          }
+        },
+        "required": [
+          "current_enforcement_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "fixture_evidence_ref": {
+            "$ref": "common.schema.json#/$defs/evidence_reference"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "current_enforcement_status": {
+            "enum": [
+              "ci_enforced",
+              "downstream_contract_enforced"
+            ]
+          }
+        },
+        "required": [
+          "current_enforcement_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "ci_evidence_ref": {
+            "$ref": "common.schema.json#/$defs/evidence_reference"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "current_enforcement_status": {
+            "const": "downstream_contract_enforced"
+          }
+        },
+        "required": [
+          "current_enforcement_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "downstream_consumer_ref": {
+            "$ref": "common.schema.json#/$defs/record_reference"
+          }
+        }
+      }
+    }
+  ]
+}

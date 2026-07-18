@@ -1,1 +1,27 @@
-{"artifact_digests":[{"artifact_digest":"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","artifact_name":"review-package.json","media_type":"application/json"},{"artifact_digest":"sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","artifact_name":"DECISION_PROJECTION.json","media_type":"application/json"}],"canonical_package_digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","contract_type":"review_receipt_core","contract_version":"1.0","decision_projection_digest":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","evidence_profile":"standard","execution_urgency":"routine","inspection_profile":"standard","inspector":{"commit_sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","repository_full_name":"rezahh107/PR-Inspector","repository_id":1288323264},"performed_at":"2026-07-18T10:00:00Z","protocol":{"protocol_name":"PR Inspector","protocol_version":"v1.11.1"},"published_at":"2026-07-18T10:03:00Z","receipt_schema_version":"1.0","review_id":"review-1","scope_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","sequence_number":1,"supersedes_review_id":null,"supersession_reason":null,"target":{"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","pr_number":7,"repository":{"repository_full_name":"rezahh107/example-repo","repository_id":123456}},"technical_status":"GREEN_TECHNICALLY_READY","trusted_completion_reference":{"authority_id":"verified-completion-1","authority_kind":"trusted_completion","source_digest":"sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","source_path":"review-artifacts/artifact-manifest.json"}}
+{
+  "contract_type": "review_receipt_core",
+  "contract_version": "1.0",
+  "activation_state": "inactive",
+  "receipt_schema_version": "1.0",
+  "review_id": "review-001",
+  "sequence_number": 1,
+  "supersedes_review_id": null,
+  "supersession_reason": null,
+  "repository_full_name": "rezahh107/example",
+  "repository_id": 42,
+  "pr_number": 7,
+  "reviewed_head_sha": "1111111111111111111111111111111111111111",
+  "scope_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "protocol_version": "v1.11.1",
+  "inspector_repository": "rezahh107/PR-Inspector",
+  "inspector_repository_id": 1288323264,
+  "inspector_commit_sha": "2222222222222222222222222222222222222222",
+  "inspection_profile": "minimal",
+  "evidence_profile": "compact",
+  "execution_urgency": "normal",
+  "technical_status": "GREEN_TECHNICALLY_READY",
+  "canonical_package_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "decision_projection_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "performed_at": "2026-07-18T12:00:00Z",
+  "published_at": "2026-07-18T12:01:00Z"
+}

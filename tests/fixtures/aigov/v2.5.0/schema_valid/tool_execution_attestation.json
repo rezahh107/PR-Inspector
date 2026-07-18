@@ -1,1 +1,105 @@
-{"attestation_id":"attestation-1","authentication_provenance":{"authenticated_subject":"github-actions[bot]","authentication_method":"github_api_authenticated","provenance_evidence":{"evidence_id":"ev-auth","evidence_type":"workflow_job","retrieval_method":"github_api","source_digest":"sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","target":{"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","pr_number":7,"repository":{"repository_full_name":"rezahh107/example-repo","repository_id":123456}}}},"command_or_validator_identity":{"identifier":"validate_repository_v2","identity_kind":"validator"},"conclusion":"success","contract_type":"tool_execution_attestation","contract_version":"1.0","evidence_retrieval_method":"github_api","job_identity":{"job_id":88068513510,"job_name":"validate (3.10)"},"pagination_complete_claim":true,"pagination_completeness_reference":{"collection_id":"checks-collection-1","evidence_reference":{"evidence_id":"ev-pagination","evidence_type":"workflow_run","retrieval_method":"github_api","source_digest":"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","target":{"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","pr_number":7,"repository":{"repository_full_name":"rezahh107/example-repo","repository_id":123456}}},"pages_fetched":2,"pagination_complete":true},"provider_identity":{"provider_id":"github-actions","provider_name":"GitHub Actions","provider_type":"github_actions"},"run_identity":{"event_name":"pull_request","run_attempt":1,"run_id":29639878369},"step_identity":{"step_name":"Validate versioned repository","step_number":7},"target":{"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","pr_number":7,"repository":{"repository_full_name":"rezahh107/example-repo","repository_id":123456}},"trusted_execution_context":"trusted_default_branch_workflow","workflow_identity":{"trusted_revision_sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","workflow_file":".github/workflows/validate-repository.yml","workflow_name":"Validate PR Inspector repository"},"write_capability_claim":false}
+{
+  "contract_type": "tool_execution_attestation",
+  "contract_version": "1.0",
+  "activation_state": "inactive",
+  "carrier_id": "tool_execution_attestation",
+  "governed_rule_id": "AIGOV-TOOL-EXECUTION-001",
+  "attestation_id": "attestation-001",
+  "capability_authority_ref": {
+    "authority_ref": "tool-capability-policy",
+    "authority_identity": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "source_locator": "capabilities/publisher"
+  },
+  "selected_tool": "github.create-comment",
+  "tool_schema_identity": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "target_identity": {
+    "target_type": "pr",
+    "exact_identity": "rezahh107/example#7@1111111111111111111111111111111111111111"
+  },
+  "provider_identity": {
+    "provider": "GitHub Actions",
+    "provider_identity": "github.com"
+  },
+  "workflow_identity": {
+    "workflow_name": "Publish Receipt",
+    "workflow_file": ".github/workflows/publish.yml",
+    "trusted_revision_sha": "2222222222222222222222222222222222222222"
+  },
+  "run_identity": {
+    "run_id": 101,
+    "run_attempt": 1
+  },
+  "job_identity": {
+    "job_id": 201,
+    "job_name": "publish"
+  },
+  "step_identity": {
+    "step_number": 3,
+    "step_name": "Publish"
+  },
+  "command_or_validator_identity": "publisher-v1",
+  "parameter_bindings": [
+    {
+      "parameter_name": "pr_number",
+      "supplied_value_or_canonical_digest": "7",
+      "source_ref": {
+        "authority_ref": "verified-pr-target",
+        "authority_identity": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "source_locator": "target/pr_number"
+      },
+      "source_field_path": "/pr_number",
+      "source_identity": "rezahh107/example#7",
+      "parameter_constraint_authority_refs": [],
+      "transformation": {
+        "transformation_id": "identity",
+        "validation_ref": null
+      },
+      "binding_status": "VERIFIED_SOURCE_BOUND"
+    }
+  ],
+  "invocation_record": {
+    "invocation_id": "invocation-001",
+    "claimed_execution": true,
+    "execution_status": "success",
+    "executed_at": "2026-07-18T12:00:00Z"
+  },
+  "execution_result": {
+    "result_identity": "comment-900",
+    "captured_result_fields": [
+      "comment_id",
+      "created_at"
+    ]
+  },
+  "state_changed": true,
+  "readback_status": "VERIFIED",
+  "readback_ref": {
+    "evidence_id": "readback-1",
+    "evidence_type": "structured_record",
+    "exact_identity": "comment-900",
+    "source_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "retrieval_method": "github_api"
+  },
+  "readback_not_required_authority_ref": null,
+  "final_claim_bindings": [
+    {
+      "claim_id": "claim-1",
+      "result_field_refs": [
+        "comment_id"
+      ],
+      "binding_status": "VERIFIED_READBACK_BOUND"
+    }
+  ],
+  "evidence_retrieval_method": "github_api",
+  "pagination_completeness_ref": null,
+  "authentication_provenance": {
+    "authentication_method": "github_app_installation",
+    "authenticated_subject": "app:publisher",
+    "provenance_evidence_ref": {
+      "evidence_id": "auth-1",
+      "evidence_type": "structured_record",
+      "exact_identity": "installation-300",
+      "source_digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "retrieval_method": "github_api"
+    }
+  }
+}

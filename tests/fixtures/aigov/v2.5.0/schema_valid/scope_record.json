@@ -1,1 +1,34 @@
-{"complete_scope_claim":true,"contract_type":"scope_record","contract_version":"1.0","dependencies":[{"dependency_id":"dep-s001","evidence_reference":{"evidence_id":"ev-dep","evidence_type":"artifact","retrieval_method":"github_api","source_digest":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","target":{"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","pr_number":7,"repository":{"repository_full_name":"rezahh107/example-repo","repository_id":123456}}},"surface":"governance/aigov/v2.5.0/"}],"excluded_surfaces":["pr_inspector/","protocols/v1.11.1/"],"included_surfaces":["schemas/aigov/v2.5.0/","tests/test_aigov_schemas.py"],"scope_authority":{"authority_id":"AIGOV-RULE-001","authority_kind":"canonical_document","source_digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","source_path":"governance/aigov/v2.5.0/AI_AUTHORITY_DETERMINISTIC_GOVERNANCE_SSOT_v2.5.0.fa.md"},"scope_digest":"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","scope_id":"scope-1","target":{"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","pr_number":7,"repository":{"repository_full_name":"rezahh107/example-repo","repository_id":123456}},"unresolved_scope":[]}
+{
+  "contract_type": "scope_record",
+  "contract_version": "1.0",
+  "activation_state": "inactive",
+  "scope_id": "scope-001",
+  "repository_identity": {
+    "repository_full_name": "rezahh107/example",
+    "repository_id": 42
+  },
+  "target_identity": {
+    "repository_full_name": "rezahh107/example",
+    "repository_id": 42,
+    "pr_number": 7,
+    "reviewed_head_sha": "1111111111111111111111111111111111111111"
+  },
+  "base_sha": "0000000000000000000000000000000000000000",
+  "head_sha": "1111111111111111111111111111111111111111",
+  "included_paths": [
+    "schemas/aigov/**"
+  ],
+  "excluded_paths": [],
+  "deferred_items": [],
+  "dependencies": [],
+  "scope_authority_binding_refs": [],
+  "governing_revision": "AIGOV-v2.5.0",
+  "unresolved_scope": [],
+  "scope_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "scope_authority_ref": {
+    "authority_ref": "governance/aigov/v2.5.0/AI_AUTHORITY_DETERMINISTIC_GOVERNANCE_SSOT_v2.5.0.fa.md",
+    "authority_identity": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "source_locator": "Section 7"
+  },
+  "scope_status": "resolved"
+}

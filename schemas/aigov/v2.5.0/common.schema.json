@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/rezahh107/PR-Inspector/schemas/aigov/v2.5.0/common.schema.json",
   "title": "AIGOV v2.5.0 Inactive Shared Contract Definitions",
-  "description": "Inactive, non-authoritative schema definitions for future PR-Inspector support.",
+  "description": "Inactive, non-authoritative definitions aligned with the canonical AIGOV v2.5.0 carriers.",
   "$defs": {
     "non_empty_string": {
       "type": "string",
@@ -49,31 +49,36 @@
         "repository_id"
       ]
     },
-    "pr_target_identity": {
+    "target_identity": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "repository": {
-          "$ref": "#/$defs/repository_identity"
+        "repository_full_name": {
+          "type": "string",
+          "pattern": "^[^/\\s]+/[^/\\s]+$"
+        },
+        "repository_id": {
+          "$ref": "#/$defs/positive_integer"
         },
         "pr_number": {
           "$ref": "#/$defs/positive_integer"
         },
-        "head_sha": {
+        "reviewed_head_sha": {
           "$ref": "#/$defs/git_commit_sha"
         }
       },
       "required": [
-        "repository",
+        "repository_full_name",
+        "repository_id",
         "pr_number",
-        "head_sha"
+        "reviewed_head_sha"
       ]
     },
     "default_branch_identity": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "repository": {
+        "repository_identity": {
           "$ref": "#/$defs/repository_identity"
         },
         "default_branch": {
@@ -84,7 +89,7 @@
         }
       },
       "required": [
-        "repository",
+        "repository_identity",
         "default_branch",
         "commit_sha"
       ]
@@ -110,7 +115,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "repository_full_name": {
+        "repository": {
           "const": "rezahh107/PR-Inspector"
         },
         "repository_id": {
@@ -121,7 +126,7 @@
         }
       },
       "required": [
-        "repository_full_name",
+        "repository",
         "repository_id",
         "commit_sha"
       ]
@@ -130,21 +135,21 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "policy_id": {
-          "$ref": "#/$defs/record_id"
-        },
         "policy_version": {
           "type": "string",
-          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+          "pattern": "^[0-9]+\\.[0-9]+(?:\\.[0-9]+)?$"
         },
-        "policy_digest": {
+        "policy_authority_ref": {
+          "$ref": "#/$defs/authority_reference"
+        },
+        "policy_identity": {
           "$ref": "#/$defs/tagged_sha256"
         }
       },
       "required": [
-        "policy_id",
         "policy_version",
-        "policy_digest"
+        "policy_authority_ref",
+        "policy_identity"
       ]
     },
     "record_reference": {
@@ -171,33 +176,20 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "authority_id": {
-          "$ref": "#/$defs/record_id"
+        "authority_ref": {
+          "$ref": "#/$defs/non_empty_string"
         },
-        "authority_kind": {
-          "enum": [
-            "canonical_document",
-            "repository_policy",
-            "protocol_rule",
-            "owner_transition",
-            "verified_tool_evidence",
-            "trusted_completion"
-          ]
+        "authority_identity": {
+          "$ref": "#/$defs/non_empty_string"
         },
-        "source_path": {
-          "type": "string",
-          "minLength": 1,
-          "pattern": "^(?!/)(?!.*\\.\\.)[^\\x00]+$"
-        },
-        "source_digest": {
-          "$ref": "#/$defs/tagged_sha256"
+        "source_locator": {
+          "$ref": "#/$defs/non_empty_string"
         }
       },
       "required": [
-        "authority_id",
-        "authority_kind",
-        "source_path",
-        "source_digest"
+        "authority_ref",
+        "authority_identity",
+        "source_locator"
       ]
     },
     "evidence_reference": {
@@ -219,11 +211,12 @@
             "decision_projection",
             "owner_merge",
             "exact_main_verification",
-            "structured_record"
+            "structured_record",
+            "source_document"
           ]
         },
-        "target": {
-          "$ref": "#/$defs/pr_target_identity"
+        "exact_identity": {
+          "$ref": "#/$defs/non_empty_string"
         },
         "source_digest": {
           "$ref": "#/$defs/tagged_sha256"
@@ -240,29 +233,9 @@
       "required": [
         "evidence_id",
         "evidence_type",
-        "target",
+        "exact_identity",
         "source_digest",
         "retrieval_method"
-      ]
-    },
-    "artifact_identity": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "artifact_name": {
-          "$ref": "#/$defs/non_empty_string"
-        },
-        "artifact_digest": {
-          "$ref": "#/$defs/tagged_sha256"
-        },
-        "media_type": {
-          "$ref": "#/$defs/non_empty_string"
-        }
-      },
-      "required": [
-        "artifact_name",
-        "artifact_digest",
-        "media_type"
       ]
     },
     "inspection_profile": {
@@ -274,16 +247,54 @@
     },
     "evidence_profile": {
       "enum": [
-        "minimal",
-        "standard",
-        "strict"
+        "compact",
+        "full",
+        "high_assurance"
       ]
     },
     "execution_urgency": {
       "enum": [
-        "routine",
-        "elevated",
-        "urgent"
+        "normal",
+        "expedited"
+      ]
+    },
+    "review_requirement": {
+      "enum": [
+        "required",
+        "optional_advisory"
+      ]
+    },
+    "review_requirement_status": {
+      "enum": [
+        "REQUIRED",
+        "OPTIONAL_ADVISORY",
+        "NOT_TRIGGERED_FOR_THIS_TARGET",
+        "BLOCKED_POLICY_UNRESOLVED"
+      ]
+    },
+    "merge_enforcement_profile": {
+      "enum": [
+        "owner_controlled",
+        "ci_enforced",
+        "repository_enforced"
+      ]
+    },
+    "merge_governance_status": {
+      "enum": [
+        "enforcement_verified",
+        "enforcement_unverified",
+        "enforcement_not_required",
+        "enforcement_conflicting"
+      ]
+    },
+    "review_policy_resolution_status": {
+      "enum": [
+        "RESOLVED",
+        "MISSING",
+        "INVALID",
+        "STALE",
+        "IDENTITY_UNVERIFIED",
+        "CONFLICT"
       ]
     },
     "policy_lifecycle": {
@@ -295,7 +306,7 @@
         "inactive"
       ]
     },
-    "enforcement_status": {
+    "behavioral_enforcement_status": {
       "enum": [
         "prose_only",
         "schema_backed",
@@ -305,63 +316,56 @@
         "downstream_contract_enforced"
       ]
     },
-    "evidence_sufficiency": {
+    "obligation_resolution_status": {
       "enum": [
-        "sufficient",
-        "insufficient",
-        "unresolved"
+        "VERIFIED_SOURCE_BOUND",
+        "UNRESOLVED",
+        "REJECTED_NOT_AUTHORITATIVE"
       ]
     },
-    "publication_result": {
+    "obligation_type": {
+      "enum": [
+        "rule",
+        "applicability_condition",
+        "trigger",
+        "required_field",
+        "rejection_criterion",
+        "evidence_requirement",
+        "scope_exclusion",
+        "deferred_work_condition",
+        "tool_parameter_constraint"
+      ]
+    },
+    "tool_parameter_binding_status": {
+      "enum": [
+        "VERIFIED_SOURCE_BOUND",
+        "VERIFIED_TRANSFORMATION_BOUND",
+        "INVALID_SOURCE_DETACHED",
+        "INVALID_UNDECLARED_TRANSFORMATION"
+      ]
+    },
+    "tool_execution_status": {
       "enum": [
         "not_attempted",
-        "publishing",
-        "published_verified",
-        "publication_failed",
-        "conflict_detected"
-      ]
-    },
-    "merge_method": {
-      "enum": [
-        "merge_commit",
-        "squash",
-        "rebase"
-      ]
-    },
-    "merge_readiness_result": {
-      "enum": [
-        "authorized",
-        "blocked",
-        "unresolved"
-      ]
-    },
-    "closure_outcome": {
-      "enum": [
-        "content_equivalence_verified",
-        "history_topology_verified",
-        "history_topology_not_preserved_by_merge_method",
-        "content_loss_detected",
-        "insufficient_evidence",
-        "blocked_status_drift"
-      ]
-    },
-    "tool_execution_conclusion": {
-      "enum": [
+        "invoked",
         "success",
-        "failure",
-        "cancelled",
-        "skipped",
-        "neutral",
-        "timed_out",
-        "action_required"
+        "failed",
+        "unverified"
       ]
     },
-    "activation_result": {
+    "tool_readback_status": {
       "enum": [
-        "not_started",
-        "blocked",
-        "activated",
-        "rejected"
+        "VERIFIED",
+        "READBACK_NOT_REQUIRED",
+        "FAILED",
+        "NOT_PERFORMED"
+      ]
+    },
+    "tool_claim_binding_status": {
+      "enum": [
+        "VERIFIED_RESULT_BOUND",
+        "VERIFIED_READBACK_BOUND",
+        "INVALID_RESULT_DETACHED"
       ]
     },
     "technical_status": {
@@ -371,37 +375,122 @@
         "RED_DO_NOT_MERGE"
       ]
     },
-    "component_requirement_result": {
-      "enum": [
-        "satisfied",
-        "not_required",
-        "blocked",
-        "unresolved"
+    "nullable_technical_status": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/technical_status"
+        },
+        {
+          "type": "null"
+        }
       ]
     },
-    "pagination_completeness_reference": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "collection_id": {
-          "$ref": "#/$defs/record_id"
+    "review_execution_status": {
+      "enum": [
+        "performed",
+        "failed"
+      ]
+    },
+    "receipt_publication_status": {
+      "enum": [
+        "not_required",
+        "not_attempted",
+        "publishing",
+        "published_verified",
+        "publication_failed"
+      ]
+    },
+    "merge_readiness_result": {
+      "enum": [
+        "READY_FOR_USER_MERGE",
+        "NOT_READY",
+        "BLOCKED_POLICY_UNRESOLVED",
+        "BLOCKED_REQUIRED_REVIEW",
+        "BLOCKED_REQUIRED_PUBLICATION"
+      ]
+    },
+    "merge_method": {
+      "enum": [
+        "merge_commit",
+        "squash_merge",
+        "rebase_merge"
+      ]
+    },
+    "post_merge_closure_status": {
+      "enum": [
+        "not_started",
+        "merge_result_verified",
+        "current_main_validated",
+        "blocked_status_drift",
+        "status_reconciled",
+        "closure_recorded"
+      ]
+    },
+    "dependent_work_authorization": {
+      "enum": [
+        "allowed",
+        "blocked_post_merge_closure",
+        "blocked_status_drift"
+      ]
+    },
+    "method_aware_outcome": {
+      "enum": [
+        "content_equivalence_verified",
+        "history_topology_verified",
+        "history_topology_not_preserved_by_merge_method",
+        "content_loss_detected",
+        "insufficient_evidence"
+      ]
+    },
+    "validation_result": {
+      "enum": [
+        "PASS",
+        "FAIL",
+        "NOT_RUN"
+      ]
+    },
+    "change_class": {
+      "enum": [
+        "L0",
+        "L1",
+        "L2",
+        "L3",
+        "L4"
+      ]
+    },
+    "classification_resolution_status": {
+      "enum": [
+        "resolved",
+        "blocked_insufficient_evidence"
+      ]
+    },
+    "classification_outcome": {
+      "enum": [
+        "supported_routine",
+        "confirmed_material",
+        "unsupported_upward",
+        "indeterminate",
+        "blocked_insufficient_evidence"
+      ]
+    },
+    "nullable_tagged_sha256": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/tagged_sha256"
         },
-        "pages_fetched": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "pagination_complete": {
-          "const": true
-        },
-        "evidence_reference": {
-          "$ref": "#/$defs/evidence_reference"
+        {
+          "type": "null"
         }
-      },
-      "required": [
-        "collection_id",
-        "pages_fetched",
-        "pagination_complete",
-        "evidence_reference"
+      ]
+    },
+    "nullable_evidence_reference": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/evidence_reference"
+        },
+        {
+          "type": "null"
+        }
       ]
     }
   }

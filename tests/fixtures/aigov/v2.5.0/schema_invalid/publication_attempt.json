@@ -1,1 +1,38 @@
-{"attempt_number":1,"conflicting_receipt_detection":null,"contract_type":"publication_attempt","contract_version":"1.0","failure_reason":null,"idempotency_relationship":null,"publication_attempt_id":"attempt-1","publication_result":"published_verified","publication_target":{"carrier":"structured_pr_comment","marker":"PR-INSPECTOR-REVIEW-RECEIPT:v1"},"publisher_identity":{"actor_id":99,"actor_login":"trusted-publisher","actor_type":"App","github_app_id":1001,"installation_id":1002},"readback_verification":{"comment_id":null,"comment_url":"https://github.com/rezahh107/example-repo/pull/7#issuecomment-123","evidence_reference":{"evidence_id":"ev-readback","evidence_type":"repository_api","retrieval_method":"github_api","source_digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","target":{"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","pr_number":7,"repository":{"repository_full_name":"rezahh107/example-repo","repository_id":123456}}},"published_body_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","verified":false,"verified_at":"2026-07-18T10:02:00Z"},"receipt_core_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","review_id":"review-1","target":{"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","pr_number":7,"repository":{"repository_full_name":"rezahh107/example-repo","repository_id":123456}}}
+{
+  "contract_type": "publication_attempt",
+  "contract_version": "1.0",
+  "activation_state": "inactive",
+  "publication_attempt_id": "attempt-001",
+  "attempt_number": 1,
+  "review_id": "review-001",
+  "receipt_core_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "publication_status": "published_verified",
+  "carrier": "structured_pr_comment",
+  "publisher_identity": {
+    "actor_login": "publisher-bot",
+    "actor_id": 100,
+    "actor_type": "Bot",
+    "github_app_id": 200,
+    "installation_id": 300
+  },
+  "target_repository_full_name": "rezahh107/example",
+  "target_repository_id": 42,
+  "pr_number": 7,
+  "head_observed_at_publish": "1111111111111111111111111111111111111111",
+  "published_object_id": 900,
+  "published_at": "2026-07-18T12:00:00Z",
+  "readback_verified_at": null,
+  "published_body_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "failure_reason": null,
+  "readback_status": "NOT_PERFORMED",
+  "readback_evidence_ref": null,
+  "idempotency_key": {
+    "review_id": "review-001",
+    "repository_id": 42,
+    "pr_number": 7,
+    "reviewed_head_sha": "1111111111111111111111111111111111111111",
+    "receipt_core_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "prior_attempt_ref": null,
+  "conflicting_receipt_ref": null
+}

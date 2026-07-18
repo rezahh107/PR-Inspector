@@ -1,1 +1,305 @@
-{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://github.com/rezahh107/PR-Inspector/schemas/aigov/v2.5.0/publication_attempt.schema.json","title":"AIGOV Inactive Publication Attempt Contract","description":"Inactive, non-authoritative AIGOV v2.5.0 contract carrier.","type":"object","additionalProperties":false,"properties":{"contract_type":{"const":"publication_attempt"},"contract_version":{"const":"1.0"},"publication_attempt_id":{"$ref":"common.schema.json#/$defs/record_id"},"attempt_number":{"$ref":"common.schema.json#/$defs/positive_integer"},"review_id":{"$ref":"common.schema.json#/$defs/record_id"},"receipt_core_digest":{"$ref":"common.schema.json#/$defs/tagged_sha256"},"target":{"$ref":"common.schema.json#/$defs/pr_target_identity"},"publisher_identity":{"type":"object","additionalProperties":false,"properties":{"actor_login":{"$ref":"common.schema.json#/$defs/non_empty_string"},"actor_id":{"$ref":"common.schema.json#/$defs/positive_integer"},"actor_type":{"enum":["User","Bot","App"]},"github_app_id":{"type":["integer","null"],"minimum":1},"installation_id":{"type":["integer","null"],"minimum":1}},"required":["actor_login","actor_id","actor_type","github_app_id","installation_id"]},"publication_target":{"type":"object","additionalProperties":false,"properties":{"carrier":{"const":"structured_pr_comment"},"marker":{"const":"PR-INSPECTOR-REVIEW-RECEIPT:v1"}},"required":["carrier","marker"]},"publication_result":{"$ref":"common.schema.json#/$defs/publication_result"},"failure_reason":{"type":["string","null"],"minLength":1},"readback_verification":{"type":"object","additionalProperties":false,"properties":{"verified":{"type":"boolean"},"comment_id":{"type":["integer","null"],"minimum":1},"comment_url":{"type":["string","null"],"format":"uri"},"published_body_sha256":{"anyOf":[{"$ref":"common.schema.json#/$defs/sha256"},{"type":"null"}]},"verified_at":{"anyOf":[{"$ref":"common.schema.json#/$defs/timestamp"},{"type":"null"}]},"evidence_reference":{"anyOf":[{"$ref":"common.schema.json#/$defs/evidence_reference"},{"type":"null"}]}},"required":["verified","comment_id","comment_url","published_body_sha256","verified_at","evidence_reference"]},"idempotency_relationship":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"prior_attempt_id":{"$ref":"common.schema.json#/$defs/record_id"},"same_core_digest":{"const":true},"prior_publication_evidence":{"$ref":"common.schema.json#/$defs/evidence_reference"}},"required":["prior_attempt_id","same_core_digest","prior_publication_evidence"]},{"type":"null"}]},"conflicting_receipt_detection":{"anyOf":[{"type":"object","additionalProperties":false,"properties":{"conflict_detected":{"const":true},"current_review_id":{"$ref":"common.schema.json#/$defs/record_id"},"conflicting_review_id":{"$ref":"common.schema.json#/$defs/record_id"},"conflict_evidence":{"$ref":"common.schema.json#/$defs/evidence_reference"}},"required":["conflict_detected","current_review_id","conflicting_review_id","conflict_evidence"]},{"type":"null"}]}},"required":["contract_type","contract_version","publication_attempt_id","attempt_number","review_id","receipt_core_digest","target","publisher_identity","publication_target","publication_result","failure_reason","readback_verification","idempotency_relationship","conflicting_receipt_detection"],"allOf":[{"if":{"properties":{"publication_result":{"const":"published_verified"}},"required":["publication_result"]},"then":{"properties":{"failure_reason":{"type":"null"},"readback_verification":{"allOf":[{"type":"object","additionalProperties":false,"properties":{"verified":{"type":"boolean"},"comment_id":{"type":["integer","null"],"minimum":1},"comment_url":{"type":["string","null"],"format":"uri"},"published_body_sha256":{"anyOf":[{"$ref":"common.schema.json#/$defs/sha256"},{"type":"null"}]},"verified_at":{"anyOf":[{"$ref":"common.schema.json#/$defs/timestamp"},{"type":"null"}]},"evidence_reference":{"anyOf":[{"$ref":"common.schema.json#/$defs/evidence_reference"},{"type":"null"}]}},"required":["verified","comment_id","comment_url","published_body_sha256","verified_at","evidence_reference"]},{"properties":{"verified":{"const":true},"comment_id":{"type":"integer","minimum":1},"comment_url":{"type":"string","format":"uri"},"published_body_sha256":{"$ref":"common.schema.json#/$defs/sha256"},"verified_at":{"$ref":"common.schema.json#/$defs/timestamp"},"evidence_reference":{"$ref":"common.schema.json#/$defs/evidence_reference"}}}]}}}},{"if":{"properties":{"publication_result":{"const":"publication_failed"}},"required":["publication_result"]},"then":{"properties":{"failure_reason":{"type":"string","minLength":1}}}},{"if":{"properties":{"publication_result":{"const":"conflict_detected"}},"required":["publication_result"]},"then":{"properties":{"conflicting_receipt_detection":{"type":"object"}}}}]}
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rezahh107/PR-Inspector/schemas/aigov/v2.5.0/publication_attempt.schema.json",
+  "title": "AIGOV Inactive Publication Attempt Contract",
+  "description": "Inactive, non-authoritative append-only publication attempt envelope separate from Receipt Core.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contract_type": {
+      "const": "publication_attempt"
+    },
+    "contract_version": {
+      "const": "1.0"
+    },
+    "activation_state": {
+      "const": "inactive"
+    },
+    "publication_attempt_id": {
+      "$ref": "common.schema.json#/$defs/record_id"
+    },
+    "attempt_number": {
+      "$ref": "common.schema.json#/$defs/positive_integer"
+    },
+    "review_id": {
+      "$ref": "common.schema.json#/$defs/record_id"
+    },
+    "receipt_core_digest": {
+      "$ref": "common.schema.json#/$defs/tagged_sha256"
+    },
+    "publication_status": {
+      "enum": [
+        "not_attempted",
+        "publishing",
+        "published_verified",
+        "publication_failed",
+        "RECEIPT_CONFLICT"
+      ]
+    },
+    "carrier": {
+      "enum": [
+        "structured_pr_comment",
+        "github_check_run",
+        "immutable_ledger_pointer",
+        "repository_defined"
+      ]
+    },
+    "publisher_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "actor_login": {
+          "$ref": "common.schema.json#/$defs/non_empty_string"
+        },
+        "actor_id": {
+          "$ref": "common.schema.json#/$defs/positive_integer"
+        },
+        "actor_type": {
+          "enum": [
+            "User",
+            "Bot",
+            "App"
+          ]
+        },
+        "github_app_id": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "installation_id": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        }
+      },
+      "required": [
+        "actor_login",
+        "actor_id",
+        "actor_type",
+        "github_app_id",
+        "installation_id"
+      ]
+    },
+    "target_repository_full_name": {
+      "type": "string",
+      "pattern": "^[^/\\s]+/[^/\\s]+$"
+    },
+    "target_repository_id": {
+      "$ref": "common.schema.json#/$defs/positive_integer"
+    },
+    "pr_number": {
+      "$ref": "common.schema.json#/$defs/positive_integer"
+    },
+    "head_observed_at_publish": {
+      "$ref": "common.schema.json#/$defs/git_commit_sha"
+    },
+    "published_object_id": {
+      "type": [
+        "integer",
+        "string",
+        "null"
+      ],
+      "minLength": 1
+    },
+    "published_at": {
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/timestamp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "readback_verified_at": {
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/timestamp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "published_body_sha256": {
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "failure_reason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1
+    },
+    "readback_status": {
+      "$ref": "common.schema.json#/$defs/tool_readback_status"
+    },
+    "readback_evidence_ref": {
+      "$ref": "common.schema.json#/$defs/nullable_evidence_reference"
+    },
+    "idempotency_key": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "review_id": {
+          "$ref": "common.schema.json#/$defs/record_id"
+        },
+        "repository_id": {
+          "$ref": "common.schema.json#/$defs/positive_integer"
+        },
+        "pr_number": {
+          "$ref": "common.schema.json#/$defs/positive_integer"
+        },
+        "reviewed_head_sha": {
+          "$ref": "common.schema.json#/$defs/git_commit_sha"
+        },
+        "receipt_core_digest": {
+          "$ref": "common.schema.json#/$defs/tagged_sha256"
+        }
+      },
+      "required": [
+        "review_id",
+        "repository_id",
+        "pr_number",
+        "reviewed_head_sha",
+        "receipt_core_digest"
+      ]
+    },
+    "prior_attempt_ref": {
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/record_reference"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "conflicting_receipt_ref": {
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/record_reference"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "contract_type",
+    "contract_version",
+    "activation_state",
+    "publication_attempt_id",
+    "attempt_number",
+    "review_id",
+    "receipt_core_digest",
+    "publication_status",
+    "carrier",
+    "publisher_identity",
+    "target_repository_full_name",
+    "target_repository_id",
+    "pr_number",
+    "head_observed_at_publish",
+    "published_object_id",
+    "published_at",
+    "readback_verified_at",
+    "published_body_sha256",
+    "failure_reason",
+    "readback_status",
+    "readback_evidence_ref",
+    "idempotency_key",
+    "prior_attempt_ref",
+    "conflicting_receipt_ref"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "publication_status": {
+            "const": "published_verified"
+          }
+        },
+        "required": [
+          "publication_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "published_object_id": {
+            "not": {
+              "type": "null"
+            }
+          },
+          "published_at": {
+            "$ref": "common.schema.json#/$defs/timestamp"
+          },
+          "readback_verified_at": {
+            "$ref": "common.schema.json#/$defs/timestamp"
+          },
+          "published_body_sha256": {
+            "$ref": "common.schema.json#/$defs/sha256"
+          },
+          "failure_reason": {
+            "type": "null"
+          },
+          "readback_status": {
+            "const": "VERIFIED"
+          },
+          "readback_evidence_ref": {
+            "$ref": "common.schema.json#/$defs/evidence_reference"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "publication_status": {
+            "const": "publication_failed"
+          }
+        },
+        "required": [
+          "publication_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "failure_reason": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "publication_status": {
+            "const": "RECEIPT_CONFLICT"
+          }
+        },
+        "required": [
+          "publication_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "conflicting_receipt_ref": {
+            "$ref": "common.schema.json#/$defs/record_reference"
+          }
+        }
+      }
+    }
+  ]
+}

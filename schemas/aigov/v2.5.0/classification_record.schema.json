@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/rezahh107/PR-Inspector/schemas/aigov/v2.5.0/classification_record.schema.json",
   "title": "AIGOV Inactive Classification Record Contract",
-  "description": "Inactive, non-authoritative AIGOV v2.5.0 contract carrier.",
+  "description": "Inactive, non-authoritative AIGOV v2.5.0 contract carrier for future PR-Inspector support.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -12,11 +12,14 @@
     "contract_version": {
       "const": "1.0"
     },
+    "activation_state": {
+      "const": "inactive"
+    },
     "classification_id": {
       "$ref": "common.schema.json#/$defs/record_id"
     },
-    "target": {
-      "$ref": "common.schema.json#/$defs/pr_target_identity"
+    "target_identity": {
+      "$ref": "common.schema.json#/$defs/target_identity"
     },
     "observed_facts": {
       "type": "array",
@@ -27,61 +30,57 @@
           "fact_id": {
             "$ref": "common.schema.json#/$defs/record_id"
           },
-          "statement": {
+          "fact_kind": {
+            "enum": [
+              "changed_path",
+              "boundary_signal",
+              "runtime_effect",
+              "governance_effect",
+              "trust_effect"
+            ]
+          },
+          "fact_value": {
             "$ref": "common.schema.json#/$defs/non_empty_string"
           },
-          "evidence_reference": {
+          "evidence_ref": {
             "$ref": "common.schema.json#/$defs/evidence_reference"
           }
         },
         "required": [
           "fact_id",
-          "statement",
-          "evidence_reference"
+          "fact_kind",
+          "fact_value",
+          "evidence_ref"
         ]
       },
       "minItems": 1,
       "uniqueItems": true
     },
-    "derived_classification": {
+    "classification_resolution_status": {
+      "$ref": "common.schema.json#/$defs/classification_resolution_status"
+    },
+    "final_class": {
       "anyOf": [
         {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "change_class": {
-              "enum": [
-                "L0",
-                "L1",
-                "L2",
-                "L3",
-                "L4"
-              ]
-            },
-            "boundary_ids": {
-              "type": "array",
-              "items": {
-                "$ref": "common.schema.json#/$defs/record_id"
-              },
-              "minItems": 1,
-              "uniqueItems": true
-            },
-            "classification_value": {
-              "$ref": "common.schema.json#/$defs/non_empty_string"
-            }
-          },
-          "required": [
-            "change_class",
-            "boundary_ids",
-            "classification_value"
-          ]
+          "$ref": "common.schema.json#/$defs/change_class"
         },
         {
           "type": "null"
         }
       ]
     },
-    "source_evidence": {
+    "classification_outcome": {
+      "$ref": "common.schema.json#/$defs/classification_outcome"
+    },
+    "boundary_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^AIGOV-BOUNDARY-[A-Z0-9-]+$"
+      },
+      "uniqueItems": true
+    },
+    "evidence_refs": {
       "type": "array",
       "items": {
         "$ref": "common.schema.json#/$defs/evidence_reference"
@@ -89,87 +88,74 @@
       "minItems": 1,
       "uniqueItems": true
     },
-    "evidence_sufficiency": {
-      "$ref": "common.schema.json#/$defs/evidence_sufficiency"
+    "classification_authority_ref": {
+      "$ref": "common.schema.json#/$defs/authority_reference"
     },
-    "confidence": {
+    "evidence_sufficiency": {
       "enum": [
-        "high",
-        "medium",
-        "low",
-        "not_applicable"
+        "sufficient",
+        "insufficient"
       ]
     },
-    "classification_authority": {
-      "$ref": "common.schema.json#/$defs/authority_reference"
+    "recovery_condition": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1
     }
   },
   "required": [
     "contract_type",
     "contract_version",
+    "activation_state",
     "classification_id",
-    "target",
+    "target_identity",
     "observed_facts",
-    "derived_classification",
-    "source_evidence",
+    "classification_resolution_status",
+    "final_class",
+    "classification_outcome",
+    "boundary_ids",
+    "evidence_refs",
+    "classification_authority_ref",
     "evidence_sufficiency",
-    "confidence",
-    "classification_authority"
+    "recovery_condition"
   ],
   "allOf": [
     {
       "if": {
         "properties": {
-          "evidence_sufficiency": {
-            "const": "sufficient"
+          "classification_resolution_status": {
+            "const": "resolved"
           }
         },
         "required": [
-          "evidence_sufficiency"
+          "classification_resolution_status"
         ]
       },
       "then": {
         "properties": {
-          "derived_classification": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "change_class": {
-                "enum": [
-                  "L0",
-                  "L1",
-                  "L2",
-                  "L3",
-                  "L4"
-                ]
-              },
-              "boundary_ids": {
-                "type": "array",
-                "items": {
-                  "$ref": "common.schema.json#/$defs/record_id"
-                },
-                "minItems": 1,
-                "uniqueItems": true
-              },
-              "classification_value": {
-                "$ref": "common.schema.json#/$defs/non_empty_string"
-              }
-            },
-            "required": [
-              "change_class",
-              "boundary_ids",
-              "classification_value"
-            ]
+          "final_class": {
+            "$ref": "common.schema.json#/$defs/change_class"
+          },
+          "evidence_sufficiency": {
+            "const": "sufficient"
           }
         }
       },
       "else": {
         "properties": {
-          "derived_classification": {
+          "final_class": {
             "type": "null"
           },
-          "confidence": {
-            "const": "not_applicable"
+          "classification_outcome": {
+            "const": "blocked_insufficient_evidence"
+          },
+          "evidence_sufficiency": {
+            "const": "insufficient"
+          },
+          "recovery_condition": {
+            "type": "string"
           }
         }
       }

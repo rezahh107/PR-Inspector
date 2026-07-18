@@ -1,1 +1,140 @@
-{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://github.com/rezahh107/PR-Inspector/schemas/aigov/v2.5.0/review_execution.schema.json","title":"AIGOV Inactive Review Execution Contract","description":"Inactive, non-authoritative AIGOV v2.5.0 contract carrier.","type":"object","additionalProperties":false,"properties":{"contract_type":{"const":"review_execution"},"contract_version":{"const":"1.0"},"execution_id":{"$ref":"common.schema.json#/$defs/record_id"},"target":{"$ref":"common.schema.json#/$defs/pr_target_identity"},"protocol":{"$ref":"common.schema.json#/$defs/protocol_identity"},"inspector":{"$ref":"common.schema.json#/$defs/inspector_identity"},"inspection_profile":{"$ref":"common.schema.json#/$defs/inspection_profile"},"evidence_profile":{"$ref":"common.schema.json#/$defs/evidence_profile"},"policy_resolution_reference":{"$ref":"common.schema.json#/$defs/record_reference"},"tool_execution_attestations":{"type":"array","items":{"$ref":"common.schema.json#/$defs/record_reference"},"uniqueItems":true},"required_execution_evidence":{"type":"array","items":{"$ref":"common.schema.json#/$defs/evidence_reference"},"uniqueItems":true},"execution_result":{"enum":["not_started","running","completed","failed","blocked"]},"completion_status":{"enum":["not_complete","evidence_complete","pending_trusted_completion"]}},"required":["contract_type","contract_version","execution_id","target","protocol","inspector","inspection_profile","evidence_profile","policy_resolution_reference","tool_execution_attestations","required_execution_evidence","execution_result","completion_status"],"allOf":[{"if":{"properties":{"execution_result":{"const":"completed"}},"required":["execution_result"]},"then":{"properties":{"tool_execution_attestations":{"minItems":1},"required_execution_evidence":{"minItems":1},"completion_status":{"enum":["evidence_complete","pending_trusted_completion"]}}}}]}
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rezahh107/PR-Inspector/schemas/aigov/v2.5.0/review_execution.schema.json",
+  "title": "AIGOV Inactive Review Execution Contract",
+  "description": "Inactive carrier aligned with the canonical Review execution record and explicitly not a trusted completion proof.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contract_type": {
+      "const": "review_execution"
+    },
+    "contract_version": {
+      "const": "1.0"
+    },
+    "activation_state": {
+      "const": "inactive"
+    },
+    "review_id": {
+      "$ref": "common.schema.json#/$defs/record_id"
+    },
+    "repository_full_name": {
+      "type": "string",
+      "pattern": "^[^/\\s]+/[^/\\s]+$"
+    },
+    "repository_id": {
+      "$ref": "common.schema.json#/$defs/positive_integer"
+    },
+    "pr_number": {
+      "$ref": "common.schema.json#/$defs/positive_integer"
+    },
+    "reviewed_head_sha": {
+      "$ref": "common.schema.json#/$defs/git_commit_sha"
+    },
+    "scope_digest": {
+      "$ref": "common.schema.json#/$defs/tagged_sha256"
+    },
+    "protocol_version": {
+      "type": "string",
+      "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "inspector_identity": {
+      "$ref": "common.schema.json#/$defs/inspector_identity"
+    },
+    "inspection_profile": {
+      "$ref": "common.schema.json#/$defs/inspection_profile"
+    },
+    "evidence_profile": {
+      "$ref": "common.schema.json#/$defs/evidence_profile"
+    },
+    "execution_urgency": {
+      "$ref": "common.schema.json#/$defs/execution_urgency"
+    },
+    "policy_resolution_ref": {
+      "$ref": "common.schema.json#/$defs/record_reference"
+    },
+    "tool_execution_attestation_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/record_reference"
+      },
+      "uniqueItems": true
+    },
+    "execution_status": {
+      "$ref": "common.schema.json#/$defs/review_execution_status"
+    },
+    "technical_status": {
+      "$ref": "common.schema.json#/$defs/nullable_technical_status"
+    },
+    "canonical_package_digest": {
+      "$ref": "common.schema.json#/$defs/nullable_tagged_sha256"
+    },
+    "decision_projection_digest": {
+      "$ref": "common.schema.json#/$defs/nullable_tagged_sha256"
+    },
+    "performed_at": {
+      "$ref": "common.schema.json#/$defs/timestamp"
+    },
+    "completion_claim": {
+      "const": "not_proven_by_this_record"
+    }
+  },
+  "required": [
+    "contract_type",
+    "contract_version",
+    "activation_state",
+    "review_id",
+    "repository_full_name",
+    "repository_id",
+    "pr_number",
+    "reviewed_head_sha",
+    "scope_digest",
+    "protocol_version",
+    "inspector_identity",
+    "inspection_profile",
+    "evidence_profile",
+    "execution_urgency",
+    "policy_resolution_ref",
+    "tool_execution_attestation_refs",
+    "execution_status",
+    "technical_status",
+    "canonical_package_digest",
+    "decision_projection_digest",
+    "performed_at",
+    "completion_claim"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "execution_status": {
+            "const": "performed"
+          }
+        },
+        "required": [
+          "execution_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "technical_status": {
+            "$ref": "common.schema.json#/$defs/technical_status"
+          },
+          "canonical_package_digest": {
+            "$ref": "common.schema.json#/$defs/tagged_sha256"
+          },
+          "decision_projection_digest": {
+            "$ref": "common.schema.json#/$defs/tagged_sha256"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "technical_status": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
+}

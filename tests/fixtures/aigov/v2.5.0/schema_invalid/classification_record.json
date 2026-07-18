@@ -1,1 +1,42 @@
-{"classification_authority":{"authority_id":"AIGOV-RULE-001","authority_kind":"canonical_document","source_digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","source_path":"governance/aigov/v2.5.0/AI_AUTHORITY_DETERMINISTIC_GOVERNANCE_SSOT_v2.5.0.fa.md"},"classification_id":"classification-1","confidence":"high","contract_type":"classification_record","contract_version":"1.0","derived_classification":{"boundary_ids":["AIGOV-BOUNDARY-004"],"change_class":"L3","classification_value":"public_contract_change"},"evidence_sufficiency":"sufficient","observed_facts":["free-form prose is not structured evidence"],"source_evidence":[{"evidence_id":"ev-classification","evidence_type":"structured_record","retrieval_method":"github_api","source_digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","target":{"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","pr_number":7,"repository":{"repository_full_name":"rezahh107/example-repo","repository_id":123456}}}],"target":{"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","pr_number":7,"repository":{"repository_full_name":"rezahh107/example-repo","repository_id":123456}}}
+{
+  "contract_type": "classification_record",
+  "contract_version": "1.0",
+  "activation_state": "inactive",
+  "classification_id": "class-001",
+  "target_identity": {
+    "repository_full_name": "rezahh107/example",
+    "repository_id": 42,
+    "pr_number": 7,
+    "reviewed_head_sha": "1111111111111111111111111111111111111111"
+  },
+  "observed_facts": [
+    {
+      "fact_id": "fact-1",
+      "fact_kind": "changed_path",
+      "fact_value": "schemas/example.json",
+      "evidence_ref": "prose-is-not-structured-evidence"
+    }
+  ],
+  "classification_resolution_status": "resolved",
+  "final_class": "L3",
+  "classification_outcome": "confirmed_material",
+  "boundary_ids": [
+    "AIGOV-BOUNDARY-GOVERNANCE-AUTHORITY"
+  ],
+  "evidence_refs": [
+    {
+      "evidence_id": "evidence-1",
+      "evidence_type": "pull_request_api",
+      "exact_identity": "rezahh107/example#7@1111111111111111111111111111111111111111",
+      "source_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "retrieval_method": "github_api"
+    }
+  ],
+  "classification_authority_ref": {
+    "authority_ref": "governance/aigov/v2.5.0/AI_AUTHORITY_DETERMINISTIC_GOVERNANCE_SSOT_v2.5.0.fa.md",
+    "authority_identity": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "source_locator": "Section 5"
+  },
+  "evidence_sufficiency": "sufficient",
+  "recovery_condition": null
+}

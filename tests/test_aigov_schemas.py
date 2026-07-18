@@ -116,7 +116,7 @@ def test_expected_inactive_schema_inventory_and_index():
         *(f"{name}.schema.json" for name in EXPECTED_CONTRACTS),
         "schema-index.json",
     }
-    assert {path.name for path in SCHEMA_DIR.iterdir()} == expected_schema_files
+    assert {path.name for path in SCHEMA_DIR.glob("*.json")} == expected_schema_files
 
     index = _load(SCHEMA_DIR / "schema-index.json")
     assert index["schema_index_version"] == "1.0"
@@ -140,8 +140,10 @@ def test_all_schemas_are_valid_unique_versioned_and_locally_resolved():
         if name != "common":
             assert schema["properties"]["contract_type"]["const"] == name
             assert schema["properties"]["contract_version"]["const"] == "1.0"
+            assert schema["properties"]["activation_state"]["const"] == "inactive"
             assert "contract_type" in schema["required"]
             assert "contract_version" in schema["required"]
+            assert "activation_state" in schema["required"]
             assert schema["additionalProperties"] is False
 
     assert len(schema_ids) == len(set(schema_ids))
@@ -161,21 +163,57 @@ def test_every_contract_has_passing_valid_and_failing_invalid_fixture():
         _assert_invalid(contract, invalid_fixtures[contract])
 
 
-def test_future_profiles_are_exact_and_standard_is_distinct():
+def test_canonical_profile_and_urgency_vocabularies():
     common = _load(SCHEMA_DIR / "common.schema.json")
     assert common["$defs"]["inspection_profile"]["enum"] == [
         "minimal", "standard", "strict"
     ]
     assert common["$defs"]["evidence_profile"]["enum"] == [
-        "minimal", "standard", "strict"
+        "compact", "full", "high_assurance"
     ]
     assert common["$defs"]["execution_urgency"]["enum"] == [
-        "routine", "elevated", "urgent"
+        "normal", "expedited"
+    ]
+    assert common["$defs"]["merge_method"]["enum"] == [
+        "merge_commit", "squash_merge", "rebase_merge"
     ]
 
     payload = _valid_fixtures()["review_policy_resolution"]
-    payload["required_inspection_profile"] = "strict_alias"
+    payload["effective_inspection_profile"] = "strict_alias"
     _assert_invalid("review_policy_resolution", payload)
+
+
+def test_canonical_repository_policy_and_resolution_minimum_fields():
+    policy = _load(SCHEMA_DIR / "repository_review_policy.schema.json")
+    assert {
+        "schema_version",
+        "repository_identity",
+        "policy_version",
+        "policy_authority_ref",
+        "policy_identity",
+        "default_requirement",
+        "default_inspection_profile",
+        "default_evidence_profile",
+        "default_merge_enforcement_profile",
+        "default_execution_urgency",
+        "boundary_overrides",
+        "target_overrides",
+        "publication_policy",
+        "transition_record_ref",
+    }.issubset(policy["required"])
+
+    resolution = _load(SCHEMA_DIR / "review_policy_resolution.schema.json")
+    assert {
+        "status",
+        "effective_requirement",
+        "effective_inspection_profile",
+        "effective_evidence_profile",
+        "effective_merge_enforcement_profile",
+        "effective_execution_urgency",
+        "matched_sources",
+        "activated_conditions",
+        "evidence_refs",
+    }.issubset(resolution["required"])
 
 
 def test_receipt_core_excludes_publication_metadata():
@@ -187,8 +225,8 @@ def test_receipt_core_excludes_publication_metadata():
         "comment_id",
         "comment_url",
         "retry_count",
-        "publication_result",
-        "readback_result",
+        "publication_status",
+        "readback_status",
     )
     for field in forbidden:
         mutated = copy.deepcopy(payload)
@@ -196,9 +234,33 @@ def test_receipt_core_excludes_publication_metadata():
         _assert_invalid("review_receipt_core", mutated)
 
 
+def test_review_execution_matches_canonical_record_and_not_completion():
+    schema = _load(SCHEMA_DIR / "review_execution.schema.json")
+    assert {
+        "review_id",
+        "repository_full_name",
+        "repository_id",
+        "pr_number",
+        "reviewed_head_sha",
+        "scope_digest",
+        "protocol_version",
+        "inspector_identity",
+        "inspection_profile",
+        "evidence_profile",
+        "execution_urgency",
+        "execution_status",
+        "technical_status",
+        "canonical_package_digest",
+        "decision_projection_digest",
+        "performed_at",
+        "completion_claim",
+    }.issubset(schema["required"])
+    assert schema["properties"]["completion_claim"]["const"] == "not_proven_by_this_record"
+
+
 def test_merge_readiness_is_structurally_separate_from_technical_status():
     schema = _load(SCHEMA_DIR / "merge_readiness_record.schema.json")
-    assert "technical_status_reference" in schema["properties"]
+    assert "technical_status_ref" in schema["properties"]
     assert "technical_status" not in schema["properties"]
     assert "merge_readiness_result" in schema["properties"]
 
@@ -207,20 +269,27 @@ def test_merge_readiness_is_structurally_separate_from_technical_status():
     _assert_invalid("merge_readiness_record", payload)
 
 
-def test_policy_transition_preserves_current_policy_evaluation_role():
+def test_policy_transition_is_non_circular_and_method_aware():
     schema = _load(SCHEMA_DIR / "policy_transition_record.schema.json")
-    for field in ("current_policy", "target_policy", "evaluation_policy"):
-        assert field in schema["required"]
+    assert {
+        "current_policy_identity",
+        "target_policy_identity",
+        "evaluation_policy_identity",
+        "evaluation_policy_role",
+        "merge_method",
+    }.issubset(schema["required"])
     assert schema["properties"]["evaluation_policy_role"]["const"] == "current_policy"
 
     payload = _valid_fixtures()["policy_transition_record"]
     payload["evaluation_policy_role"] = "target_policy"
+    payload["evaluation_policy_identity"] = payload["target_policy_identity"]
     _assert_invalid("policy_transition_record", payload)
 
 
-def test_post_merge_closure_supports_approved_outcome_classes():
-    common = _load(SCHEMA_DIR / "common.schema.json")
-    assert set(common["$defs"]["closure_outcome"]["enum"]) == {
+def test_post_merge_closure_supports_canonical_outcomes():
+    schema = _load(SCHEMA_DIR / "post_merge_closure.schema.json")
+    outcomes = set(schema["properties"]["closure_outcomes"]["items"]["enum"])
+    assert outcomes == {
         "content_equivalence_verified",
         "history_topology_verified",
         "history_topology_not_preserved_by_merge_method",
@@ -230,56 +299,66 @@ def test_post_merge_closure_supports_approved_outcome_classes():
     }
 
 
-def test_tool_attestation_requires_structured_authenticated_identities():
-    schema = _load(SCHEMA_DIR / "tool_execution_attestation.schema.json")
-    for field in (
-        "provider_identity",
-        "workflow_identity",
-        "run_identity",
-        "job_identity",
-        "step_identity",
-        "command_or_validator_identity",
-        "authentication_provenance",
-    ):
-        assert field in schema["required"]
+def test_obligation_binding_matches_minimum_normative_carrier():
+    schema = _load(SCHEMA_DIR / "obligation_authority_binding.schema.json")
+    assert {
+        "carrier_id",
+        "governed_rules",
+        "obligation_id",
+        "obligation_type",
+        "authority_ref",
+        "authority_identity",
+        "source_locator",
+        "resolution_status",
+    }.issubset(schema["required"])
 
-    payload = _valid_fixtures()["tool_execution_attestation"]
-    payload["workflow_identity"] = "caller-authored workflow description"
-    _assert_invalid("tool_execution_attestation", payload)
-
-    payload = _valid_fixtures()["tool_execution_attestation"]
-    payload["pagination_completeness_reference"] = None
-    _assert_invalid("tool_execution_attestation", payload)
-
-
-def test_authority_progression_requires_structural_carriers():
     payload = _valid_fixtures()["obligation_authority_binding"]
     payload["current_enforcement_status"] = "ci_enforced"
-    payload["ci_carrier_reference"] = None
+    payload["ci_evidence_ref"] = None
     _assert_invalid("obligation_authority_binding", payload)
 
-    payload = _valid_fixtures()["obligation_authority_binding"]
-    payload["current_enforcement_status"] = "downstream_contract_enforced"
-    payload["ci_carrier_reference"] = {
-        "record_type": "ci_workflow",
-        "record_id": "validate-aigov",
-        "record_digest": "sha256:" + "a" * 64,
-    }
-    payload["downstream_consumer"] = None
-    _assert_invalid("obligation_authority_binding", payload)
+
+def test_tool_attestation_matches_minimum_normative_carrier():
+    schema = _load(SCHEMA_DIR / "tool_execution_attestation.schema.json")
+    assert {
+        "carrier_id",
+        "governed_rule_id",
+        "capability_authority_ref",
+        "selected_tool",
+        "tool_schema_identity",
+        "target_identity",
+        "parameter_bindings",
+        "invocation_record",
+        "execution_result",
+        "state_changed",
+        "readback_status",
+        "readback_ref",
+        "readback_not_required_authority_ref",
+        "final_claim_bindings",
+    }.issubset(schema["required"])
+
+    payload = _valid_fixtures()["tool_execution_attestation"]
+    payload["provider_identity"] = "caller-authored workflow description"
+    _assert_invalid("tool_execution_attestation", payload)
+
+    payload = _valid_fixtures()["tool_execution_attestation"]
+    payload["state_changed"] = True
+    payload["readback_status"] = "NOT_PERFORMED"
+    payload["readback_ref"] = None
+    _assert_invalid("tool_execution_attestation", payload)
 
 
 def test_adversarial_identity_evidence_and_authority_mutations_fail():
     payload = _valid_fixtures()["review_policy_resolution"]
-    payload["target"]["head_sha"] = "abc123"
+    payload["target_identity"]["reviewed_head_sha"] = "abc123"
     _assert_invalid("review_policy_resolution", payload)
 
     payload = _valid_fixtures()["repository_review_policy"]
-    del payload["repository"]["repository_id"]
+    del payload["repository_identity"]["repository_id"]
     _assert_invalid("repository_review_policy", payload)
 
     payload = _valid_fixtures()["classification_record"]
-    payload["source_evidence"] = ["prose is not evidence"]
+    payload["observed_facts"][0]["evidence_ref"] = "prose is not evidence"
     _assert_invalid("classification_record", payload)
 
     payload = _valid_fixtures()["repository_review_policy"]
@@ -291,17 +370,13 @@ def test_adversarial_identity_evidence_and_authority_mutations_fail():
     _assert_invalid("review_receipt_core", payload)
 
 
-def test_scope_and_execution_fail_closed_structurally():
+def test_scope_and_method_evidence_fail_closed_structurally():
     payload = _valid_fixtures()["scope_record"]
     payload["unresolved_scope"] = ["unknown generated output"]
     _assert_invalid("scope_record", payload)
 
-    payload = _valid_fixtures()["review_execution"]
-    payload["tool_execution_attestations"] = []
-    _assert_invalid("review_execution", payload)
-
     payload = _valid_fixtures()["post_merge_closure"]
-    del payload["merge_method_evidence"]
+    del payload["merge_method_evidence_ref"]
     _assert_invalid("post_merge_closure", payload)
 
 
@@ -309,6 +384,10 @@ def test_new_schemas_are_outside_active_runtime_and_load_order():
     manifest = yaml.safe_load(
         (ROOT / "protocol-manifest.yaml").read_text(encoding="utf-8")
     )
+    assert isinstance(manifest, dict), "protocol-manifest.yaml must be a YAML mapping"
+    assert "active_version" in manifest, "protocol-manifest.yaml lacks active_version"
+    assert "load_order" in manifest, "protocol-manifest.yaml lacks load_order"
+    assert isinstance(manifest["load_order"], list), "load_order must be a list"
     assert manifest["active_version"] == "v1.11.1"
     assert all("schemas/aigov/" not in path for path in manifest["load_order"])
 
