@@ -17,7 +17,7 @@ def main() -> int:
         for item in diagnostics:
             print("ERROR:", item.line())
         return 1
-    print("OK: versioned repository and governed planning validation passed.")
+    print("OK: versioned repository validation passed.")
     return 0
 
 
