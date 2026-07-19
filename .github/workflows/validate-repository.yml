@@ -14,37 +14,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  discover-diagnostic-tests:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      files: ${{ steps.discover.outputs.files }}
-    steps:
-      - name: Check out exact triggering head
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-          fetch-depth: 1
-      - name: Discover b/e test files
-        id: discover
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY' >> "${GITHUB_OUTPUT}"
-          import json
-          from pathlib import Path
-          files = [str(path) for pattern in ("test_b*.py", "test_e*.py") for path in sorted(Path("tests").glob(pattern))]
-          print("files=" + json.dumps(files, separators=(",", ":")))
-          PY
-
-  diagnose-test-file:
-    needs: discover-diagnostic-tests
-    name: diagnose ${{ matrix.file }}
+  validate:
     strategy:
       fail-fast: false
       matrix:
-        file: ${{ fromJSON(needs.discover-diagnostic-tests.outputs.files) }}
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -54,12 +28,115 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           fetch-depth: 1
+
+      - name: Verify exact checkout identity
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual_sha="$(git rev-parse HEAD)"
+          echo "expected_sha=${EXPECTED_SHA}"
+          echo "actual_sha=${actual_sha}"
+          test "${actual_sha}" = "${EXPECTED_SHA}"
+
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
           cache: pip
+
       - name: Install pinned project and test dependencies
         run: python -m pip install --disable-pip-version-check ".[dev]"
-      - name: Run one diagnostic test file
-        run: python -m pytest -q "${{ matrix.file }}"
+
+      - name: Record and validate tested object identity
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            tested_ref_type="pull_request_head"
+            claim_exact_head="true"
+          else
+            tested_ref_type="push_or_dispatch"
+            claim_exact_head="false"
+          fi
+          python scripts/record_ci_identity.py \
+            --tested-ref-type "${tested_ref_type}" \
+            --tested-sha "$(git rev-parse HEAD)" \
+            --tested-tree-sha "$(git rev-parse 'HEAD^{tree}')" \
+            --reviewed-head-sha "${EXPECTED_SHA}" \
+            --synthetic-merge false \
+            --claim-exact-head "${claim_exact_head}" \
+            --workflow-run-id "${GITHUB_RUN_ID}" \
+            --job-id "${GITHUB_JOB}-${{ matrix.python-version }}" \
+            --output ci-identity.json
+
+      - name: Validate versioned repository and static planning state
+        run: python scripts/validate_repository_v2.py
+
+      - name: Run focused planning-governance tests
+        run: python -m pytest -q tests/test_planning_governance.py
+
+      - name: Validate static planning state explicitly
+        run: python scripts/validate_planning_governance.py --check-static
+
+      - name: Resolve declared Scope base without changing Head
+        shell: bash
+        run: |
+          set -euo pipefail
+          scope_base_sha="$(python -c 'import json; print(json.load(open("planning/scopes/PINS-PLAN-001.scope.json", encoding="utf-8"))["base_sha"])')"
+          git fetch --no-tags --depth=1 origin "${scope_base_sha}"
+          git cat-file -e "${scope_base_sha}^{commit}"
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+
+      - name: Validate exact current Scope diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          scope_base_sha="$(python -c 'import json; print(json.load(open("planning/scopes/PINS-PLAN-001.scope.json", encoding="utf-8"))["base_sha"])')"
+          python scripts/validate_planning_governance.py \
+            --check-diff \
+            --base-sha "${scope_base_sha}" \
+            --head-sha "$(git rev-parse HEAD)" \
+            --report planning-scope-validation.json
+
+      - name: Run focused Behavioral Rule Coverage mutations
+        run: python -m pytest -q tests/test_behavioral_rule_coverage.py
+
+      - name: Run focused external Coverage trust gate tests
+        run: python -m pytest -q tests/test_coverage_trust_gate.py
+
+      - name: Run focused governance enforcement tests
+        run: python -m pytest -q tests/test_governance_enforcement.py
+
+      - name: Run personal minimum-security profile tests
+        run: python -m pytest -q tests/test_personal_minimum_security_profile.py
+
+      - name: Run repository closure and hygiene checks
+        run: python -m pytest -q tests/test_repository_closure.py
+
+      - name: Run focused canonical output enforcement tests
+        run: python -m pytest -q tests/test_canonical_output_enforcement.py
+
+      - name: Run verified-byte accessor TOCTOU regressions
+        run: python -m pytest -q tests/test_canonical_output_enforcement.py -k toctou
+
+      - name: Run focused canonical output atomicity tests
+        run: python -m pytest -q tests/test_canonical_output_atomicity.py
+
+      - name: Run publication commit-point cleanup regression
+        run: python -m pytest -q tests/test_canonical_output_atomicity.py -k partial_backup_cleanup_failure_after_commit
+
+      - name: Run focused artifact byte-consistency tests
+        run: python -m pytest -q tests/test_dual_audience_outputs.py -k "manifest or byte or crlf or bom or newline"
+
+      - name: Run atomic owner delivery accessor tests
+        run: python -m pytest -q tests/test_atomic_owner_delivery.py
+
+      - name: Run atomic owner delivery CLI tests
+        run: python -m pytest -q tests/test_render_cli_owner_delivery.py
+
+      - name: Run semantic and rendering tests
+        run: python -m pytest
