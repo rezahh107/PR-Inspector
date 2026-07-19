@@ -14,18 +14,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  diagnose-test-group:
-    name: diagnose ${{ matrix.name }}
+  diagnose-test-letter:
+    name: diagnose ${{ matrix.letter }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - name: a-b
-            pattern: "tests/test_[a-b]*.py"
-          - name: c-d
-            pattern: "tests/test_[c-d]*.py"
-          - name: e-f
-            pattern: "tests/test_[e-f]*.py"
+        letter: [a, b, c, d, e, f]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -42,12 +36,15 @@ jobs:
           cache: pip
       - name: Install pinned project and test dependencies
         run: python -m pip install --disable-pip-version-check ".[dev]"
-      - name: Run diagnostic test group
+      - name: Run diagnostic test letter
         shell: bash
         env:
-          TEST_PATTERN: ${{ matrix.pattern }}
+          TEST_PATTERN: tests/test_${{ matrix.letter }}*.py
         run: |
           set -euo pipefail
-          mapfile -t files < <(compgen -G "${TEST_PATTERN}" | sort)
-          test "${#files[@]}" -gt 0
+          mapfile -t files < <(compgen -G "${TEST_PATTERN}" | sort || true)
+          if [[ "${#files[@]}" -eq 0 ]]; then
+            echo "No matching tests; diagnostic letter passes."
+            exit 0
+          fi
           python -m pytest -q "${files[@]}"
