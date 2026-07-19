@@ -1,0 +1,14 @@
+{
+  "duplicate_id": {"target": "registry", "operation": "append_duplicate_task"},
+  "unknown_parent": {"target": "registry", "operation": "set_task_initiative", "value": "UNKNOWN"},
+  "unknown_dependency": {"target": "registry", "operation": "set_task_dependency", "value": "UNKNOWN"},
+  "self_dependency": {"target": "registry", "operation": "set_task_dependency", "value": "PINS-PLAN-001"},
+  "dependency_cycle": {"target": "registry", "operation": "make_task_cycle"},
+  "dependency_incomplete_completion": {"target": "registry", "operation": "complete_dependent_task_early"},
+  "completion_without_evidence": {"target": "registry", "operation": "complete_without_evidence"},
+  "unauthorized_implementation": {"target": "registry", "operation": "authorize_future_aigov_early"},
+  "invalid_current_work_package": {"target": "registry", "operation": "remove_current_work_package"},
+  "scope_revision_mismatch": {"target": "scope", "operation": "replace_revision_with_zero"},
+  "impact_sequence_mismatch": {"target": "impact", "operation": "set_sequence", "value": 2},
+  "dashboard_drift": {"target": "dashboard", "operation": "replace_current_task_status", "value": "complete"}
+}

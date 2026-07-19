@@ -22,11 +22,19 @@ Prompt-required output is both byte-canonical and semantically validated. Generi
 
 Repository-settings enforcement remains `insufficient_evidence`. Successful CI does not prove branch protection, Rulesets, required reviews, CODEOWNERS enforcement, stale-approval dismissal, bypass restrictions, or merge-queue enforcement.
 
+## Governed planning
+
+Repository-required planning infrastructure lives under `planning/` with structural schemas under `schemas/planning/` and semantic enforcement in `pr_inspector/planning_governance.py`. It is outside the active protocol `load_order`, defines no active PR-review rule, does not activate AIGOV, and does not alter runtime review behavior. The active protocol remains authoritative.
+
+Before registered implementation work, read the current dashboard, durable execution plan, canonical registry, current Scope, and relevant Impact. Prompts, PR descriptions, chat history, branches, commits, and Execution Attempts are not planning sources of truth. Exact-head validation, owner-only Merge, exact-main validation, and post-Merge reconciliation are separate evidence gates.
+
 ## Validation
 
 ```bash
 python -m pip install ".[dev]"
 python scripts/validate_repository_v2.py
+python scripts/validate_planning_governance.py --check-static
+python -m pytest -q tests/test_planning_governance.py
 python -m pytest -q tests/test_behavioral_rule_coverage.py
 python -m pytest -q tests/test_repository_closure.py
 python -m pytest -q tests/test_v1_11_1_output_authority.py

@@ -22,6 +22,12 @@ Operate this repository as a deterministic, evidence-based PR-review protocol.
 - Do not write, comment, approve, merge, deploy, use sensitive credentials, or access production without separate explicit authorization.
 - Fail closed when identity, evidence, scope, schema validity, semantic gates, or artifact consistency is missing.
 
+## Governed planning behavior
+
+Before executing a registered repository task, read `planning/NEXT_WORK.md`, `planning/PR_INSPECTOR_EXECUTION_PLAN.md`, `planning/tasks/task-registry.v1.json`, the current Scope, and its relevant Impact records. The machine registry is authoritative for planning state; bounded Markdown snapshots must match it. Chat history, prompts, PR descriptions, branches, commits, and Execution Attempts are not planning sources of truth.
+
+Planning infrastructure is repository-required but outside the active protocol `load_order`. It defines no active review rule, does not activate AIGOV, and does not alter runtime review behavior. The active protocol remains authoritative. Owner-only Merge, exact-head validation, exact-main validation, and post-Merge reconciliation remain distinct lifecycle steps.
+
 ## Maintenance behavior
 
 - Never modify a released protocol directory or release lock in place.

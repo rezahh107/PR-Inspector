@@ -73,8 +73,34 @@ jobs:
             --job-id "${GITHUB_JOB}-${{ matrix.python-version }}" \
             --output ci-identity.json
 
-      - name: Validate versioned repository
+      - name: Validate versioned repository and static planning state
         run: python scripts/validate_repository_v2.py
+
+      - name: Run focused planning-governance tests
+        run: python -m pytest -q tests/test_planning_governance.py
+
+      - name: Validate static planning state explicitly
+        run: python scripts/validate_planning_governance.py --check-static
+
+      - name: Resolve declared Scope base without changing Head
+        shell: bash
+        run: |
+          set -euo pipefail
+          scope_base_sha="$(python -c 'import json; print(json.load(open("planning/scopes/PINS-PLAN-001.scope.json", encoding="utf-8"))["base_sha"])')"
+          git fetch --no-tags --depth=1 origin "${scope_base_sha}"
+          git cat-file -e "${scope_base_sha}^{commit}"
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+
+      - name: Validate exact current Scope diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          scope_base_sha="$(python -c 'import json; print(json.load(open("planning/scopes/PINS-PLAN-001.scope.json", encoding="utf-8"))["base_sha"])')"
+          python scripts/validate_planning_governance.py \
+            --check-diff \
+            --base-sha "${scope_base_sha}" \
+            --head-sha "$(git rev-parse HEAD)" \
+            --report planning-scope-validation.json
 
       - name: Run focused Behavioral Rule Coverage mutations
         run: python -m pytest -q tests/test_behavioral_rule_coverage.py

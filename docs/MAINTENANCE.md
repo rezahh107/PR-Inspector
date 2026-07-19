@@ -15,6 +15,14 @@
 
 An implementation fix may retain the protocol version only when it does not alter accepted or rejected review behavior. Add a regression test and do not modify locked protocol files.
 
+## Governed planning maintenance
+
+Planning infrastructure is repository-required and outside the active protocol `load_order`. It defines no active review rule, does not activate AIGOV, and does not alter runtime review behavior. The active protocol remains authoritative if any planning document conflicts with it.
+
+Before executing a registered task, read `planning/NEXT_WORK.md`, `planning/PR_INSPECTOR_EXECUTION_PLAN.md`, `planning/tasks/task-registry.v1.json`, the current Scope, and relevant Impact records. Update machine state and bounded Markdown snapshots together. Chat history and PR descriptions are not planning sources of truth.
+
+A Work Package implementation is not complete merely because a branch, commit, PR, or green ordinary CI exists. Exact-head validation, owner-only Merge, exact-main validation, and bounded post-Merge lifecycle reconciliation require separate evidence.
+
 ## Release gates
 
 - all active canonical files are version-scoped;
@@ -31,6 +39,8 @@ An implementation fix may retain the protocol version only when it does not alte
 ```bash
 python -m pip install ".[dev]"
 python scripts/validate_repository_v2.py
+python scripts/validate_planning_governance.py --check-static
+python -m pytest -q tests/test_planning_governance.py
 python -m pytest
 python scripts/validate_review_v2.py fixtures/golden-green --package-only
 ```
