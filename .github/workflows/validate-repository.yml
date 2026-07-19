@@ -140,3 +140,66 @@ jobs:
 
       - name: Run semantic and rendering tests
         run: python -m pytest
+
+  discover-diagnostic-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      files: ${{ steps.discover.outputs.files }}
+    steps:
+      - name: Check out exact triggering head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Discover non-focused test files
+        id: discover
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' >> "${GITHUB_OUTPUT}"
+          import json
+          from pathlib import Path
+          excluded = {
+              "test_atomic_owner_delivery.py",
+              "test_behavioral_rule_coverage.py",
+              "test_canonical_output_atomicity.py",
+              "test_canonical_output_enforcement.py",
+              "test_coverage_trust_gate.py",
+              "test_dual_audience_outputs.py",
+              "test_governance_enforcement.py",
+              "test_personal_minimum_security_profile.py",
+              "test_planning_governance.py",
+              "test_render_cli_owner_delivery.py",
+              "test_repository_closure.py",
+          }
+          files = [str(path) for path in sorted(Path("tests").glob("test_*.py")) if path.name not in excluded]
+          print("files=" + json.dumps(files, separators=(",", ":")))
+          PY
+
+  diagnose-test-file:
+    needs: discover-diagnostic-tests
+    name: diagnose ${{ matrix.file }}
+    strategy:
+      fail-fast: false
+      matrix:
+        file: ${{ fromJSON(needs.discover-diagnostic-tests.outputs.files) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact triggering head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install pinned project and test dependencies
+        run: python -m pip install --disable-pip-version-check ".[dev]"
+      - name: Run one diagnostic test file
+        run: python -m pytest -q "${{ matrix.file }}"
