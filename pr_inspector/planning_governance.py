@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -70,6 +71,35 @@ REQUIRED_REMAINING = {
 }
 NEXT_MARKERS = ("<!-- PINS:NEXT-WORK:BEGIN -->", "<!-- PINS:NEXT-WORK:END -->")
 PLAN_MARKERS = ("<!-- PINS:PLAN-SNAPSHOT:BEGIN -->", "<!-- PINS:PLAN-SNAPSHOT:END -->")
+
+_SCHEMA_ERROR = "PINS-REGISTRY-SCHEMA-INVALID"
+_FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
+_SUPPORTED_GIT_STATUSES = {"A", "C", "D", "M", "R", "T"}
+_WP_ACTIVE_STATES = {
+    "ready",
+    "implementing",
+    "implemented_pending_exact_head_validation",
+    "exact_head_validated",
+    "merged",
+    "post_merge_verified",
+    "closed",
+}
+_WP_IMPLEMENTED_STATES = {
+    "implemented_pending_exact_head_validation",
+    "exact_head_validated",
+    "merged",
+    "post_merge_verified",
+    "closed",
+}
+_WP_EXACT_HEAD_STATES = {"exact_head_validated", "merged", "post_merge_verified", "closed"}
+_WP_MERGED_STATES = {"merged", "post_merge_verified", "closed"}
+_WP_POST_MERGE_STATES = {"post_merge_verified", "closed"}
+_WP_DEPENDENCY_COMPLETE_STATES = {"post_merge_verified", "closed"}
+_EVIDENCE_PREFIXES = {
+    "exact_head": "exact_head:",
+    "merge": "merge:",
+    "post_merge": "post_merge:",
+}
 
 
 class DuplicateKeyError(ValueError):
@@ -149,10 +179,10 @@ def _schema(instance: Any, schema: dict[str, Any], label: str) -> list[Diagnosti
             key=lambda error: [str(item) for item in error.absolute_path],
         )
     except Exception as exc:
-        return [diagnostic("PINS-REGISTRY-SCHEMA-INVALID", f"/{label}/schema", str(exc))]
+        return [diagnostic(_SCHEMA_ERROR, f"/{label}/schema", str(exc))]
     return [
         diagnostic(
-            "PINS-REGISTRY-SCHEMA-INVALID",
+            _SCHEMA_ERROR,
             f"/{label}/" + "/".join(map(str, error.absolute_path)),
             error.message,
         )
@@ -183,6 +213,11 @@ def _cycles(graph: dict[str, list[str]]) -> list[str]:
         if found:
             return found
     return []
+
+
+def _has_evidence(refs: list[str], kind: str) -> bool:
+    prefix = _EVIDENCE_PREFIXES[kind]
+    return any(ref.startswith(prefix) and len(ref) > len(prefix) for ref in refs)
 
 
 def validate_registry(registry: dict[str, Any], schema: dict[str, Any]) -> list[Diagnostic]:
@@ -236,13 +271,13 @@ def validate_registry(registry: dict[str, Any], schema: dict[str, Any]) -> list[
         if item["status"] != "complete" and item["completion_claimed"]:
             output.append(diagnostic("PINS-FALSE-COMPLETION", path, "completion claimed before complete state"))
 
-    graph = {
+    task_graph = {
         task_id: [dependency for dependency in task["depends_on"] if dependency in tasks]
         for task_id, task in tasks.items()
     }
-    cycle = _cycles(graph)
-    if cycle:
-        output.append(diagnostic("PINS-DEPENDENCY-CYCLE", "/tasks", " -> ".join(cycle)))
+    task_cycle = _cycles(task_graph)
+    if task_cycle:
+        output.append(diagnostic("PINS-DEPENDENCY-CYCLE", "/tasks", " -> ".join(task_cycle)))
 
     foundation = tasks.get("PINS-PLAN-001")
     if foundation and foundation["status"] != "complete":
@@ -258,27 +293,87 @@ def validate_registry(registry: dict[str, Any], schema: dict[str, Any]) -> list[
                     )
                 )
 
-    active_package_states = {
-        "ready",
-        "implementing",
-        "implemented_pending_exact_head_validation",
-        "exact_head_validated",
-        "merged",
-        "post_merge_verified",
-        "closed",
-    }
     for index, item in enumerate(registry["work_packages"]):
         path = f"/work_packages/{index}"
         task = tasks.get(item["task_id"])
         if task is None:
             output.append(diagnostic("PINS-UNKNOWN-PARENT", path + "/task_id", item["task_id"]))
-            continue
-        if item["status"] in active_package_states:
-            incomplete = [dependency for dependency in task["depends_on"] if tasks.get(dependency, {}).get("status") != "complete"]
+
+        dependencies = item["depends_on"]
+        if len(dependencies) != len(set(dependencies)):
+            output.append(diagnostic("PINS-UNKNOWN-DEPENDENCY", path + "/depends_on", "duplicate dependency"))
+        for dependency in dependencies:
+            if dependency == item["work_package_id"]:
+                output.append(diagnostic("PINS-DEPENDENCY-CYCLE", path + "/depends_on", "self-dependency"))
+            elif dependency not in packages:
+                output.append(diagnostic("PINS-UNKNOWN-DEPENDENCY", path + "/depends_on", dependency))
+
+        incomplete_packages = [
+            dependency
+            for dependency in dependencies
+            if packages.get(dependency, {}).get("status") not in _WP_DEPENDENCY_COMPLETE_STATES
+        ]
+        if item["status"] == "dependency_blocked" and not incomplete_packages:
+            output.append(
+                diagnostic(
+                    "PINS-WP-LIFECYCLE-INVALID",
+                    path + "/status",
+                    "dependency_blocked requires an incomplete Work Package dependency",
+                )
+            )
+        if item["status"] in _WP_ACTIVE_STATES and incomplete_packages:
+            output.append(
+                diagnostic(
+                    "PINS-DEPENDENCY-NOT-COMPLETE",
+                    path + "/depends_on",
+                    ", ".join(incomplete_packages),
+                )
+            )
+
+        if task is not None and item["status"] in _WP_ACTIVE_STATES:
+            incomplete_tasks = [
+                dependency
+                for dependency in task["depends_on"]
+                if tasks.get(dependency, {}).get("status") != "complete"
+            ]
             if not task["implementation_authorized"]:
                 output.append(diagnostic("PINS-UNAUTHORIZED-IMPLEMENTATION", path, "Task is not authorized"))
-            if incomplete:
-                output.append(diagnostic("PINS-DEPENDENCY-NOT-COMPLETE", path, ", ".join(incomplete)))
+            if incomplete_tasks:
+                output.append(diagnostic("PINS-DEPENDENCY-NOT-COMPLETE", path, ", ".join(incomplete_tasks)))
+
+        refs = item["evidence_refs"]
+        if item["status"] in _WP_IMPLEMENTED_STATES and not item["impact_refs"]:
+            output.append(diagnostic("PINS-WP-EVIDENCE-MISSING", path + "/impact_refs", "implemented state requires Impact evidence"))
+        for kind, states in (
+            ("exact_head", _WP_EXACT_HEAD_STATES),
+            ("merge", _WP_MERGED_STATES),
+            ("post_merge", _WP_POST_MERGE_STATES),
+        ):
+            has_evidence = _has_evidence(refs, kind)
+            if item["status"] in states and not has_evidence:
+                output.append(
+                    diagnostic(
+                        "PINS-WP-EVIDENCE-MISSING",
+                        path + "/evidence_refs",
+                        f"{item['status']} requires {kind} evidence",
+                    )
+                )
+            if item["status"] not in states and has_evidence:
+                output.append(
+                    diagnostic(
+                        "PINS-WP-LIFECYCLE-INVALID",
+                        path + "/evidence_refs",
+                        f"{kind} evidence is ahead of lifecycle state {item['status']}",
+                    )
+                )
+
+    package_graph = {
+        package_id: [dependency for dependency in package["depends_on"] if dependency in packages]
+        for package_id, package in packages.items()
+    }
+    package_cycle = _cycles(package_graph)
+    if package_cycle:
+        output.append(diagnostic("PINS-DEPENDENCY-CYCLE", "/work_packages", " -> ".join(package_cycle)))
 
     current = [item for item in registry["work_packages"] if item["current"]]
     current_id = registry["current_work_package_id"]
@@ -310,15 +405,38 @@ def validate_scope(
     if scope["scope_revision"] != canonical_scope_revision(scope):
         output.append(diagnostic("PINS-SCOPE-REVISION-MISMATCH", "/scope/scope_revision", "canonical hash mismatch"))
 
+    programs = {item["program_id"]: item for item in registry["programs"]}
+    initiatives = {item["initiative_id"]: item for item in registry["initiatives"]}
+    tasks = {item["task_id"]: item for item in registry["tasks"]}
+    packages = {item["work_package_id"]: item for item in registry["work_packages"]}
     known = {
-        "program_id": {item["program_id"] for item in registry["programs"]},
-        "initiative_id": {item["initiative_id"] for item in registry["initiatives"]},
-        "task_id": {item["task_id"] for item in registry["tasks"]},
-        "work_package_id": {item["work_package_id"] for item in registry["work_packages"]},
+        "program_id": programs,
+        "initiative_id": initiatives,
+        "task_id": tasks,
+        "work_package_id": packages,
     }
     for field, identifiers in known.items():
         if scope[field] not in identifiers:
             output.append(diagnostic("PINS-UNKNOWN-PARENT", f"/scope/{field}", scope[field]))
+
+    program = programs.get(scope["program_id"])
+    initiative = initiatives.get(scope["initiative_id"])
+    task = tasks.get(scope["task_id"])
+    package = packages.get(scope["work_package_id"])
+    if program and initiative and initiative["program_id"] != program["program_id"]:
+        output.append(diagnostic("PINS-CROSS-FILE-BINDING-MISMATCH", "/scope/initiative_id", "Initiative is not bound to Scope Program"))
+    if initiative and task and task["initiative_id"] != initiative["initiative_id"]:
+        output.append(diagnostic("PINS-CROSS-FILE-BINDING-MISMATCH", "/scope/task_id", "Task is not bound to Scope Initiative"))
+    if task and package and package["task_id"] != task["task_id"]:
+        output.append(diagnostic("PINS-CROSS-FILE-BINDING-MISMATCH", "/scope/work_package_id", "Work Package is not bound to Scope Task"))
+    if package and package["scope_ref"] != SCOPE_PATH.as_posix():
+        output.append(
+            diagnostic(
+                "PINS-CROSS-FILE-BINDING-MISMATCH",
+                "/scope/work_package_id",
+                f"Work Package scope_ref must equal {SCOPE_PATH.as_posix()}",
+            )
+        )
 
     paths = scope["committed_paths"]
     if paths != sorted(paths) or len(paths) != len(set(paths)):
@@ -347,6 +465,7 @@ def validate_impact(
     impact: dict[str, Any],
     schema: dict[str, Any],
     scope: dict[str, Any],
+    registry: dict[str, Any] | None = None,
 ) -> list[Diagnostic]:
     output = _schema(impact, schema, "impact")
     if output:
@@ -362,6 +481,21 @@ def validate_impact(
     ):
         if impact[field] != scope[field]:
             output.append(diagnostic("PINS-IMPACT-SCOPE-MISMATCH", f"/impact/{field}", f"expected {scope[field]}"))
+    if registry is not None:
+        packages = {item["work_package_id"]: item for item in registry["work_packages"]}
+        package = packages.get(impact["work_package_id"])
+        if package is None:
+            output.append(diagnostic("PINS-CROSS-FILE-BINDING-MISMATCH", "/impact/work_package_id", "Impact Work Package is not registered"))
+        else:
+            expected_ref = IMPACT_PATH.as_posix()
+            if package["impact_refs"] != [expected_ref]:
+                output.append(
+                    diagnostic(
+                        "PINS-CROSS-FILE-BINDING-MISMATCH",
+                        "/impact/work_package_id",
+                        f"Work Package impact_refs must bind exactly to {expected_ref}",
+                    )
+                )
     if impact["sequence"] != 1 or impact["previous_impact_ref"] is not None:
         output.append(diagnostic("PINS-IMPACT-SEQUENCE-MISMATCH", "/impact/sequence", "bootstrap Impact must start at sequence 1"))
     if impact["changed_paths"] != scope["committed_paths"]:
@@ -471,19 +605,27 @@ def validate_planning_repository(root: Path) -> list[Diagnostic]:
     missing = [path for path in required if not (root / path).is_file()]
     if missing:
         return [
-            diagnostic("PINS-REGISTRY-SCHEMA-INVALID", f"/{path}", "required artifact is missing")
+            diagnostic(_SCHEMA_ERROR, f"/{path}", "required artifact is missing")
             for path in missing
         ]
     try:
         registry, scope, impact, schemas = _material(root)
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, DuplicateKeyError) as exc:
-        return [diagnostic("PINS-REGISTRY-SCHEMA-INVALID", "/planning", str(exc))]
+        return [diagnostic(_SCHEMA_ERROR, "/planning", str(exc))]
 
     output = validate_registry(registry, schemas["registry"])
-    output += validate_scope(scope, schemas["scope"], registry)
-    output += validate_impact(impact, schemas["impact"], scope)
+    if output:
+        return sorted(set(output))
+    scope_output = validate_scope(scope, schemas["scope"], registry)
+    output += scope_output
+    if scope_output:
+        return sorted(set(output))
+    impact_output = validate_impact(impact, schemas["impact"], scope, registry)
+    output += impact_output
+    if impact_output:
+        return sorted(set(output))
     output += validate_markdown(root, registry, scope, impact)
-    for path in scope.get("committed_paths", []):
+    for path in scope["committed_paths"]:
         if validate_repo_path(path) is None and not (root / path).is_file():
             output.append(diagnostic("PINS-SCOPE-DISCLOSURE-MISMATCH", f"/{path}", "declared path is missing"))
     return sorted(set(output))
@@ -502,48 +644,123 @@ def _git(root: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
+def parse_git_name_status(raw: str) -> tuple[list[str], dict[str, str], list[Diagnostic]]:
+    fields = raw.split("\x00")
+    if fields and fields[-1] == "":
+        fields.pop()
+    paths: list[str] = []
+    statuses: dict[str, str] = {}
+    diagnostics: list[Diagnostic] = []
+    index = 0
+    while index < len(fields):
+        token = fields[index]
+        index += 1
+        status = token[:1]
+        path_count = 2 if status in {"C", "R"} else 1
+        if not token or index + path_count > len(fields):
+            diagnostics.append(diagnostic("PINS-GIT-STATUS-UNSUPPORTED", "/git/diff", f"malformed name-status record: {token!r}"))
+            break
+        record_paths = fields[index : index + path_count]
+        index += path_count
+        if status not in _SUPPORTED_GIT_STATUSES:
+            diagnostics.append(
+                diagnostic(
+                    "PINS-GIT-STATUS-UNSUPPORTED",
+                    "/git/diff",
+                    f"unsupported Git status {token}",
+                )
+            )
+        for path in record_paths:
+            paths.append(path)
+            statuses[path] = token
+    return sorted(set(paths)), dict(sorted(statuses.items())), sorted(set(diagnostics))
+
+
 def validate_git_diff(
     root: Path,
-    base_sha: str,
+    authoritative_base_sha: str,
     head_sha: str,
 ) -> tuple[list[Diagnostic], dict[str, Any]]:
     output: list[Diagnostic] = []
     report: dict[str, Any] = {
-        "base_sha": base_sha,
+        "authoritative_base_sha": authoritative_base_sha,
         "head_sha": head_sha,
+        "declared_base_sha": None,
+        "merge_base_sha": None,
         "actual_changed_paths": [],
+        "changed_path_statuses": {},
         "declared_changed_paths": [],
         "status": "invalid",
     }
     try:
         scope = load_json_strict(root / SCOPE_PATH)
-        report["declared_changed_paths"] = scope.get("committed_paths", [])
-        if scope.get("base_sha") != base_sha:
-            output.append(diagnostic("PINS-SCOPE-BASE-MISMATCH", "/scope/base_sha", "runtime base differs from declared base"))
-        resolved_base = _git(root, "rev-parse", f"{base_sha}^{{commit}}")
+        if not isinstance(scope, dict):
+            raise ValueError("Scope must be a JSON object")
+        declared = scope.get("committed_paths", [])
+        if not isinstance(declared, list):
+            raise ValueError("Scope committed_paths must be an array")
+        report["declared_base_sha"] = scope.get("base_sha")
+        report["declared_changed_paths"] = declared
+
+        if not _FULL_SHA.fullmatch(authoritative_base_sha):
+            output.append(diagnostic("PINS-SCOPE-BASE-MISMATCH", "/git/base", "authoritative PR base must be an exact 40-character SHA"))
+        if not _FULL_SHA.fullmatch(head_sha):
+            output.append(diagnostic("PINS-SCOPE-DISCLOSURE-MISMATCH", "/git/head", "runtime Head must be an exact 40-character SHA"))
+        if scope.get("base_sha") != authoritative_base_sha:
+            output.append(
+                diagnostic(
+                    "PINS-SCOPE-BASE-MISMATCH",
+                    "/scope/base_sha",
+                    "declared base does not equal authoritative pull-request base",
+                )
+            )
+
+        resolved_base = _git(root, "rev-parse", f"{authoritative_base_sha}^{{commit}}")
         resolved_head = _git(root, "rev-parse", f"{head_sha}^{{commit}}")
         checkout = _git(root, "rev-parse", "HEAD")
-        if resolved_base != base_sha:
+        if resolved_base != authoritative_base_sha:
             output.append(diagnostic("PINS-SCOPE-BASE-MISMATCH", "/git/base", f"resolved {resolved_base}"))
         if resolved_head != head_sha or checkout != head_sha:
             output.append(diagnostic("PINS-SCOPE-DISCLOSURE-MISMATCH", "/git/head", "runtime Head identity mismatch"))
-        actual = sorted(
-            path
-            for path in _git(
-                root,
-                "diff",
-                "--name-only",
-                "--diff-filter=ACMRD",
-                f"{base_sha}..{head_sha}",
-            ).splitlines()
-            if path
+
+        merge_base = _git(root, "merge-base", authoritative_base_sha, head_sha)
+        report["merge_base_sha"] = merge_base
+        if merge_base != authoritative_base_sha:
+            output.append(
+                diagnostic(
+                    "PINS-SCOPE-BASE-MISMATCH",
+                    "/git/merge-base",
+                    f"authoritative base is not the exact merge base; observed {merge_base}",
+                )
+            )
+        try:
+            _git(root, "merge-base", "--is-ancestor", authoritative_base_sha, head_sha)
+        except RuntimeError:
+            output.append(
+                diagnostic(
+                    "PINS-SCOPE-BASE-MISMATCH",
+                    "/git/ancestry",
+                    "authoritative base is not an ancestor of Head",
+                )
+            )
+
+        raw = _git(
+            root,
+            "diff",
+            "--name-status",
+            "-z",
+            "--find-renames",
+            "--find-copies",
+            f"{authoritative_base_sha}..{head_sha}",
         )
+        actual, statuses, status_diagnostics = parse_git_name_status(raw)
+        output += status_diagnostics
     except Exception as exc:
         output.append(diagnostic("PINS-SCOPE-BASE-MISMATCH", "/git", str(exc)))
         return sorted(set(output)), report
 
     report["actual_changed_paths"] = actual
-    declared = scope.get("committed_paths", [])
+    report["changed_path_statuses"] = statuses
     for path in actual:
         error = validate_repo_path(path)
         if error:
