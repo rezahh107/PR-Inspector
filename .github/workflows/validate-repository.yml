@@ -22,12 +22,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check out exact triggering head
+      - name: Check out exact triggering head with ancestry
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Verify exact checkout identity
         shell: bash
@@ -82,23 +82,28 @@ jobs:
       - name: Validate static planning state explicitly
         run: python scripts/validate_planning_governance.py --check-static
 
-      - name: Resolve declared Scope base without changing Head
+      - name: Resolve authoritative pull-request base without changing Head
+        if: github.event_name == 'pull_request'
         shell: bash
+        env:
+          AUTHORITATIVE_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          scope_base_sha="$(python -c 'import json; print(json.load(open("planning/scopes/PINS-PLAN-001.scope.json", encoding="utf-8"))["base_sha"])')"
-          git fetch --no-tags --depth=1 origin "${scope_base_sha}"
-          git cat-file -e "${scope_base_sha}^{commit}"
-          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          git fetch --no-tags origin "${AUTHORITATIVE_BASE_SHA}"
+          git cat-file -e "${AUTHORITATIVE_BASE_SHA}^{commit}"
+          test "$(git rev-parse HEAD)" = "${EXPECTED_HEAD_SHA}"
 
-      - name: Validate exact current Scope diff
+      - name: Validate exact current Scope against authoritative PR base
+        if: github.event_name == 'pull_request'
         shell: bash
+        env:
+          AUTHORITATIVE_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
-          scope_base_sha="$(python -c 'import json; print(json.load(open("planning/scopes/PINS-PLAN-001.scope.json", encoding="utf-8"))["base_sha"])')"
           python scripts/validate_planning_governance.py \
             --check-diff \
-            --base-sha "${scope_base_sha}" \
+            --authoritative-base-sha "${AUTHORITATIVE_BASE_SHA}" \
             --head-sha "$(git rev-parse HEAD)" \
             --report planning-scope-validation.json
 
