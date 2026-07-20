@@ -23,6 +23,11 @@
     "planning/scopes/PINS-PLAN-001.scope.json",
     "planning/tasks/task-registry.v1.json",
     "pr_inspector/planning_governance.py",
+    "pr_inspector/planning_governance_artifacts.py",
+    "pr_inspector/planning_governance_base.py",
+    "pr_inspector/planning_governance_git.py",
+    "pr_inspector/planning_governance_registry.py",
+    "pr_inspector/planning_governance_repository.py",
     "schemas/planning/progress-impact.v1.schema.json",
     "schemas/planning/task-registry.v1.schema.json",
     "schemas/planning/work-package-scope.v1.schema.json",
@@ -37,7 +42,8 @@
     "tests/fixtures/planning/valid/impact.json",
     "tests/fixtures/planning/valid/registry.json",
     "tests/fixtures/planning/valid/scope.json",
-    "tests/test_planning_governance.py"
+    "tests/test_planning_governance.py",
+    "tests/test_planning_governance_authority.py"
   ],
   "classification": "planning_infrastructure",
   "state_before": "absent",

@@ -1,24 +1,112 @@
 {
-  "duplicate_id": {"target": "registry", "operation": "append_duplicate_task"},
-  "unknown_parent": {"target": "registry", "operation": "set_task_initiative", "value": "UNKNOWN"},
-  "unknown_dependency": {"target": "registry", "operation": "set_task_dependency", "value": "UNKNOWN"},
-  "self_dependency": {"target": "registry", "operation": "set_task_dependency", "value": "PINS-PLAN-001"},
-  "dependency_cycle": {"target": "registry", "operation": "make_task_cycle"},
-  "dependency_incomplete_completion": {"target": "registry", "operation": "complete_dependent_task_early"},
-  "completion_without_evidence": {"target": "registry", "operation": "complete_without_evidence"},
-  "unauthorized_implementation": {"target": "registry", "operation": "authorize_future_aigov_early"},
-  "invalid_current_work_package": {"target": "registry", "operation": "remove_current_work_package"},
-  "scope_revision_mismatch": {"target": "scope", "operation": "replace_revision_with_zero"},
-  "impact_sequence_mismatch": {"target": "impact", "operation": "set_sequence", "value": 2},
-  "dashboard_drift": {"target": "dashboard", "operation": "replace_current_task_status", "value": "complete"},
-  "work_package_unknown_dependency": {"target": "registry", "operation": "set_work_package_dependency", "value": "UNKNOWN-WP"},
-  "work_package_self_dependency": {"target": "registry", "operation": "set_work_package_dependency_to_self"},
-  "work_package_incomplete_dependency": {"target": "registry", "operation": "activate_work_package_before_dependency_completion"},
-  "merged_without_evidence": {"target": "registry", "operation": "set_work_package_merged_without_exact_head_or_merge_evidence"},
-  "post_merge_verified_without_evidence": {"target": "registry", "operation": "set_work_package_post_merge_verified_without_evidence"},
-  "scope_chain_mismatch": {"target": "scope", "operation": "bind_scope_program_to_unrelated_registered_program"},
-  "stale_scope_ref": {"target": "registry", "operation": "replace_work_package_scope_ref_with_unloaded_path"},
-  "stale_impact_ref": {"target": "registry", "operation": "replace_work_package_impact_ref_with_unloaded_path"},
-  "registry_missing_required_key": {"target": "registry", "operation": "remove_programs"},
-  "scope_missing_required_key": {"target": "scope", "operation": "remove_task_id"}
+  "completion_without_evidence": {
+    "operation": "complete_without_evidence",
+    "target": "registry"
+  },
+  "dashboard_drift": {
+    "operation": "replace_current_task_status",
+    "target": "dashboard",
+    "value": "complete"
+  },
+  "dependency_cycle": {
+    "operation": "make_task_cycle",
+    "target": "registry"
+  },
+  "dependency_incomplete_completion": {
+    "operation": "complete_dependent_task_early",
+    "target": "registry"
+  },
+  "dependent_task_authorization_before_authoritative_completion": {
+    "operation": "authorize_dependent_task_after_status_only_completion",
+    "target": "registry"
+  },
+  "duplicate_id": {
+    "operation": "append_duplicate_task",
+    "target": "registry"
+  },
+  "evidence_provenance_mismatch": {
+    "operation": "bind_evidence_to_wrong_repository_or_work_package",
+    "target": "registry"
+  },
+  "impact_sequence_mismatch": {
+    "operation": "set_sequence",
+    "target": "impact",
+    "value": 2
+  },
+  "invalid_current_work_package": {
+    "operation": "remove_current_work_package",
+    "target": "registry"
+  },
+  "invalid_utf8_baseline": {
+    "operation": "write_invalid_utf8",
+    "target": "baseline_markdown"
+  },
+  "merged_without_evidence": {
+    "operation": "set_work_package_merged_without_evidence",
+    "target": "registry"
+  },
+  "post_merge_verified_without_evidence": {
+    "operation": "set_work_package_post_merge_without_evidence",
+    "target": "registry"
+  },
+  "registry_missing_required_key": {
+    "operation": "remove_programs",
+    "target": "registry"
+  },
+  "scope_chain_mismatch": {
+    "operation": "bind_scope_to_wrong_program",
+    "target": "scope"
+  },
+  "scope_missing_required_key": {
+    "operation": "remove_task_id",
+    "target": "scope"
+  },
+  "scope_revision_mismatch": {
+    "operation": "replace_revision_with_zero",
+    "target": "scope"
+  },
+  "self_dependency": {
+    "operation": "set_task_dependency",
+    "target": "registry",
+    "value": "PINS-PLAN-001"
+  },
+  "stale_impact_ref": {
+    "operation": "set_missing_non_current_impact_ref",
+    "target": "registry"
+  },
+  "stale_scope_ref": {
+    "operation": "set_missing_non_current_scope_ref",
+    "target": "registry"
+  },
+  "task_completion_without_authoritative_evidence": {
+    "operation": "complete_task_with_fabricated_ref_while_impact_in_progress",
+    "target": "registry"
+  },
+  "unauthorized_implementation": {
+    "operation": "authorize_future_aigov_early",
+    "target": "registry"
+  },
+  "unknown_dependency": {
+    "operation": "set_task_dependency",
+    "target": "registry",
+    "value": "UNKNOWN"
+  },
+  "unknown_parent": {
+    "operation": "set_task_initiative",
+    "target": "registry",
+    "value": "UNKNOWN"
+  },
+  "work_package_incomplete_dependency": {
+    "operation": "set_incomplete_work_package_dependency",
+    "target": "registry"
+  },
+  "work_package_self_dependency": {
+    "operation": "set_work_package_self_dependency",
+    "target": "registry"
+  },
+  "work_package_unknown_dependency": {
+    "operation": "set_work_package_dependency",
+    "target": "registry",
+    "value": "UNKNOWN-WP"
+  }
 }

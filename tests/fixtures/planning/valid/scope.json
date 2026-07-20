@@ -10,7 +10,7 @@
   "base_sha": "6be25811d185f001025b61839f94c736c721bbb7",
   "head_binding": "derived_at_runtime",
   "change_class": "planning_infrastructure",
-  "scope_revision": "sha256:1ae6a3b24a62da44b1a2b7eceb6a6cd542d1acc542dc32b8d170bbb75ecbe42f",
+  "scope_revision": "sha256:30487199a935d8c154378c0bf94fc062f047a4d7d70bd81fdab6f4ff0ffe8413",
   "committed_paths": [
     ".github/workflows/validate-repository.yml",
     "AGENTS.md",
@@ -23,6 +23,11 @@
     "planning/scopes/PINS-PLAN-001.scope.json",
     "planning/tasks/task-registry.v1.json",
     "pr_inspector/planning_governance.py",
+    "pr_inspector/planning_governance_artifacts.py",
+    "pr_inspector/planning_governance_base.py",
+    "pr_inspector/planning_governance_git.py",
+    "pr_inspector/planning_governance_registry.py",
+    "pr_inspector/planning_governance_repository.py",
     "schemas/planning/progress-impact.v1.schema.json",
     "schemas/planning/task-registry.v1.schema.json",
     "schemas/planning/work-package-scope.v1.schema.json",
@@ -37,12 +42,59 @@
     "tests/fixtures/planning/valid/impact.json",
     "tests/fixtures/planning/valid/registry.json",
     "tests/fixtures/planning/valid/scope.json",
-    "tests/test_planning_governance.py"
+    "tests/test_planning_governance.py",
+    "tests/test_planning_governance_authority.py"
   ],
-  "excluded_paths": ["CURRENT_VERSION", "governance/aigov/**", "protocol-manifest.yaml", "protocols/**", "release-locks/**"],
-  "deferred_not_deleted": ["closed PR #33 implementation", "PINS-AIGOV-BASELINE-001 analysis", "AIGOV domain models", "AIGOV semantic contract validation"],
+  "excluded_paths": [
+    "CURRENT_VERSION",
+    "governance/aigov/**",
+    "protocol-manifest.yaml",
+    "protocols/**",
+    "release-locks/**"
+  ],
+  "deferred_not_deleted": [
+    "closed PR #33 implementation",
+    "PINS-AIGOV-BASELINE-001 analysis",
+    "AIGOV domain models",
+    "AIGOV semantic contract validation"
+  ],
   "dependencies": [],
-  "completion_evidence_required": ["exact_head_github_actions_success", "independent_review_when_required", "owner_merge_evidence", "exact_main_push_validation_success", "post_merge_lifecycle_reconciliation"],
-  "authorized_operations": ["create_planning_artifacts", "create_planning_schemas", "create_planning_validator", "create_planning_tests", "integrate_static_repository_validation", "integrate_exact_scope_ci", "update_planning_documentation", "commit_branch", "push_branch", "open_draft_pull_request"],
-  "forbidden_changes": ["AIGOV adoption", "AIGOV implementation", "AIGOV activation", "Receipt publication activation", "active protocol behavior", "auto-merge", "branch protection", "bypass configuration", "deployment", "force push", "history rewrite", "merge", "permissions", "release", "repository settings", "Rulesets", "teams"]
+  "completion_evidence_required": [
+    "exact_head_github_actions_success",
+    "independent_review_when_required",
+    "owner_merge_evidence",
+    "exact_main_push_validation_success",
+    "post_merge_lifecycle_reconciliation"
+  ],
+  "authorized_operations": [
+    "create_planning_artifacts",
+    "create_planning_schemas",
+    "create_planning_validator",
+    "create_planning_tests",
+    "integrate_static_repository_validation",
+    "integrate_exact_scope_ci",
+    "update_planning_documentation",
+    "commit_branch",
+    "push_branch",
+    "open_draft_pull_request"
+  ],
+  "forbidden_changes": [
+    "AIGOV adoption",
+    "AIGOV implementation",
+    "AIGOV activation",
+    "Receipt publication activation",
+    "active protocol behavior",
+    "auto-merge",
+    "branch protection",
+    "bypass configuration",
+    "deployment",
+    "force push",
+    "history rewrite",
+    "merge",
+    "permissions",
+    "release",
+    "repository settings",
+    "Rulesets",
+    "teams"
+  ]
 }
