@@ -10,5 +10,15 @@
   "invalid_current_work_package": {"target": "registry", "operation": "remove_current_work_package"},
   "scope_revision_mismatch": {"target": "scope", "operation": "replace_revision_with_zero"},
   "impact_sequence_mismatch": {"target": "impact", "operation": "set_sequence", "value": 2},
-  "dashboard_drift": {"target": "dashboard", "operation": "replace_current_task_status", "value": "complete"}
+  "dashboard_drift": {"target": "dashboard", "operation": "replace_current_task_status", "value": "complete"},
+  "work_package_unknown_dependency": {"target": "registry", "operation": "set_work_package_dependency", "value": "UNKNOWN-WP"},
+  "work_package_self_dependency": {"target": "registry", "operation": "set_work_package_dependency_to_self"},
+  "work_package_incomplete_dependency": {"target": "registry", "operation": "activate_work_package_before_dependency_completion"},
+  "merged_without_evidence": {"target": "registry", "operation": "set_work_package_merged_without_exact_head_or_merge_evidence"},
+  "post_merge_verified_without_evidence": {"target": "registry", "operation": "set_work_package_post_merge_verified_without_evidence"},
+  "scope_chain_mismatch": {"target": "scope", "operation": "bind_scope_program_to_unrelated_registered_program"},
+  "stale_scope_ref": {"target": "registry", "operation": "replace_work_package_scope_ref_with_unloaded_path"},
+  "stale_impact_ref": {"target": "registry", "operation": "replace_work_package_impact_ref_with_unloaded_path"},
+  "registry_missing_required_key": {"target": "registry", "operation": "remove_programs"},
+  "scope_missing_required_key": {"target": "scope", "operation": "remove_task_id"}
 }
