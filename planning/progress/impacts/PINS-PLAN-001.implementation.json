@@ -46,30 +46,33 @@
     "tests/test_planning_governance_authority.py"
   ],
   "classification": "planning_infrastructure",
-  "state_before": "absent",
-  "state_after": "in_progress",
+  "state_before": "in_progress",
+  "state_after": "merged",
   "completed_obligations": [
     "canonical_registry_created",
     "current_scope_declared",
-    "implementation_impact_recorded",
-    "static_semantic_validation_implemented",
+    "exact_head_github_actions_validation",
     "git_bound_exact_scope_validation_implemented",
-    "planning_ci_integration_declared"
+    "implementation_impact_recorded",
+    "merge_commit_recorded",
+    "planning_ci_integration_declared",
+    "static_semantic_validation_implemented"
   ],
   "remaining_obligations": [
-    "exact_head_github_actions_validation",
+    "bounded_post_merge_lifecycle_reconciliation",
     "independent_review_if_required_by_repository_policy",
-    "owner_only_merge",
-    "successful_push_validation_on_exact_main",
-    "bounded_post_merge_lifecycle_reconciliation"
+    "owner_merge_identity_evidence",
+    "successful_push_validation_on_exact_main"
   ],
   "known_gaps": [
-    "exact_head_ci_result_pending",
-    "repository_settings_merge_enforcement_unverified",
-    "post_merge_evidence_absent"
+    "exact_main_push_validation_evidence_unavailable",
+    "fresh_independent_exact_head_review_not_recorded",
+    "merged_by_identity_not_exposed_by_connector",
+    "post_merge_evidence_absent",
+    "repository_settings_merge_enforcement_unverified"
   ],
   "material_progress": true,
   "zero_progress": false,
   "completion_claimed": false,
-  "next_lifecycle_action": "exact_head_validation"
+  "next_lifecycle_action": "exact_main_validation"
 }
