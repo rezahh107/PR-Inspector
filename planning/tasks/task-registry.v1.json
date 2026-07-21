@@ -1,0 +1,73 @@
+{
+  "schema_version": "task-registry.v1",
+  "current_work_package_id": "PINS-PLAN-001-WP01",
+  "programs": [
+    {
+      "program_id": "PRINS-GOVERNED-EXECUTION-PROGRAM",
+      "title": "PR-Inspector Governed Execution Program",
+      "status": "proposed",
+      "authority_note": "proposed_until_merged_and_reconciled"
+    }
+  ],
+  "initiatives": [
+    {
+      "initiative_id": "PRINS-PLANNING-FOUNDATION",
+      "program_id": "PRINS-GOVERNED-EXECUTION-PROGRAM",
+      "title": "Governed Planning Foundation",
+      "status": "proposed"
+    }
+  ],
+  "tasks": [
+    {
+      "task_id": "PINS-PLAN-001",
+      "initiative_id": "PRINS-PLANNING-FOUNDATION",
+      "title": "Establish governed planning, scope, progress, and evidence control",
+      "status": "in_progress",
+      "implementation_authorized": true,
+      "depends_on": [],
+      "completion_claimed": false,
+      "evidence_refs": []
+    },
+    {
+      "task_id": "PINS-AIGOV-BASELINE-001",
+      "initiative_id": "PRINS-PLANNING-FOUNDATION",
+      "title": "Reconcile live repository baseline against the governing AIGOV v2.5.0 bundle",
+      "status": "registered",
+      "implementation_authorized": false,
+      "depends_on": [
+        "PINS-PLAN-001"
+      ],
+      "completion_claimed": false,
+      "evidence_refs": []
+    }
+  ],
+  "work_packages": [
+    {
+      "work_package_id": "PINS-PLAN-001-WP01",
+      "task_id": "PINS-PLAN-001",
+      "title": "Governed planning foundation implementation",
+      "status": "implementing",
+      "depends_on": [],
+      "current": true,
+      "scope_ref": "planning/scopes/PINS-PLAN-001.scope.json",
+      "impact_refs": [
+        "planning/progress/impacts/PINS-PLAN-001.implementation.json"
+      ],
+      "evidence_refs": []
+    }
+  ],
+  "evidence_records": [],
+  "legacy_work": {
+    "automatically_imported": false,
+    "completion_credit": false,
+    "authority": "none",
+    "inspection_when_relevant": "allowed",
+    "reuse_requires": [
+      "live_repository_revalidation",
+      "new_scope",
+      "current_task_authorization",
+      "current_validation",
+      "fresh_review"
+    ]
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rezahh107/PR-Inspector/schemas/planning/progress-impact.v1.schema.json",
+  "title": "PR Inspector Progress Impact Record",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "progress-impact.v1"},
+    "impact_id": {"$ref": "#/$defs/id"},
+    "sequence": {"type": "integer", "minimum": 1},
+    "previous_impact_ref": {"oneOf": [{"type": "null"}, {"type": "string", "minLength": 1}]},
+    "program_id": {"$ref": "#/$defs/id"},
+    "initiative_id": {"$ref": "#/$defs/id"},
+    "task_id": {"$ref": "#/$defs/id"},
+    "work_package_id": {"$ref": "#/$defs/id"},
+    "scope_id": {"$ref": "#/$defs/id"},
+    "repository": {"const": "rezahh107/PR-Inspector"},
+    "base_sha": {"$ref": "#/$defs/git_sha"},
+    "head_binding": {"const": "derived_at_runtime"},
+    "changed_paths": {"$ref": "#/$defs/string_set"},
+    "classification": {"const": "planning_infrastructure"},
+    "state_before": {"type": "string", "minLength": 1},
+    "state_after": {"type": "string", "minLength": 1},
+    "completed_obligations": {"$ref": "#/$defs/string_set"},
+    "remaining_obligations": {"$ref": "#/$defs/string_set"},
+    "known_gaps": {"$ref": "#/$defs/string_set"},
+    "material_progress": {"type": "boolean"},
+    "zero_progress": {"type": "boolean"},
+    "completion_claimed": {"type": "boolean"},
+    "next_lifecycle_action": {"enum": ["exact_head_validation", "independent_review", "owner_merge", "exact_main_validation", "post_merge_reconciliation", "none"]}
+  },
+  "required": ["schema_version", "impact_id", "sequence", "previous_impact_ref", "program_id", "initiative_id", "task_id", "work_package_id", "scope_id", "repository", "base_sha", "head_binding", "changed_paths", "classification", "state_before", "state_after", "completed_obligations", "remaining_obligations", "known_gaps", "material_progress", "zero_progress", "completion_claimed", "next_lifecycle_action"],
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
+    "git_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "string_set": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  }
+}
