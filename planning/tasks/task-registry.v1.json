@@ -5,8 +5,8 @@
     {
       "program_id": "PRINS-GOVERNED-EXECUTION-PROGRAM",
       "title": "PR-Inspector Governed Execution Program",
-      "status": "proposed",
-      "authority_note": "proposed_until_merged_and_reconciled"
+      "status": "active",
+      "authority_note": "active_pending_exact_main_and_post_merge_reconciliation"
     }
   ],
   "initiatives": [
@@ -14,7 +14,7 @@
       "initiative_id": "PRINS-PLANNING-FOUNDATION",
       "program_id": "PRINS-GOVERNED-EXECUTION-PROGRAM",
       "title": "Governed Planning Foundation",
-      "status": "proposed"
+      "status": "active"
     }
   ],
   "tasks": [
@@ -22,11 +22,14 @@
       "task_id": "PINS-PLAN-001",
       "initiative_id": "PRINS-PLANNING-FOUNDATION",
       "title": "Establish governed planning, scope, progress, and evidence control",
-      "status": "in_progress",
+      "status": "implemented",
       "implementation_authorized": true,
       "depends_on": [],
       "completion_claimed": false,
-      "evidence_refs": []
+      "evidence_refs": [
+        "PINS-PLAN-001-WP01-EVIDENCE-EXACT-HEAD-CI-001",
+        "PINS-PLAN-001-WP01-EVIDENCE-MERGE-001"
+      ]
     },
     {
       "task_id": "PINS-AIGOV-BASELINE-001",
@@ -46,17 +49,51 @@
       "work_package_id": "PINS-PLAN-001-WP01",
       "task_id": "PINS-PLAN-001",
       "title": "Governed planning foundation implementation",
-      "status": "implementing",
+      "status": "merged",
       "depends_on": [],
       "current": true,
       "scope_ref": "planning/scopes/PINS-PLAN-001.scope.json",
       "impact_refs": [
         "planning/progress/impacts/PINS-PLAN-001.implementation.json"
       ],
-      "evidence_refs": []
+      "evidence_refs": [
+        "PINS-PLAN-001-WP01-EVIDENCE-EXACT-HEAD-CI-001",
+        "PINS-PLAN-001-WP01-EVIDENCE-MERGE-001"
+      ]
     }
   ],
-  "evidence_records": [],
+  "evidence_records": [
+    {
+      "evidence_id": "PINS-PLAN-001-WP01-EVIDENCE-EXACT-HEAD-CI-001",
+      "evidence_type": "exact_head_ci",
+      "repository": "rezahh107/PR-Inspector",
+      "task_id": "PINS-PLAN-001",
+      "work_package_id": "PINS-PLAN-001-WP01",
+      "base_sha": "6be25811d185f001025b61839f94c736c721bbb7",
+      "head_sha": "fa7fd09c6e0eaea57e9ed8ca953c38e04751a364",
+      "merge_commit_sha": null,
+      "scope_ref": "planning/scopes/PINS-PLAN-001.scope.json",
+      "impact_ref": "planning/progress/impacts/PINS-PLAN-001.implementation.json",
+      "producer": "github_actions",
+      "source_ref": "github-actions:run:29741978968:job:88350622254",
+      "verified": true
+    },
+    {
+      "evidence_id": "PINS-PLAN-001-WP01-EVIDENCE-MERGE-001",
+      "evidence_type": "merge",
+      "repository": "rezahh107/PR-Inspector",
+      "task_id": "PINS-PLAN-001",
+      "work_package_id": "PINS-PLAN-001-WP01",
+      "base_sha": "6be25811d185f001025b61839f94c736c721bbb7",
+      "head_sha": "fa7fd09c6e0eaea57e9ed8ca953c38e04751a364",
+      "merge_commit_sha": "112e9981c87df095ef210538972c35f0668a6e57",
+      "scope_ref": "planning/scopes/PINS-PLAN-001.scope.json",
+      "impact_ref": "planning/progress/impacts/PINS-PLAN-001.implementation.json",
+      "producer": "github_merge_api",
+      "source_ref": "github:pull-request:34:merge",
+      "verified": true
+    }
+  ],
   "legacy_work": {
     "automatically_imported": false,
     "completion_credit": false,
