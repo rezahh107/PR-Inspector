@@ -243,6 +243,14 @@ def test_no_temporary_repair_or_generated_residue_is_committed():
             assert not path.match("chunk-*.b64"), relative
 
 
+def test_repository_contains_no_global_python_startup_hooks():
+    forbidden = (
+        ROOT / "sitecustomize.py",
+        ROOT / "usercustomize.py",
+    )
+    assert not [path for path in forbidden if path.exists()]
+
+
 def test_permanent_workflows_are_read_only_pinned_and_non_self_modifying():
     workflows = sorted((ROOT / ".github/workflows").glob("*.y*ml"))
     assert workflows
@@ -328,4 +336,3 @@ def test_operational_github_receipt_factory_is_closure_bound():
                 if isinstance(node, ast.ImportFrom) and node.module:
                     if node.module.endswith("_governance_transport"):
                         assert all(alias.name != "_mint_response" for alias in node.names), path
-
