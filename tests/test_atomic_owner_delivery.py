@@ -8,8 +8,16 @@ from pr_inspector.official_review import (
     official_next_action_prompt,
     official_owner_delivery,
     official_owner_result,
+    verify_completed_review,
 )
-from tests.test_canonical_output_enforcement import completed_bundle
+from tests.test_behavioral_rule_coverage import write_directory
+from tests.test_canonical_output_enforcement import (
+    completed_bundle,
+    install_live_payloads,
+    package,
+    profile_sequence_capability,
+    source,
+)
 
 
 def test_prompt_required_delivery_contains_exact_prompt_bytes(
@@ -60,15 +68,25 @@ def test_ignored_warning_filters_cannot_bypass_compact_access_invariant(
             official_owner_result(completion)
 
 
-def test_no_prompt_delivery_remains_exact_compact_owner_result(
+def test_historical_no_prompt_delivery_remains_exact_compact_owner_result(
     tmp_path,
     monkeypatch,
 ):
-    completion, _, _ = completed_bundle(tmp_path, monkeypatch)
+    output = tmp_path / "historical-review"
+    output.mkdir()
+    sequence = profile_sequence_capability()
+    write_directory(output, package(), sequence_enforcement=sequence)
+    install_live_payloads(monkeypatch)
+    completion = verify_completed_review(
+        output,
+        head_source=source(),
+        sequence_enforcement=sequence,
+    )
 
     compact = official_owner_result(completion)
     delivery = official_owner_delivery(completion)
 
+    assert completion.protocol_version == "v1.11.1"
     assert official_next_action_prompt(completion) is None
     assert delivery == compact
     assert "## پرامپت اقدام" not in delivery

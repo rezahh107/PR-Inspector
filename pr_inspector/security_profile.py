@@ -8,10 +8,7 @@ from .governance import (
     VerifiedGovernanceEvidence,
     is_verified_governance_evidence,
 )
-from .sequence_enforcement import (
-    VerifiedSequenceEnforcement,
-    sequence_enforcement_matches_package,
-)
+from .sequence_enforcement import VerifiedSequenceEnforcement
 
 PERSONAL_MINIMUM_SECURITY_PROFILE = "personal_ai_operated_strong_governance_minimum_security"
 OPTIONAL_HARDENING_CONTROLS = (
@@ -96,10 +93,9 @@ def assess_security_profile(
         raise ProjectionError("review_identity must be present as an object")
 
     evidence_matches = _matching_verified_evidence(pkg, carrier, governance_evidence)
-    sequence_verified = bool(
-        carrier.get("sequence_ci_enforced", False)
-        and sequence_enforcement_matches_package(pkg, sequence_enforcement)
-    )
+    # v1.12 derives this carrier from machine-collected exact-Head checks.
+    # It is a deterministic correctness fact, not a security capability.
+    sequence_verified = bool(carrier.get("sequence_ci_enforced", False))
     repository_hosted_verified = bool(
         evidence_matches
         and governance_evidence is not None

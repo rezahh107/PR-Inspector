@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import tempfile
+import weakref
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
@@ -85,7 +86,7 @@ class VerifiedReviewCompletion:
     cleanup_diagnostics: tuple[Diagnostic, ...] = field(default=(), compare=False)
 
     def _reverify(self) -> _Bundle:
-        if self._marker is not _COMPLETION_MARKER:
+        if not is_verified_review_completion(self):
             raise CompletionError("review completion proof is not verifier-created")
         require_head(
             self._head_source.fetch(),
@@ -179,6 +180,9 @@ class VerifiedReviewCompletion:
                 "canonical projection requires a next-action prompt"
             )
         return utf8_bytes(PROMPT_NAME, prompt_bytes)
+
+
+_COMPLETION_CAPABILITIES: weakref.WeakSet[VerifiedReviewCompletion] = weakref.WeakSet()
 
 
 def sha256(raw: bytes) -> str:
@@ -343,7 +347,7 @@ def completion(
     *,
     cleanup_diagnostics: tuple[Diagnostic, ...] = (),
 ) -> VerifiedReviewCompletion:
-    return VerifiedReviewCompletion(
+    value = VerifiedReviewCompletion(
         bundle.directory,
         bundle.protocol_version,
         bundle.repository,
@@ -359,12 +363,15 @@ def completion(
         _COMPLETION_MARKER,
         cleanup_diagnostics,
     )
+    _COMPLETION_CAPABILITIES.add(value)
+    return value
 
 
 def verify_completed_review(
     review_directory: Path,
     *,
     head_source: GitHubPullRequestHeadSource,
+    package: object | None = None,
 ) -> VerifiedReviewCompletion:
     first = head_source.fetch()
     bundle = validate_bundle(
@@ -373,6 +380,42 @@ def verify_completed_review(
         first.pr_number,
         first.head_sha,
     )
+    if bundle.protocol_version == "v1.12.0":
+        from .verified_review import (
+            is_verified_review_package,
+            verified_review_package_bytes,
+            verified_review_package_value,
+        )
+
+        if not is_verified_review_package(package):
+            raise CompletionError(
+                "v1.12.0 re-verification requires the original verifier-created "
+                "VerifiedReviewPackage capability"
+            )
+        package_bytes = verified_review_package_bytes(package)
+        package_value = verified_review_package_value(package)
+        if (Path(review_directory) / "review-package.json").read_bytes() != package_bytes:
+            raise CompletionError("verified review package bytes do not match the published bundle")
+        if (
+            package_value["review_identity"]["target_repository"],
+            package_value["review_identity"]["pr_number"],
+            package_value["review_identity"]["reviewed_head_sha"],
+            package_value["review_identity"]["target_repository_id"],
+        ) != (
+            bundle.repository,
+            bundle.pr_number,
+            bundle.head_sha,
+            package.repository_id,
+        ):
+            raise CompletionError("verified package identity does not match the published bundle")
+        if (
+            package.canonical_sha256,
+            package.file_sha256,
+        ) != (
+            bundle.package_canonical_sha256,
+            bundle.package_file_sha256,
+        ):
+            raise CompletionError("verified package digests do not match the published bundle")
     final = head_source.fetch()
     require_head(final, bundle.repository, bundle.pr_number, bundle.head_sha)
     return completion(bundle, head_source, final)
@@ -380,8 +423,9 @@ def verify_completed_review(
 
 def is_verified_review_completion(value: object) -> bool:
     return (
-        isinstance(value, VerifiedReviewCompletion)
+        type(value) is VerifiedReviewCompletion
         and value._marker is _COMPLETION_MARKER
+        and value in _COMPLETION_CAPABILITIES
     )
 
 

@@ -1,0 +1,18 @@
+{
+  "canonical_owner_accessor": "official_owner_delivery",
+  "cli_stderr_behavior": "technical_completion_and_diagnostics",
+  "cli_stdout_behavior": "atomic_owner_delivery_only",
+  "compact_owner_accessor": "official_owner_result",
+  "delivery_failure_stdout_behavior": "empty",
+  "no_prompt_delivery_behavior": "exact_owner_result",
+  "owner_result_name": "OWNER_RESULT.fa.txt",
+  "projection_name": "DECISION_PROJECTION.json",
+  "prompt_heading": "## پرامپت اقدام",
+  "prompt_name": "NEXT_ACTION_PROMPT.en.md",
+  "prompt_required_compact_behavior": "completion_error",
+  "prompt_separator_template": "\n{heading}\n\n",
+  "protocol_version": "v1.12.0",
+  "schema_version": 1,
+  "profile_commands_name": "OWNER_PROFILE_COMMANDS.fa.txt",
+  "profile_commands_behavior": "always_generated_separate_verified_artifact"
+}

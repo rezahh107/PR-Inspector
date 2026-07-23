@@ -38,7 +38,9 @@ def validate_scope(
         output.append(diagnostic("PINS-CROSS-FILE-BINDING-MISMATCH", "/scope/task_id", "Task is not bound to Scope Initiative"))
     if task and package and package["task_id"] != task["task_id"]:
         output.append(diagnostic("PINS-CROSS-FILE-BINDING-MISMATCH", "/scope/work_package_id", "Work Package is not bound to Scope Task"))
-    expected_ref = expected_scope_ref or SCOPE_PATH.as_posix()
+    expected_ref = expected_scope_ref or (
+        package["scope_ref"] if package is not None else SCOPE_PATH.as_posix()
+    )
     if package and package["scope_ref"] != expected_ref:
         output.append(
             diagnostic(
@@ -49,24 +51,35 @@ def validate_scope(
         )
 
     paths = scope["committed_paths"]
+    deleted_paths = scope.get("deleted_paths", [])
+    all_paths = sorted([*paths, *deleted_paths])
+    policy = SCOPE_POLICIES[scope["change_class"]]
+    allowed_exact = policy["allowed_exact"]
+    allowed_prefixes = policy["allowed_prefixes"]
+    required_excluded = policy["required_excluded"]
+    required_forbidden = policy["required_forbidden"]
     if paths != sorted(paths) or len(paths) != len(set(paths)):
         output.append(diagnostic("PINS-SCOPE-PATH-INVALID", "/scope/committed_paths", "paths must be unique and sorted"))
-    for path in paths:
+    if deleted_paths != sorted(deleted_paths) or len(deleted_paths) != len(set(deleted_paths)):
+        output.append(diagnostic("PINS-SCOPE-PATH-INVALID", "/scope/deleted_paths", "paths must be unique and sorted"))
+    if set(paths) & set(deleted_paths):
+        output.append(diagnostic("PINS-SCOPE-PATH-INVALID", "/scope", "committed_paths and deleted_paths must be disjoint"))
+    for path in all_paths:
         error = validate_repo_path(path)
         if error:
             output.append(diagnostic("PINS-SCOPE-PATH-INVALID", "/scope/committed_paths", f"{path}: {error}"))
-        elif path not in ALLOWED_EXACT and not path.startswith(ALLOWED_PREFIXES):
+        elif path not in allowed_exact and not path.startswith(allowed_prefixes):
             output.append(diagnostic("PINS-SCOPE-FORBIDDEN-PATH", f"/{path}", "path is outside the authorized boundary"))
 
-    if not REQUIRED_EXCLUDED <= set(scope["excluded_paths"]):
+    if not required_excluded <= set(scope["excluded_paths"]):
         output.append(diagnostic("PINS-SCOPE-FORBIDDEN-PATH", "/scope/excluded_paths", "required exclusions are missing"))
-    if not REQUIRED_FORBIDDEN <= set(scope["forbidden_changes"]):
+    if not required_forbidden <= set(scope["forbidden_changes"]):
         output.append(diagnostic("PINS-SCOPE-FORBIDDEN-PATH", "/scope/forbidden_changes", "required forbidden operations are missing"))
     for pattern in scope["excluded_paths"]:
         error = _pattern_error(pattern)
         if error:
             output.append(diagnostic("PINS-SCOPE-PATH-INVALID", "/scope/excluded_paths", f"{pattern}: {error}"))
-        elif any(pattern_matches(pattern, path) for path in paths):
+        elif any(pattern_matches(pattern, path) for path in all_paths):
             output.append(diagnostic("PINS-SCOPE-FORBIDDEN-PATH", "/scope/committed_paths", f"path matches {pattern}"))
     return sorted(set(output))
 
@@ -103,7 +116,15 @@ def validate_impact(
         if package is None:
             output.append(diagnostic("PINS-CROSS-FILE-BINDING-MISMATCH", "/impact/work_package_id", "Impact Work Package is not registered"))
         else:
-            expected_ref = expected_impact_ref or IMPACT_PATH.as_posix()
+            if expected_impact_ref is not None:
+                expected_ref = expected_impact_ref
+            else:
+                index = impact["sequence"] - 1
+                expected_ref = (
+                    package["impact_refs"][index]
+                    if 0 <= index < len(package["impact_refs"])
+                    else IMPACT_PATH.as_posix()
+                )
             if expected_ref not in package["impact_refs"]:
                 output.append(
                     diagnostic(
@@ -121,7 +142,9 @@ def validate_impact(
     if impact["sequence"] > 1 and impact["previous_impact_ref"] is None:
         output.append(diagnostic("PINS-IMPACT-SEQUENCE-MISMATCH", "/impact/previous_impact_ref", "later Impact requires predecessor reference"))
     if impact["changed_paths"] != scope["committed_paths"]:
-        output.append(diagnostic("PINS-IMPACT-SCOPE-MISMATCH", "/impact/changed_paths", "must equal Scope paths"))
+        output.append(diagnostic("PINS-IMPACT-SCOPE-MISMATCH", "/impact/changed_paths", "must equal Scope committed paths"))
+    if impact.get("deleted_paths", []) != scope.get("deleted_paths", []):
+        output.append(diagnostic("PINS-IMPACT-SCOPE-MISMATCH", "/impact/deleted_paths", "must equal Scope deleted paths"))
     if impact["material_progress"] == impact["zero_progress"]:
         output.append(diagnostic("PINS-IMPACT-FALSE-PROGRESS", "/impact", "exactly one progress classification must be true"))
 

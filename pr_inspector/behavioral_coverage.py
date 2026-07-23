@@ -14,6 +14,7 @@ MUTATION_PATH = ROOT / "fixtures/behavioral-rules/mutation-cases.json"
 WORKFLOW_PATH = ROOT / ".github/workflows/validate-repository.yml"
 FOCUSED_COMMAND = "python -m pytest -q tests/test_behavioral_rule_coverage.py"
 EXTERNAL_COVERAGE_COMMAND = "python -m pytest -q tests/test_coverage_trust_gate.py"
+AUTHORITY_COMMAND = "python -m pytest -q tests/test_v1_12_verified_review_authority.py"
 
 COLUMNS = (
     "rule_id",
@@ -56,6 +57,13 @@ REQUIRED_RULE_IDS = {
     "PRR-GOV-PROJECTION-AUTHORITY-001",
     "PRR-PROMPT-SEMANTIC-001",
     "PRR-OUTPUT-AUTHORITY-001",
+    "PRR-AUTH-PACKAGE-CAPABILITY-001",
+    "PRR-AUTH-EVIDENCE-CAPABILITY-001",
+    "PRR-AUTH-CLAIM-COMPATIBILITY-001",
+    "PRR-AUTH-DERIVED-FACTS-001",
+    "PRR-AUTH-HUMAN-JUDGMENT-001",
+    "PRR-AUTH-PREVIEW-ISOLATION-001",
+    "PRR-AUTH-REVERIFY-CAPABILITY-001",
 }
 
 STATUS_RANK = {
@@ -206,6 +214,8 @@ def validate_behavioral_coverage(root: Path = ROOT) -> list[Diagnostic]:
         expected_command = (
             EXTERNAL_COVERAGE_COMMAND
             if rule_id.startswith("PRR-COV-")
+            else AUTHORITY_COMMAND
+            if rule_id.startswith("PRR-AUTH-")
             else FOCUSED_COMMAND
         )
         if row["CI_step"] != expected_command:
@@ -240,7 +250,7 @@ def validate_behavioral_coverage(root: Path = ROOT) -> list[Diagnostic]:
     except (OSError, yaml.YAMLError) as exc:
         diagnostics.append(Diagnostic("PRI-BRC-014", f"/{workflow_path.relative_to(root)}", str(exc)))
     else:
-        for command in (FOCUSED_COMMAND, EXTERNAL_COVERAGE_COMMAND):
+        for command in (FOCUSED_COMMAND, EXTERNAL_COVERAGE_COMMAND, AUTHORITY_COMMAND):
             if command not in workflow:
                 diagnostics.append(
                     Diagnostic(

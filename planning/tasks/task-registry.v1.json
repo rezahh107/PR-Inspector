@@ -1,12 +1,12 @@
 {
   "schema_version": "task-registry.v1",
-  "current_work_package_id": "PINS-PLAN-001-WP01",
+  "current_work_package_id": "PINS-VERIFIED-REVIEW-001-WP01",
   "programs": [
     {
       "program_id": "PRINS-GOVERNED-EXECUTION-PROGRAM",
       "title": "PR-Inspector Governed Execution Program",
       "status": "active",
-      "authority_note": "active_pending_exact_main_and_post_merge_reconciliation"
+      "authority_note": "active_verified_review_authority_migration"
     }
   ],
   "initiatives": [
@@ -14,6 +14,12 @@
       "initiative_id": "PRINS-PLANNING-FOUNDATION",
       "program_id": "PRINS-GOVERNED-EXECUTION-PROGRAM",
       "title": "Governed Planning Foundation",
+      "status": "active"
+    },
+    {
+      "initiative_id": "PRINS-VERIFIED-REVIEW-AUTHORITY",
+      "program_id": "PRINS-GOVERNED-EXECUTION-PROGRAM",
+      "title": "Verified Review Authority Boundary",
       "status": "active"
     }
   ],
@@ -42,6 +48,16 @@
       ],
       "completion_claimed": false,
       "evidence_refs": []
+    },
+    {
+      "task_id": "PINS-VERIFIED-REVIEW-001",
+      "initiative_id": "PRINS-VERIFIED-REVIEW-AUTHORITY",
+      "title": "Replace caller-authored official packages with verified evidence-bound assembly",
+      "status": "in_progress",
+      "implementation_authorized": true,
+      "depends_on": [],
+      "completion_claimed": false,
+      "evidence_refs": []
     }
   ],
   "work_packages": [
@@ -51,7 +67,7 @@
       "title": "Governed planning foundation implementation",
       "status": "merged",
       "depends_on": [],
-      "current": true,
+      "current": false,
       "scope_ref": "planning/scopes/PINS-PLAN-001.scope.json",
       "impact_refs": [
         "planning/progress/impacts/PINS-PLAN-001.implementation.json"
@@ -60,6 +76,19 @@
         "PINS-PLAN-001-WP01-EVIDENCE-EXACT-HEAD-CI-001",
         "PINS-PLAN-001-WP01-EVIDENCE-MERGE-001"
       ]
+    },
+    {
+      "work_package_id": "PINS-VERIFIED-REVIEW-001-WP01",
+      "task_id": "PINS-VERIFIED-REVIEW-001",
+      "title": "v1.12 verified review package migration",
+      "status": "implementing",
+      "depends_on": [],
+      "current": true,
+      "scope_ref": "planning/scopes/PINS-VERIFIED-REVIEW-001.scope.json",
+      "impact_refs": [
+        "planning/progress/impacts/PINS-VERIFIED-REVIEW-001.implementation.json"
+      ],
+      "evidence_refs": []
     }
   ],
   "evidence_records": [

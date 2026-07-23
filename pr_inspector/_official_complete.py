@@ -11,6 +11,13 @@ from .decision_projection import ProjectionError
 from .derived_outputs import MANIFEST_NAME, write_review_artifacts
 from .diagnostics import Diagnostic
 from .validation_v2 import validate_directory, validate_package
+from .verified_review import (
+    ReviewAssemblyError,
+    CanonicalReviewPackage,
+    is_verified_review_package,
+    verified_review_package_bytes,
+    verified_review_package_value,
+)
 from ._official_bundle import (
     IncompleteReview,
     VerifiedReviewCompletion,
@@ -307,12 +314,21 @@ def _bounded_restore(
 
 
 def complete_review(
-    package_path: Path,
+    package: CanonicalReviewPackage,
     output_directory: Path,
     *,
     head_source: GitHubPullRequestHeadSource,
 ) -> VerifiedReviewCompletion | IncompleteReview:
-    package_path = Path(package_path)
+    """Publish one package assembled by the in-process official runtime."""
+
+    if not is_verified_review_package(package):
+        return diagnostic(
+            "PRI-PACKAGE-AUTHORITY-001",
+            "/verified-review-package",
+            (
+                "official completion requires CanonicalReviewPackage from the in-process assembler; raw JSON, paths, mappings, and legacy package files are non-authoritative"
+            ),
+        )
     output = Path(output_directory)
     try:
         initial = head_source.fetch()
@@ -323,32 +339,31 @@ def complete_review(
             f"official completion requires verified live GitHub evidence: {exc}",
         )
     try:
-        package_bytes = package_path.read_bytes()
-        package = json.loads(package_bytes.decode("utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        return diagnostic("PRI-COMPLETE-001", "/review-package.json", str(exc))
-    if not isinstance(package, dict):
+        package_bytes = verified_review_package_bytes(package)
+        package_value = verified_review_package_value(package)
+    except ReviewAssemblyError as exc:
+        return diagnostic("PRI-PACKAGE-AUTHORITY-002", "/verified-review-package", str(exc))
+    if package.protocol_version != "v1.12.0":
         return diagnostic(
-            "PRI-COMPLETE-001",
-            "/review-package.json",
-            "package must be an object",
+            "PRI-PACKAGE-AUTHORITY-003",
+            "/verified-review-package/protocol-version",
+            "official completion accepts only an active v1.12.0 canonical assembled package",
         )
     try:
-        diagnostics = validate_package(package)
+        require_head(initial, package.repository, package.pr_number, package.head_sha)
+        if initial.repository_id != package.repository_id:
+            raise CompletionError("live repository id does not match verified package")
+        if initial.base_sha != package.base_sha:
+            raise CompletionError("live PR base does not match verified package")
+    except CompletionError as exc:
+        return diagnostic("PRI-COMPLETE-007", "/review_identity", str(exc))
+    try:
+        diagnostics = validate_package(package_value)
     except Exception as exc:
         return diagnostic("PRI-COMPLETE-002", "/package-validation", str(exc))
     if diagnostics:
         return IncompleteReview(tuple(diagnostics))
-    try:
-        identity = package["review_identity"]
-        require_head(
-            initial,
-            identity["target_repository"],
-            identity["pr_number"],
-            identity["reviewed_head_sha"],
-        )
-    except (KeyError, TypeError, CompletionError) as exc:
-        return diagnostic("PRI-COMPLETE-007", "/review_identity", str(exc))
+    identity = package_value["review_identity"]
     if identity["review_validity"] != "CURRENT":
         return diagnostic(
             "PRI-COMPLETE-007",
@@ -371,7 +386,7 @@ def complete_review(
         try:
             (stage / "review-package.json").write_bytes(package_bytes)
             write_review_artifacts(
-                package,
+                package_value,
                 stage,
                 review_package_bytes=package_bytes,
             )

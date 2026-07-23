@@ -146,6 +146,48 @@
       "expected_diagnostic": "candidate_output_api_migration_error",
       "mutation": "import_or_call_candidate_projection_renderer_verifier_or_owner_composer",
       "rule_id": "PRR-OUTPUT-AUTHORITY-001"
+    },
+    {
+      "case_id": "raw_or_lookalike_package_reaches_completion",
+      "expected_diagnostic": "PRI-PACKAGE-AUTHORITY-001",
+      "mutation": "pass_raw_path_mapping_fixture_copy_or_subclass_to_official_completion",
+      "rule_id": "PRR-AUTH-PACKAGE-CAPABILITY-001"
+    },
+    {
+      "case_id": "caller_created_evidence_capability_accepted",
+      "expected_diagnostic": "ReviewAssemblyError",
+      "mutation": "pass_unregistered_scope_ci_execution_or_source_lookalike_to_assembler",
+      "rule_id": "PRR-AUTH-EVIDENCE-CAPABILITY-001"
+    },
+    {
+      "case_id": "unsupported_claim_authority_escalation",
+      "expected_diagnostic": "ReviewAssemblyError",
+      "mutation": "claim_CODE_SUPPORTED_or_REPRODUCED_without_compatible_verified_evidence",
+      "rule_id": "PRR-AUTH-CLAIM-COMPATIBILITY-001"
+    },
+    {
+      "case_id": "caller_selected_derived_fact",
+      "expected_diagnostic": "ReviewDraft_validation_failed",
+      "mutation": "author_coverage_complete_check_result_identity_or_timestamp_in_review_draft",
+      "rule_id": "PRR-AUTH-DERIVED-FACTS-001"
+    },
+    {
+      "case_id": "manual_judgment_promoted_or_rejected",
+      "expected_diagnostic": "authority_provenance_mismatch",
+      "mutation": "promote_manual_judgment_to_verified_evidence_or_reject_attributed_hypothesis",
+      "rule_id": "PRR-AUTH-HUMAN-JUDGMENT-001"
+    },
+    {
+      "case_id": "preview_promoted_to_official",
+      "expected_diagnostic": "PRI-PACKAGE-AUTHORITY-001",
+      "mutation": "pass_DECLARATION_preview_to_official_completion",
+      "rule_id": "PRR-AUTH-PREVIEW-ISOLATION-001"
+    },
+    {
+      "case_id": "copied_bundle_reverified_without_capability",
+      "expected_diagnostic": "CompletionError",
+      "mutation": "copy_v1_12_artifact_directory_and_reverify_without_original_package_capability",
+      "rule_id": "PRR-AUTH-REVERIFY-CAPABILITY-001"
     }
   ],
   "schema_version": 1

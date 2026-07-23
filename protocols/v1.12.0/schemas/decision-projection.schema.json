@@ -1,0 +1,99 @@
+{
+  "$id": "https://github.com/rezahh107/PR-Inspector/protocols/v1.12.0/schemas/decision-projection.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "approval_requirement": {
+      "type": "string"
+    },
+    "governance_decision": {
+      "type": "object"
+    },
+    "governance_follow_up": {
+      "type": "object"
+    },
+    "inspection_profile": {
+      "enum": [
+        "minimal",
+        "strict"
+      ]
+    },
+    "next_action": {
+      "required": [
+        "kind",
+        "recipient",
+        "may_modify_code",
+        "prompt_required",
+        "prompt_kind",
+        "reason_codes"
+      ],
+      "type": "object"
+    },
+    "overall_recommendation": {
+      "type": "object"
+    },
+    "owner_readiness": {
+      "required": [
+        "color",
+        "action_kind",
+        "message_key",
+        "reason_codes"
+      ],
+      "type": "object"
+    },
+    "protocol_version": {
+      "const": "v1.12.0"
+    },
+    "reason_details": {
+      "type": "array"
+    },
+    "required_actions": {
+      "type": "array"
+    },
+    "review_identity": {
+      "type": "object"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "security_profile": {
+      "type": "object"
+    },
+    "technical_decision": {
+      "type": "object"
+    },
+    "technical_status": {
+      "enum": [
+        "GREEN_TECHNICALLY_READY",
+        "YELLOW_CHANGES_OR_VERIFICATION_REQUIRED",
+        "RED_DO_NOT_MERGE"
+      ]
+    },
+    "technical_status_reason_codes": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "protocol_version",
+    "inspection_profile",
+    "technical_decision",
+    "governance_decision",
+    "overall_recommendation",
+    "governance_follow_up",
+    "technical_status",
+    "technical_status_reason_codes",
+    "approval_requirement",
+    "security_profile",
+    "owner_readiness",
+    "next_action",
+    "review_identity",
+    "reason_details",
+    "required_actions"
+  ],
+  "title": "PR Inspector Decision Projection v1.12.0",
+  "type": "object"
+}

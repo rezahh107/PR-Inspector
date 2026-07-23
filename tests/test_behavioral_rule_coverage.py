@@ -7,6 +7,7 @@ import pytest
 
 from pr_inspector import _governance_transport
 from pr_inspector.behavioral_coverage import (
+    AUTHORITY_COMMAND,
     EXTERNAL_COVERAGE_COMMAND,
     FOCUSED_COMMAND,
     MATRIX_PATH,
@@ -128,6 +129,8 @@ def test_behavioral_coverage_matrix_is_complete_and_repository_validated():
         expected = (
             EXTERNAL_COVERAGE_COMMAND
             if row["rule_id"].startswith("PRR-COV-")
+            else AUTHORITY_COMMAND
+            if row["rule_id"].startswith("PRR-AUTH-")
             else FOCUSED_COMMAND
         )
         assert row["CI_step"] == expected
@@ -190,6 +193,7 @@ def test_owner_prompt_atomic_mutation_fails_closed_even_when_warnings_are_ignore
     assert official_owner_delivery(completion) == (
         f"{owner_result}\n## پرامپت اقدام\n\n{prompt}"
     )
+
 
 def test_projection_action_drift_mutation_is_rejected(tmp_path):
     value = yellow_verify_package()

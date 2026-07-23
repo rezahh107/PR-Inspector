@@ -20,9 +20,6 @@ from .validation_v2 import validate_directory
 
 ROOT = Path(__file__).resolve().parents[1]
 CURRENT_VERSION = (ROOT / "CURRENT_VERSION").read_text(encoding="utf-8").strip()
-TRUST_POLICY_PATH = (
-    ROOT / f"protocols/{CURRENT_VERSION}/trust/INSPECTOR_TRUST_POLICY.json"
-)
 _VERIFIED_MARKER = object()
 SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
 _EXPECTED_ARTIFACTS = {
@@ -57,8 +54,14 @@ def _load_json(path: Path) -> dict[str, Any]:
     return value
 
 
-def trust_policy() -> dict[str, Any]:
-    policy = _load_json(TRUST_POLICY_PATH)
+def trust_policy(protocol_version: str | None = None) -> dict[str, Any]:
+    version = protocol_version or CURRENT_VERSION
+    if not isinstance(version, str) or re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", version) is None:
+        raise ProvenanceError("protocol version is malformed")
+    policy_path = ROOT / f"protocols/{version}/trust/INSPECTOR_TRUST_POLICY.json"
+    if not policy_path.is_file():
+        raise ProvenanceError(f"trusted protocol release is unavailable: {version}")
+    policy = _load_json(policy_path)
     required = {
         "schema_version",
         "protocol_version",
@@ -82,9 +85,9 @@ def trust_policy() -> dict[str, Any]:
         )
     if policy["schema_version"] != 1:
         raise ProvenanceError("inspector trust policy schema_version must be 1")
-    if policy["protocol_version"] != CURRENT_VERSION:
+    if policy["protocol_version"] != version:
         raise ProvenanceError(
-            "inspector trust policy version must match CURRENT_VERSION"
+            "inspector trust policy version must match the reviewed package"
         )
     if policy["commit_evidence_source"] != "github_rest_api_https":
         raise ProvenanceError("unsupported inspector commit evidence source")
@@ -304,7 +307,14 @@ def verify_review_directory(
     if not is_verified_inspector_commit(inspector_commit):
         raise ProvenanceError("inspector commit evidence is not verified")
 
-    policy = trust_policy()
+    package_path = review_directory / "review-package.json"
+    if not package_path.is_file():
+        raise ProvenanceError("required review artifact is missing: review-package.json")
+    package = _load_json(package_path)
+    protocol_version = package.get("protocol_version")
+    if not isinstance(protocol_version, str):
+        raise ProvenanceError("review package protocol version is missing")
+    policy = trust_policy(protocol_version)
     for name in policy["required_review_artifacts"]:
         if not (review_directory / name).is_file():
             raise ProvenanceError(f"required review artifact is missing: {name}")
@@ -314,7 +324,6 @@ def verify_review_directory(
         rendered = "; ".join(item.line() for item in diagnostics)
         raise ProvenanceError(f"review directory validation failed: {rendered}")
 
-    package_path = review_directory / "review-package.json"
     projection_path = review_directory / PROJECTION_NAME
     manifest_path = review_directory / MANIFEST_NAME
     package_bytes = package_path.read_bytes()

@@ -1,3 +1,10 @@
+## v1.12.0
+
+- Replace caller-authored official packages with one deterministic in-process assembler.
+- Add typed `ReviewRequest`, machine-collected `ReviewFacts`, bounded `ReviewAssessment`, explicit A/B/C/D field authority, and non-authoritative preview.
+- Remove the PR-specific workspace export workflow and preserve the global-startup-hook closure regression.
+- Preserve v1.11.1 as immutable history.
+
 # Changelog
 
 ## 1.11.1
