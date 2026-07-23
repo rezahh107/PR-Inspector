@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,7 @@ from .constants import STATUS_GREEN, STATUS_RED, STATUS_YELLOW
 ROOT = Path(__file__).resolve().parents[1]
 CURRENT_VERSION = (ROOT / "CURRENT_VERSION").read_text(encoding="utf-8").strip()
 REGISTRY_PATH = ROOT / f"protocols/{CURRENT_VERSION}/registries/DECISION_REASON_REGISTRY.yaml"
+_EXACT_SHA = re.compile(r"^[0-9a-f]{40}$")
 
 TECHNICAL_EFFECTS = {"NONE", "YELLOW", "RED"}
 ACTION_KINDS = {
@@ -267,6 +269,14 @@ def _append_reason(
             existing["subjects"].append(value)
 
 
+def _review_is_current(identity: dict[str, Any]) -> bool:
+    return (
+        identity.get("review_validity") == "CURRENT"
+        and isinstance(identity.get("reviewed_head_sha"), str)
+        and _EXACT_SHA.fullmatch(identity["reviewed_head_sha"]) is not None
+    )
+
+
 def collect_reason_instances(pkg: dict[str, Any]) -> list[dict[str, Any]]:
     """Collect all structured reasons once, without parsing free text."""
 
@@ -278,7 +288,7 @@ def collect_reason_instances(pkg: dict[str, Any]) -> list[dict[str, Any]]:
     scope = pkg["scope"]
     intent = pkg.get("intent_fit")
 
-    if identity["review_validity"] != "CURRENT":
+    if not _review_is_current(identity):
         _append_reason(
             reasons,
             "RSN-REVIEW-NOT-CURRENT",
@@ -507,7 +517,7 @@ def _choose_action(
     reason_codes: list[str],
 ) -> tuple[str, list[str]]:
     registry = reason_registry_by_code()
-    if pkg["review_identity"]["review_validity"] != "CURRENT":
+    if not _review_is_current(pkg["review_identity"]):
         return "rerun_review", ["RSN-REVIEW-NOT-CURRENT"]
 
     if technical_status != STATUS_GREEN:

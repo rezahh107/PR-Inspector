@@ -37,6 +37,10 @@ from tests.governance_test_support import (
     fixture as governance_fixture,
     responses as governance_responses,
 )
+from tests.verified_review_test_support import (
+    complete_fixture_review,
+    fixture_review_runtime,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY = "example/project"
@@ -91,8 +95,13 @@ def pr_payload(head_sha: str = HEAD) -> dict:
         "number": PR_NUMBER,
         "url": api_url,
         "html_url": f"https://github.com/{REPOSITORY}/pull/{PR_NUMBER}",
-        "base": {"repo": {"id": REPOSITORY_ID, "full_name": REPOSITORY}},
-        "head": {"sha": head_sha},
+        "state": "open",
+        "base": {
+            "repo": {"id": REPOSITORY_ID, "full_name": REPOSITORY},
+            "sha": "2" * 40,
+            "ref": "main",
+        },
+        "head": {"sha": head_sha, "ref": "feature"},
     }
 
 
@@ -165,21 +174,19 @@ def completed_bundle(
 ):
     install_live_payloads(monkeypatch)
     value = package(name)
-    package_path = tmp_path / f"{name}.json"
-    write_package(package_path, value)
     output = tmp_path / "review"
     sequence_enforcement = (
         profile_sequence_capability() if name == "golden-green" else None
     )
-    result = complete_review(
-        package_path,
+    result, canonical = complete_fixture_review(
+        value,
         output,
         head_source=source(),
         sequence_enforcement=sequence_enforcement,
     )
     assert is_verified_review_completion(result)
     assert isinstance(result, VerifiedReviewCompletion)
-    return result, output, value
+    return result, output, canonical.value()
 
 
 def mutate_after_bundle_verification(
@@ -214,11 +221,11 @@ def test_schema_valid_but_semantically_invalid_package_has_no_completion(
     package_path = tmp_path / "review-package.json"
     write_package(package_path, value)
     result = complete_review(
-        package_path,
-        tmp_path / "review",
-        head_source=source(),
+        package_path=package_path,
+        output_directory=tmp_path / "review",
     )
     assert isinstance(result, IncompleteReview)
+    assert {item.code for item in result.diagnostics} == {"PRI-PACKAGE-AUTHORITY-001"}
     assert not (tmp_path / "review").exists()
     assert not hasattr(result, "technical_status")
     assert "No valid decision or action prompt was produced." in result.technical_message
@@ -341,17 +348,17 @@ def test_partial_output_directory_is_not_official(tmp_path, monkeypatch):
         verify_completed_review(output, head_source=source())
 
 
-def test_arbitrary_mapping_cannot_supply_live_head_source(tmp_path):
-    value = package()
-    package_path = tmp_path / "review-package.json"
-    write_package(package_path, value)
+def test_arbitrary_mapping_cannot_supply_evidence_source(tmp_path):
+    runtime = fixture_review_runtime(package())
     result = complete_review(
-        package_path,
+        runtime.request,
+        runtime.assessment,
         tmp_path / "review",
-        head_source={},  # type: ignore[arg-type]
+        evidence_source={},  # type: ignore[arg-type]
+        _protocol_context=runtime.context,
     )
     assert isinstance(result, IncompleteReview)
-    assert {item.code for item in result.diagnostics} == {"PRI-COMPLETE-008"}
+    assert {item.code for item in result.diagnostics} == {"PRI-ASSEMBLY-001"}
 
 
 def test_fabricated_completion_marker_and_low_level_renderer_are_not_official(
@@ -375,10 +382,8 @@ def test_partial_or_mismatched_github_payload_fails_closed(tmp_path, monkeypatch
         [{"number": PR_NUMBER, "head": {"sha": HEAD}}],
     )
     value = package()
-    package_path = tmp_path / "review-package.json"
-    write_package(package_path, value)
-    result = complete_review(
-        package_path,
+    result, _ = complete_fixture_review(
+        value,
         tmp_path / "review",
         head_source=source(),
     )
@@ -393,11 +398,9 @@ def test_stale_package_head_is_rejected_against_live_github(
 ):
     install_live_payloads(monkeypatch, [pr_payload(OTHER_HEAD)])
     value = package()
-    package_path = tmp_path / "review-package.json"
-    write_package(package_path, value)
     capability = profile_sequence_capability()
-    result = complete_review(
-        package_path,
+    result, _ = complete_fixture_review(
+        value,
         tmp_path / "review",
         head_source=source(),
         sequence_enforcement=capability,
@@ -415,15 +418,13 @@ def test_head_change_before_publication_preserves_existing_output(
         [pr_payload(), pr_payload(OTHER_HEAD)],
     )
     value = package()
-    package_path = tmp_path / "review-package.json"
-    write_package(package_path, value)
     output = tmp_path / "review"
     output.mkdir()
     sentinel = output / "existing.txt"
     sentinel.write_text("preserve\n", encoding="utf-8", newline="\n")
     capability = profile_sequence_capability()
-    result = complete_review(
-        package_path,
+    result, _ = complete_fixture_review(
+        value,
         output,
         head_source=source(),
         sequence_enforcement=capability,
@@ -443,15 +444,13 @@ def test_head_change_after_publication_rolls_back_existing_output(
         [pr_payload(), pr_payload(), pr_payload(OTHER_HEAD)],
     )
     value = package()
-    package_path = tmp_path / "review-package.json"
-    write_package(package_path, value)
     output = tmp_path / "review"
     output.mkdir()
     sentinel = output / "existing.txt"
     sentinel.write_text("preserve\n", encoding="utf-8", newline="\n")
     capability = profile_sequence_capability()
-    result = complete_review(
-        package_path,
+    result, _ = complete_fixture_review(
+        value,
         output,
         head_source=source(),
         sequence_enforcement=capability,
@@ -580,14 +579,15 @@ def test_next_action_prompt_accessor_returns_verified_snapshot_not_toctou_bytes(
     assert (output / PROMPT_NAME).read_bytes() == mutated
 
 
-def test_supported_cli_has_no_direct_low_level_render_bypass():
+def test_supported_cli_is_preview_only_and_has_no_official_bypass():
     script = (ROOT / "scripts/render_review_v2.py").read_text(encoding="utf-8")
     assert "write_review_artifacts" not in script
-    assert "github_pull_request_head_source" in script
-    assert "complete_review" in script
-    assert "--target-repository" in script
-    assert "--pr-number" in script
-    assert "--expected-reviewed-head-sha" not in script
+    assert "complete_review" not in script
+    assert "github_pull_request_head_source" not in script
+    assert "render_unverified_preview" in script
+    assert "official_completion=false" in script
+    assert "--target-repository" not in script
+    assert "--pr-number" not in script
 
 
 CANONICAL_OUTPUT_RULE_IDS = {

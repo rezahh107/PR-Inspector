@@ -31,29 +31,58 @@ def codes(items):
     return {item.code for item in items}
 
 
+
+
+def current_package(registry: dict) -> dict:
+    return next(
+        package
+        for package in registry["work_packages"]
+        if package["work_package_id"] == registry["current_work_package_id"]
+    )
+
+
+def package_by_id(registry: dict, package_id: str) -> dict:
+    return next(
+        package for package in registry["work_packages"] if package["work_package_id"] == package_id
+    )
+
+
+def task_by_id(registry: dict, task_id: str) -> dict:
+    return next(task for task in registry["tasks"] if task["task_id"] == task_id)
+
+
 def registry_schema():
     return read(SCHEMAS["registry"])
 
 
 def copy_static_bundle(destination: Path) -> Path:
+    registry = read(REGISTRY_PATH)
+    registered_artifacts = {
+        package["scope_ref"]
+        for package in registry["work_packages"]
+    } | {
+        impact_ref
+        for package in registry["work_packages"]
+        for impact_ref in package["impact_refs"]
+    }
     for rel in [
         REGISTRY_PATH,
-        SCOPE_PATH,
-        IMPACT_PATH,
         NEXT_WORK_PATH,
         PLAN_PATH,
         BASELINE_PATH,
         *SCHEMAS.values(),
+        *sorted(registered_artifacts),
     ]:
         target = destination / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / rel, target)
-    scope = load_json_strict(destination / SCOPE_PATH)
-    for rel in scope["committed_paths"]:
-        target = destination / rel
-        if not target.exists():
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text("\n", encoding="utf-8")
+    for scope_ref in sorted(package["scope_ref"] for package in registry["work_packages"]):
+        scope = load_json_strict(destination / scope_ref)
+        for rel in scope["committed_paths"]:
+            target = destination / rel
+            if not target.exists():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("\n", encoding="utf-8")
     return destination
 
 
@@ -65,10 +94,10 @@ def write_json(path: Path, payload: dict) -> None:
 def add_work_package(
     registry: dict,
     *,
-    package_id: str = "PINS-PLAN-001-WP02",
+    package_id: str = "PINS-VERIFIED-REVIEW-001-WP02",
     status: str = "planned",
 ) -> dict:
-    package = copy.deepcopy(registry["work_packages"][0])
+    package = copy.deepcopy(current_package(registry))
     package.update(
         work_package_id=package_id,
         title="Second Work Package",
@@ -118,7 +147,7 @@ def evidence_record(
     }
 
 
-def attach_complete_evidence(registry: dict, package: dict) -> None:
+def attach_complete_evidence(registry: dict, package: dict) -> list[dict]:
     merge_sha = "2" * 40
     records = [
         evidence_record("EVIDENCE-EXACT", "exact_head_ci", package=package),
@@ -132,6 +161,7 @@ def attach_complete_evidence(registry: dict, package: dict) -> None:
     ]
     registry["evidence_records"].extend(records)
     package["evidence_refs"] = [record["evidence_id"] for record in records]
+    return records
 
 
 def test_invalid_utf8_baseline_returns_diagnostic_without_traceback(tmp_path):
@@ -160,7 +190,8 @@ def test_invalid_utf8_baseline_returns_diagnostic_without_traceback(tmp_path):
 def test_task_completion_and_aigov_authorization_bypass_is_rejected(tmp_path):
     repo = copy_static_bundle(tmp_path / "repo")
     registry = load_json_strict(repo / REGISTRY_PATH)
-    foundation, future = registry["tasks"]
+    foundation = task_by_id(registry, "PINS-PLAN-001")
+    future = task_by_id(registry, "PINS-AIGOV-BASELINE-001")
     foundation.update(
         status="complete",
         completion_claimed=True,
@@ -179,8 +210,8 @@ def test_task_completion_and_aigov_authorization_bypass_is_rejected(tmp_path):
 
 def test_complete_task_requires_all_owned_work_packages_post_merge_verified():
     registry = read(REGISTRY_PATH)
-    task = registry["tasks"][0]
-    package = registry["work_packages"][0]
+    task = task_by_id(registry, "PINS-PLAN-001")
+    package = package_by_id(registry, "PINS-PLAN-001-WP01")
     task.update(status="complete", completion_claimed=True)
     attach_complete_evidence(registry, package)
     task["evidence_refs"] = ["EVIDENCE-POST"]
@@ -191,7 +222,8 @@ def test_complete_task_requires_all_owned_work_packages_post_merge_verified():
 
 def test_dependent_authorization_requires_authoritative_completion_predicate():
     registry = read(REGISTRY_PATH)
-    foundation, future = registry["tasks"]
+    foundation = task_by_id(registry, "PINS-PLAN-001")
+    future = task_by_id(registry, "PINS-AIGOV-BASELINE-001")
     foundation.update(status="complete", completion_claimed=True, evidence_refs=["FAKE"])
     future.update(status="authorized", implementation_authorized=True)
     found = codes(validate_registry(registry, registry_schema()))
@@ -224,7 +256,7 @@ def test_non_current_existing_scope_with_stale_identity_is_rejected(tmp_path):
 
 def test_fabricated_prefix_shaped_evidence_does_not_resolve():
     registry = read(REGISTRY_PATH)
-    package = registry["work_packages"][0]
+    package = current_package(registry)
     package["evidence_refs"] = ["exact_head:run-1"]
     found = codes(validate_registry(registry, registry_schema()))
     assert "PINS-EVIDENCE-REFERENCE-INVALID" in found
@@ -233,7 +265,7 @@ def test_fabricated_prefix_shaped_evidence_does_not_resolve():
 
 def test_evidence_provenance_must_bind_registered_artifacts():
     registry = read(REGISTRY_PATH)
-    package = registry["work_packages"][0]
+    package = current_package(registry)
     record = evidence_record("EVIDENCE-EXACT", "exact_head_ci", package=package)
     record["impact_ref"] = "planning/progress/impacts/STALE.json"
     registry["evidence_records"].append(record)
@@ -245,7 +277,7 @@ def test_evidence_provenance_must_bind_registered_artifacts():
 
 def test_evidence_schema_rejects_fabricated_producer_shape():
     registry = read(REGISTRY_PATH)
-    package = registry["work_packages"][0]
+    package = current_package(registry)
     record = evidence_record("EVIDENCE-EXACT", "exact_head_ci", package=package)
     record["producer"] = "github_merge_api"
     record["source_ref"] = "arbitrary"
@@ -258,11 +290,11 @@ def test_evidence_schema_rejects_fabricated_producer_shape():
 def test_post_merge_evidence_must_share_head_merge_and_latest_impact(tmp_path):
     repo = copy_static_bundle(tmp_path / "repo")
     registry = load_json_strict(repo / REGISTRY_PATH)
-    package = registry["work_packages"][0]
+    package = current_package(registry)
     package["status"] = "post_merge_verified"
-    attach_complete_evidence(registry, package)
-    registry["evidence_records"][1]["head_sha"] = "3" * 40
-    registry["evidence_records"][2]["merge_commit_sha"] = "4" * 40
+    records = attach_complete_evidence(registry, package)
+    records[1]["head_sha"] = "3" * 40
+    records[2]["merge_commit_sha"] = "4" * 40
     write_json(repo / REGISTRY_PATH, registry)
     impact = load_json_strict(repo / IMPACT_PATH)
     impact.update(
