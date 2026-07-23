@@ -1,0 +1,59 @@
+name: Apply PR35 final v1.12 patch
+
+on:
+  push:
+    branches:
+      - feat/v1-12-verified-review-package
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    if: github.actor == 'rezahh107'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact branch Head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Verify exact triggering Head
+        run: test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13'
+
+      - name: Apply bounded final patch
+        run: |
+          gzip -dc .github/pr35-final.patch.gz > /tmp/pr35-final.patch
+          git apply --check /tmp/pr35-final.patch
+          git apply /tmp/pr35-final.patch
+          rm -f \
+            .github/pr35-final.patch.gz \
+            .github/workflows/apply-pr35-final.yml \
+            .github/workflows/export-pr21-rerepair.yml
+
+      - name: Install project dependencies
+        run: python -m pip install ".[dev]"
+
+      - name: Validate final repository state
+        run: |
+          python scripts/validate_repository_v2.py
+          python scripts/validate_planning_governance.py --check-static
+          python -m pytest -q
+          python -m compileall -q pr_inspector scripts
+          git diff --check
+
+      - name: Commit validated final state
+        run: |
+          test -n "$(git status --porcelain)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: finalize deterministic v1.12 review assembly"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
