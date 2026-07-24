@@ -27,7 +27,7 @@ jobs:
             be41cc8c4fad89a79f2b43b9dfa8a9dc42ee4684..HEAD \
             | sort > /tmp/actual-paths.txt
           cat > /tmp/expected-paths.txt <<'EOF'
-          .github/pr35-reconciliation-tests.patch
+          .github/pr35-reconciliation-tests.py
           .github/workflows/verify-pr35-post-merge.yml
           planning/NEXT_WORK.md
           planning/PR_INSPECTOR_EXECUTION_PLAN.md
@@ -40,11 +40,10 @@ jobs:
         id: tree
         run: |
           set -euo pipefail
-          git apply --check .github/pr35-reconciliation-tests.patch
-          git apply .github/pr35-reconciliation-tests.patch
+          python .github/pr35-reconciliation-tests.py
           git add tests/test_planning_governance.py tests/test_planning_governance_authority.py
           git rm --cached \
-            .github/pr35-reconciliation-tests.patch \
+            .github/pr35-reconciliation-tests.py \
             .github/workflows/verify-pr35-post-merge.yml
           prospective_tree="$(git write-tree)"
           echo "tree=${prospective_tree}" >> "${GITHUB_OUTPUT}"
