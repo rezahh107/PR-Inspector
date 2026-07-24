@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import inspect
 from dataclasses import replace
 from pathlib import Path
 
@@ -8,13 +9,15 @@ import pytest
 
 from pr_inspector import _official_complete, official_review as official_review_module
 from pr_inspector._official_bundle import IncompleteReview
-from pr_inspector._official_head import VerifiedLivePullRequestHead
+from pr_inspector._official_head import CompletionError, VerifiedLivePullRequestHead
 from pr_inspector.decision_projection import project_decision
 from pr_inspector.official_review import (
     OfficialReviewRuntime,
     _complete_review_with_runtime,
     complete_review,
     is_verified_review_completion,
+    reverify_completed_review,
+    verify_completed_review,
 )
 from pr_inspector.verified_review import (
     CanonicalReviewPackage,
@@ -30,6 +33,7 @@ from pr_inspector.verified_review import (
     ReviewRequest,
     assemble_review_package,
     canonical_review_package_bytes,
+    is_verified_review_package,
     parse_review_assessment,
 )
 
@@ -257,6 +261,119 @@ def test_private_runtime_seam_collects_and_publishes_once(tmp_path: Path):
     assert is_verified_review_completion(result)
     assert (tmp_path / "out" / "review-package.json").is_file()
     assert source.fetch_count >= 3
+
+
+def test_genuine_completion_reverification_returns_same_capability(tmp_path: Path):
+    source = StaticSource(_facts())
+    completion = _complete_review_with_runtime(
+        _request(),
+        _assessment(),
+        tmp_path / "out",
+        runtime=OfficialReviewRuntime(source, _context()),
+    )
+    assert is_verified_review_completion(completion)
+    assert reverify_completed_review(completion) is completion
+    assert verify_completed_review(completion) is completion
+
+
+def test_direct_completion_construction_cannot_be_reverified(tmp_path: Path):
+    completion = _complete_review_with_runtime(
+        _request(),
+        _assessment(),
+        tmp_path / "out",
+        runtime=OfficialReviewRuntime(StaticSource(_facts()), _context()),
+    )
+    assert is_verified_review_completion(completion)
+    forged = replace(completion)
+    assert not is_verified_review_completion(forged)
+    with pytest.raises(CompletionError, match="genuine VerifiedReviewCompletion"):
+        reverify_completed_review(forged)
+
+
+def test_direct_package_construction_is_not_an_official_package_capability(tmp_path: Path):
+    genuine = _package()
+    forged = replace(genuine)
+    assert is_verified_review_package(genuine)
+    assert not is_verified_review_package(forged)
+    result = _official_complete.complete_review(
+        forged,
+        tmp_path / "out",
+        head_source=StaticSource(_facts()),
+    )
+    assert isinstance(result, IncompleteReview)
+    assert [item.code for item in result.diagnostics] == ["PRI-PACKAGE-AUTHORITY-001"]
+    assert not (tmp_path / "out").exists()
+
+
+def test_directory_package_and_fake_head_source_cannot_restore_authority(tmp_path: Path):
+    source = StaticSource(_facts())
+    completion = _complete_review_with_runtime(
+        _request(),
+        _assessment(),
+        tmp_path / "out",
+        runtime=OfficialReviewRuntime(source, _context()),
+    )
+    assert is_verified_review_completion(completion)
+    forged_package = replace(_package())
+    fake_head_source = StaticSource(_facts(), [_head()])
+
+    with pytest.raises(TypeError, match="unexpected keyword argument"):
+        verify_completed_review(  # type: ignore[call-arg]
+            tmp_path / "out",
+            head_source=fake_head_source,
+            package=forged_package,
+        )
+    with pytest.raises(CompletionError, match="genuine VerifiedReviewCompletion"):
+        verify_completed_review(tmp_path / "out")  # type: ignore[arg-type]
+    assert verify_completed_review(completion) is completion
+
+
+def test_direct_head_receipt_cannot_mint_or_reverify_completion():
+    with pytest.raises(CompletionError, match="genuine VerifiedReviewCompletion"):
+        verify_completed_review(_head())  # type: ignore[arg-type]
+
+
+def test_reverification_detects_bundle_mutation_without_writing(tmp_path: Path):
+    output = tmp_path / "out"
+    completion = _complete_review_with_runtime(
+        _request(),
+        _assessment(),
+        output,
+        runtime=OfficialReviewRuntime(StaticSource(_facts()), _context()),
+    )
+    path = output / "TECHNICAL_HANDOFF.en.md"
+    path.write_bytes(path.read_bytes() + b"mutated\n")
+    before = {item.name: item.read_bytes() for item in output.iterdir() if item.is_file()}
+    with pytest.raises(CompletionError):
+        reverify_completed_review(completion)
+    after = {item.name: item.read_bytes() for item in output.iterdir() if item.is_file()}
+    assert after == before
+    assert is_verified_review_completion(completion)
+
+
+def test_reverification_detects_head_drift_and_preserves_output(tmp_path: Path):
+    output = tmp_path / "out"
+    source = StaticSource(_facts())
+    completion = _complete_review_with_runtime(
+        _request(),
+        _assessment(),
+        output,
+        runtime=OfficialReviewRuntime(source, _context()),
+    )
+    before = {item.name: item.read_bytes() for item in output.iterdir() if item.is_file()}
+    source.heads = [_head(head_sha="4" * 40)]
+    with pytest.raises(CompletionError, match="does not match"):
+        reverify_completed_review(completion)
+    after = {item.name: item.read_bytes() for item in output.iterdir() if item.is_file()}
+    assert after == before
+    assert is_verified_review_completion(completion)
+
+
+def test_public_reverification_export_and_signature_are_completion_centric():
+    assert list(inspect.signature(reverify_completed_review).parameters) == ["completion"]
+    assert list(inspect.signature(verify_completed_review).parameters) == ["completion"]
+    assert "reverify_completed_review" in official_review_module.__all__
+    assert "verify_completed_review" in official_review_module.__all__
 
 
 

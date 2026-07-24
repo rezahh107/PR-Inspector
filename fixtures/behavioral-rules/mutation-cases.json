@@ -184,9 +184,9 @@
       "rule_id": "PRR-AUTH-PREVIEW-ISOLATION-001"
     },
     {
-      "case_id": "copied_bundle_reverified_without_original_assembled_package",
-      "expected_diagnostic": "CompletionError",
-      "mutation": "copy_v1_12_artifact_directory_and_reverify_without_original_assembled_package",
+      "case_id": "persisted_bundle_or_forged_completion_reverified",
+      "expected_diagnostic": "CompletionError_or_TypeError",
+      "mutation": "construct_self_consistent_package_directory_fake_head_source_or_copied_completion_and_attempt_public_reverification",
       "rule_id": "PRR-AUTH-REVERIFY-BOUNDARY-001"
     },
     {

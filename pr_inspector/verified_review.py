@@ -14,6 +14,7 @@ import re
 import subprocess
 import urllib.error
 import urllib.request
+import weakref
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -33,6 +34,7 @@ from .validation_v2 import validate_package
 ROOT = Path(__file__).resolve().parents[1]
 ASSESSMENT_SCHEMA = ROOT / "protocols/v1.12.0/schemas/review-assessment.schema.json"
 SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
+_PACKAGE_MARKER = object()
 _ALLOWED_EVIDENCE_CLASSES = {
     "HUMAN_JUDGMENT",
     "HYPOTHESIS",
@@ -429,7 +431,7 @@ class ProtocolContext:
         return cls.from_verified_repository(repository_directory)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class CanonicalReviewPackage:
     protocol_version: str
     repository: str
@@ -440,6 +442,7 @@ class CanonicalReviewPackage:
     canonical_sha256: str
     file_sha256: str
     canonical_bytes: bytes = field(repr=False)
+    _marker: object | None = field(default=None, repr=False, compare=False)
 
     def value(self) -> dict[str, Any]:
         value = json.loads(self.canonical_bytes.decode("utf-8"))
@@ -448,6 +451,39 @@ class CanonicalReviewPackage:
         if _sha256(self.canonical_bytes) != self.file_sha256:
             raise ReviewAssemblyError("canonical package bytes changed")
         return value
+
+
+_PACKAGE_CAPABILITIES: weakref.WeakSet[CanonicalReviewPackage] = weakref.WeakSet()
+
+
+def _mint_canonical_review_package(
+    *,
+    protocol_version: str,
+    repository: str,
+    repository_id: int,
+    pr_number: int,
+    base_sha: str,
+    head_sha: str,
+    canonical_sha256: str,
+    file_sha256: str,
+    canonical_bytes: bytes,
+) -> CanonicalReviewPackage:
+    """Mint one process-local package capability for the official assembler."""
+
+    value = CanonicalReviewPackage(
+        protocol_version=protocol_version,
+        repository=repository,
+        repository_id=repository_id,
+        pr_number=pr_number,
+        base_sha=base_sha,
+        head_sha=head_sha,
+        canonical_sha256=canonical_sha256,
+        file_sha256=file_sha256,
+        canonical_bytes=canonical_bytes,
+        _marker=_PACKAGE_MARKER,
+    )
+    _PACKAGE_CAPABILITIES.add(value)
+    return value
 
 
 @runtime_checkable
@@ -969,7 +1005,7 @@ def assemble_review_package(
         )
     _assert_field_authority_complete(package)
     canonical = _canonical_json_bytes(package)
-    return CanonicalReviewPackage(
+    return _mint_canonical_review_package(
         protocol_version=protocol_context.protocol_version,
         repository=facts.repository,
         repository_id=facts.repository_id,
@@ -989,15 +1025,19 @@ VerifiedReviewPackage = CanonicalReviewPackage
 
 
 def canonical_review_package_bytes(package: CanonicalReviewPackage) -> bytes:
-    if type(package) is not CanonicalReviewPackage:
-        raise ReviewAssemblyError("package must be CanonicalReviewPackage")
+    if not is_verified_review_package(package):
+        raise ReviewAssemblyError(
+            "package must be an assembler-minted CanonicalReviewPackage capability"
+        )
     package.value()
     return bytes(package.canonical_bytes)
 
 
 def canonical_review_package_value(package: CanonicalReviewPackage) -> dict[str, Any]:
-    if type(package) is not CanonicalReviewPackage:
-        raise ReviewAssemblyError("package must be CanonicalReviewPackage")
+    if not is_verified_review_package(package):
+        raise ReviewAssemblyError(
+            "package must be an assembler-minted CanonicalReviewPackage capability"
+        )
     return package.value()
 
 
@@ -1506,6 +1546,10 @@ def _load_json_or_yaml(path: Path) -> Mapping[str, Any]:
 
 
 def is_verified_review_package(value: object) -> bool:
-    """Compatibility predicate: v1.12 packages are ordinary exact-type immutable values."""
+    """Return whether *value* is a package minted by this process's official assembler."""
 
-    return type(value) is CanonicalReviewPackage
+    return (
+        type(value) is CanonicalReviewPackage
+        and value._marker is _PACKAGE_MARKER
+        and value in _PACKAGE_CAPABILITIES
+    )

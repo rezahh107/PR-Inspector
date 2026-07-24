@@ -12,6 +12,8 @@
 10. Validate the assembled package.
 11. Re-fetch live Head, stage canonical bytes and derived artifacts, validate hashes and manifest, atomically publish, and re-fetch Head.
 12. Mint `VerifiedReviewCompletion` only after the full publication succeeds and expose owner output only through official completion accessors.
-13. Require fresh independent PR Inspector re-review after repair.
+13. Re-verify only the same genuine process-local completion: validate its bound output directory and internal live-Head source, then return the same object without minting a replacement.
+14. If only persisted artifacts remain, permit non-authoritative diagnostic inspection but require a fresh official review for completion authority.
+15. Require fresh independent PR Inspector re-review after repair.
 
-Raw package paths, JSON bytes, mappings, prebuilt package objects, caller-provided sources or facts, protocol contexts, verified-Head objects, and preview output are outside the public pipeline.
+Raw package paths, JSON bytes, mappings, prebuilt package objects, caller-provided sources or facts, protocol contexts, verified-Head objects, directory-only re-verification, and preview output are outside the public pipeline.

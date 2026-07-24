@@ -344,8 +344,8 @@ def test_partial_output_directory_is_not_official(tmp_path, monkeypatch):
         "manual\n",
         encoding="utf-8",
     )
-    with pytest.raises(CompletionError):
-        verify_completed_review(output, head_source=source())
+    with pytest.raises(CompletionError, match="genuine VerifiedReviewCompletion"):
+        verify_completed_review(output)  # type: ignore[arg-type]
 
 
 def test_arbitrary_mapping_cannot_supply_evidence_source(tmp_path):

@@ -20,6 +20,8 @@ The active runtime accepts caller intent as `ReviewRequest` and bounded reviewer
 
 The `minimal` profile requires correctness evidence such as exact-Head required checks but no cryptographic, key-management, GitHub-App, or repository-settings framework. The official runtime constructs its evidence source and verified protocol context internally, paginates all check and review surfaces, represents missing configured checks as `UNKNOWN`, and blocks Green until every collected external review source is reconciled. The `strict` profile may additionally require governance evidence. Preview rendering remains a non-authoritative `DECLARATION`. Raw paths, mappings, arbitrary JSON, and prebuilt package objects cannot enter public completion.
 
+Official completion authority is process-local. `reverify_completed_review` and the compatibility name `verify_completed_review` accept only the original genuine `VerifiedReviewCompletion`, validate its bound output directory and live-Head source, and return the same object. A persisted bundle may be inspected as an artifact, but it cannot mint or restore completion authority after the original process ends; a fresh official review is required.
+
 The immutable `v1.11.1` snapshot remains historical and retains only its original assurance. It is not retroactively reclassified.
 
 Repository-settings enforcement remains `insufficient_evidence`. Successful CI does not prove branch protection, Rulesets, required reviews, CODEOWNERS enforcement, stale-approval dismissal, bypass restrictions, or merge-queue enforcement.

@@ -2,7 +2,9 @@
 """Render a clearly non-authoritative ReviewDraft preview.
 
 The historical raw review-package official-completion interface was removed in
-v1.12.0. Official completion is available only to runtime code holding an CanonicalReviewPackage assembled in process by the official runtime.
+v1.12.0. Official initial publication requires a CanonicalReviewPackage minted by
+the in-process assembler. Persisted artifacts cannot reconstruct completion
+authority; re-verification requires the original genuine VerifiedReviewCompletion.
 """
 
 from __future__ import annotations

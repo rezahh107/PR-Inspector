@@ -18,10 +18,10 @@ from ._official_bundle import (
     is_verified_review_completion,
     official_next_action_prompt,
     official_technical_handoff,
-    verify_completed_review as _verify_completed_review,
+    reverify_completed_review as _reverify_completed_review,
 )
 from ._official_complete import complete_review as _publish_assembled_review
-from ._official_head import CompletionError, GitHubPullRequestHeadSource
+from ._official_head import CompletionError
 from .diagnostics import Diagnostic
 from .evidence_context import evidence_scope
 from .governance import VerifiedGovernanceEvidence
@@ -218,24 +218,20 @@ def complete_review(
     )
 
 
-def verify_completed_review(
-    review_directory: Path,
-    *,
-    head_source: GitHubPullRequestHeadSource,
-    package: CanonicalReviewPackage | None = None,
-    governance_evidence: VerifiedGovernanceEvidence | None = None,
-    sequence_enforcement: VerifiedSequenceEnforcement | None = None,
+def reverify_completed_review(
+    completion: VerifiedReviewCompletion,
 ) -> VerifiedReviewCompletion:
-    """Reverify final bytes against the same assembled package and live Head."""
+    """Revalidate the original genuine completion without minting a replacement."""
 
-    with evidence_scope(governance_evidence, sequence_enforcement):
-        result = _verify_completed_review(
-            review_directory,
-            head_source=head_source,
-            package=package,
-        )
-    _bind_evidence(result, governance_evidence, sequence_enforcement)
-    return result
+    return _reverify_completed_review(completion)
+
+
+def verify_completed_review(
+    completion: VerifiedReviewCompletion,
+) -> VerifiedReviewCompletion:
+    """Compatibility name for completion-centric re-verification."""
+
+    return reverify_completed_review(completion)
 
 
 __all__ = [
@@ -257,5 +253,6 @@ __all__ = [
     "official_technical_handoff",
     "parse_review_assessment",
     "render_unverified_preview",
+    "reverify_completed_review",
     "verify_completed_review",
 ]

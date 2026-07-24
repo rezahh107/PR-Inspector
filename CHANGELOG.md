@@ -6,6 +6,7 @@
 - Preserve v1.11.1 as immutable history.
 - Require exact-Head CI and a fresh independent PR Inspector rereview before any merge decision.
 - Close public evidence/context injection, require complete paginated check and review-surface collection, synthesize missing required checks as `UNKNOWN`, and block Green on unreconciled external review sources.
+- Make package issuance and completion re-verification process-local: copied packages, directly constructed completions, persisted bundles, caller Head sources, and direct Head receipts cannot mint or restore official completion authority.
 
 # Changelog
 

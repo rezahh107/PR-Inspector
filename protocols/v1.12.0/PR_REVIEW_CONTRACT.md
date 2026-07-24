@@ -26,6 +26,10 @@ ReviewRequest + ReviewAssessment
 
 There is one package assembler, one canonical projection authority, one artifact builder, one bundle validator, and one owner-delivery authority. Public `complete_review` accepts no evidence source, facts, live-Head object, or protocol context. A private `_complete_review_with_runtime` seam exists only for deterministic internal tests.
 
+The assembler-minted `CanonicalReviewPackage` is a lightweight process-local publication capability. Exact type, valid bytes, valid hashes, or a copied value are not sufficient. Initial completion consumes only a package object minted and registered by the sole assembler.
+
+Public re-verification accepts only the original genuine `VerifiedReviewCompletion`, validates its bound output directory and internal Head source, and returns that same object. It does not accept a directory, package, Head receipt, Head source, governance evidence, or sequence enforcement, and it never mints a replacement completion from disk. If the genuine completion is unavailable, a fresh official review is required.
+
 All check runs, issue comments, review submissions, and inline review comments are enumerated through bounded pagination. Missing configured required checks are represented as required `UNKNOWN` checks; incomplete enumeration fails assembly. Every collected external review source must receive an explicit bounded disposition before reconciliation is `COMPLETE`; otherwise technical Green is blocked.
 
 ## Dual profiles
@@ -49,6 +53,8 @@ A prompt-required `NEXT_ACTION_PROMPT.en.md` must be both byte-canonical and sem
 ## Integration contract
 
 External integrations MUST consume verified completion and official accessors. Candidate output accessors, direct artifact concatenation, manually reconstructed prompts, and model-authored substitutes are not supported. External execution evidence remains separate from repository-enforceable acceptance tests.
+
+Artifact validity, completion capability, fresh official review, and non-authoritative diagnostic inspection are separate states. A valid persisted bundle proves only artifact validity; it does not reconstruct completion capability across processes.
 
 ## Historical review provenance
 

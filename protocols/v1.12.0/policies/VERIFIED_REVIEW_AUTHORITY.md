@@ -20,6 +20,27 @@ The public `complete_review` signature contains no `evidence_source`, `ReviewFac
 
 The implementation uses ordinary frozen dataclasses and synchronous standard-library HTTP. It adds no signatures, HMAC, keys, capability-token system, sealed transport, or hostile-process defense.
 
+## Process-local package and completion authority
+
+`CanonicalReviewPackage` and `VerifiedReviewCompletion` have distinct roles:
+
+- the package is a deterministic in-process input to initial publication;
+- the completion is the process-local capability proving that initial publication completed;
+- the persisted bundle is an official output artifact, but it is not a capability for minting another completion.
+
+The sole assembler mints each `CanonicalReviewPackage` with a private process-local marker and registers the exact object in a weak capability registry. Exact Python type, canonical bytes, valid hashes, or an equal copied dataclass are insufficient package provenance.
+
+Public re-verification is completion-centric:
+
+```text
+reverify_completed_review(genuine VerifiedReviewCompletion)
+→ completion._reverify()
+→ validate bound live Head and bound output directory
+→ return the same VerifiedReviewCompletion
+```
+
+The public API accepts no directory, package, Head receipt, Head source, governance evidence, or sequence-enforcement input. Directly constructed or copied completions fail the existing completion marker and weak-registry predicate. Re-verification never reconstructs or mints a completion from persisted files. When the original genuine completion is unavailable, a fresh official review is required.
+
 ## Field authority
 
 Every canonical package field is assigned exactly one authority class through `pr_inspector.verified_review.FIELD_AUTHORITY`:
@@ -46,3 +67,5 @@ Issue comments, review submissions, and inline review comments are collected as 
 ## Legacy and preview
 
 Raw paths, mappings, JSON bytes, and prebuilt package objects return `PRI-PACKAGE-AUTHORITY-001` and cannot publish or mint completion. `render_unverified_preview` remains a non-authoritative `DECLARATION` with `official_completion=false`.
+
+The historical directory/package/Head-source re-verification signature is unsupported. `verify_completed_review` is retained only as a compatibility name for completion-centric re-verification. Persisted artifacts may still be inspected or validated for diagnostics, but artifact validity is not completion capability.

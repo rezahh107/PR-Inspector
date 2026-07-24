@@ -68,7 +68,7 @@ def test_ignored_warning_filters_cannot_bypass_compact_access_invariant(
             official_owner_result(completion)
 
 
-def test_historical_no_prompt_delivery_remains_exact_compact_owner_result(
+def test_persisted_historical_bundle_requires_a_fresh_official_review(
     tmp_path,
     monkeypatch,
 ):
@@ -77,19 +77,8 @@ def test_historical_no_prompt_delivery_remains_exact_compact_owner_result(
     sequence = profile_sequence_capability()
     write_directory(output, package(), sequence_enforcement=sequence)
     install_live_payloads(monkeypatch)
-    completion = verify_completed_review(
-        output,
-        head_source=source(),
-        sequence_enforcement=sequence,
-    )
-
-    compact = official_owner_result(completion)
-    delivery = official_owner_delivery(completion)
-
-    assert completion.protocol_version == "v1.11.1"
-    assert official_next_action_prompt(completion) is None
-    assert delivery == compact
-    assert "## پرامپت اقدام" not in delivery
+    with pytest.raises(CompletionError, match="genuine VerifiedReviewCompletion"):
+        verify_completed_review(output)  # type: ignore[arg-type]
 
 
 def test_atomic_delivery_rejects_missing_required_prompt(

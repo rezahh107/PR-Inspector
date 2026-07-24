@@ -153,13 +153,8 @@ def complete_with_evidence(value: dict, output: Path):
     return result
 
 
-def verify_with_evidence(output: Path, value: dict):
-    return verify_completed_review(
-        output,
-        head_source=source(),
-        package=_ASSEMBLED_PACKAGES[output.resolve()],
-        sequence_enforcement=sequence_capability_for(value),
-    )
+def verify_with_evidence(completion):
+    return verify_completed_review(completion)
 
 
 def run_review(
@@ -222,7 +217,7 @@ def test_existing_valid_output_is_restored_after_post_publication_failure(
     assert isinstance(result, IncompleteReview)
     assert (output / "artifact-manifest.json").read_bytes() == original_manifest
     install_payloads(monkeypatch)
-    verify_with_evidence(output, value)
+    assert verify_with_evidence(first) is first
 
 
 def test_quarantine_rename_failure_falls_back_to_explicit_delete_and_restore(
@@ -253,7 +248,7 @@ def test_quarantine_rename_failure_falls_back_to_explicit_delete_and_restore(
     assert "PRI-COMPLETE-ROLLBACK-001" in codes(result)
     assert output.exists()
     install_payloads(monkeypatch)
-    verify_with_evidence(output, value)
+    assert verify_with_evidence(first) is first
 
 
 def test_failed_published_directory_deletion_leaves_only_non_authoritative_files(
@@ -386,7 +381,7 @@ def test_quarantine_cleanup_failure_is_reported_not_successful_rollback(
         "PRI-COMPLETE-ROLLBACK-011",
     }.issubset(codes(result))
     install_payloads(monkeypatch)
-    verify_with_evidence(output, value)
+    assert verify_with_evidence(first) is first
     assert list(tmp_path.glob(".review.quarantine-*"))
 
 
@@ -439,7 +434,7 @@ def test_partial_backup_cleanup_failure_after_commit_keeps_new_official_bundle(
     assert not (partial_backup / "OWNER_RESULT.fa.txt").exists()
 
     install_payloads(monkeypatch)
-    verified = verify_with_evidence(output, second)
+    verified = verify_with_evidence(result)
     assert is_verified_review_completion(verified)
     assert verified.owner_result_text() == expected["OWNER_RESULT.fa.txt"]
 
