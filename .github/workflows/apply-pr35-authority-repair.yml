@@ -1,5 +1,6 @@
 name: Apply PR35 authority completeness repair
 
+# Triggered via the authenticated Contents API so the bounded push workflow executes.
 on:
   push:
     branches:
