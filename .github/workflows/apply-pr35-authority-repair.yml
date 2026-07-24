@@ -98,6 +98,8 @@ jobs:
           git rev-parse HEAD > /tmp/pr35-final-head.txt
           git archive --format=tar.gz -o /tmp/pr35-authority-repair-final.tgz HEAD
           sha256sum /tmp/pr35-authority-repair-final.tgz > /tmp/pr35-authority-repair-final.sha256
+          git diff --binary "${EXPECTED_HEAD}" HEAD > /tmp/pr35-authority-repair-final.patch
+          git diff --name-status "${EXPECTED_HEAD}" HEAD > /tmp/pr35-authority-repair-final-name-status.txt
 
       - name: Upload validated final state
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -107,5 +109,7 @@ jobs:
             /tmp/pr35-final-head.txt
             /tmp/pr35-authority-repair-final.tgz
             /tmp/pr35-authority-repair-final.sha256
+            /tmp/pr35-authority-repair-final.patch
+            /tmp/pr35-authority-repair-final-name-status.txt
           if-no-files-found: error
           retention-days: 1
