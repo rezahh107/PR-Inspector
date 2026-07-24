@@ -149,19 +149,20 @@ def test_exact_pinned_bundle_manifest_and_lock_parity():
     _verify_bundle_and_lock(PINNED, LOCK_PATH)
 
 
-def test_repository_remains_on_v1_11_1_without_aigov_activation():
+def test_successor_protocol_activates_without_aigov_runtime_or_receipt_activation():
     current = (ROOT / "CURRENT_VERSION").read_text(encoding="utf-8").strip()
     protocol_manifest = yaml.safe_load((ROOT / "protocol-manifest.yaml").read_text(encoding="utf-8"))
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     version_match = re.search(r'(?ms)^\[project\].*?^version\s*=\s*"([^"]+)"', pyproject)
     lock = _load_json(LOCK_PATH)
 
-    assert current == "v1.11.1"
-    assert protocol_manifest["active_version"] == "v1.11.1"
+    assert current == "v1.12.0"
+    assert protocol_manifest["active_version"] == "v1.12.0"
     assert protocol_manifest["operation_mode"] == "read_only_review"
-    assert protocol_manifest["release_lock"] == "release-locks/v1.11.1.sha256"
+    assert protocol_manifest["release_lock"] == "release-locks/v1.12.0.sha256"
     assert all("governance/aigov" not in path for path in protocol_manifest["load_order"])
-    assert version_match and version_match.group(1) == "1.11.1"
+    assert "protocols/v1.12.0/policies/VERIFIED_REVIEW_AUTHORITY.md" in protocol_manifest["load_order"]
+    assert version_match and version_match.group(1) == "1.12.0"
     assert lock["repository_adoption_status"] == "not_adopted"
     assert lock["runtime_activation"] is False
     assert lock["protocol_support_activation"] is False

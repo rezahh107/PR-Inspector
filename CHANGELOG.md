@@ -1,3 +1,13 @@
+## v1.12.0
+
+- Replace caller-authored official packages with one deterministic in-process assembler.
+- Add typed `ReviewRequest`, machine-collected `ReviewFacts`, bounded `ReviewAssessment`, explicit A/B/C/D field authority, and non-authoritative preview.
+- Remove the PR-specific workspace export workflow and preserve the global-startup-hook closure regression.
+- Preserve v1.11.1 as immutable history.
+- Require exact-Head CI and a fresh independent PR Inspector rereview before any merge decision.
+- Close public evidence/context injection, require complete paginated check and review-surface collection, synthesize missing required checks as `UNKNOWN`, and block Green on unreconciled external review sources.
+- Make package issuance and completion re-verification process-local: copied packages, directly constructed completions, persisted bundles, caller Head sources, and direct Head receipts cannot mint or restore official completion authority.
+
 # Changelog
 
 ## 1.11.1
@@ -66,7 +76,7 @@
 - Added rejection coverage for byte mutation, CRLF, BOM, trailing-newline drift, stale manifests, projection drift, unregistered reason codes, prompt injection, recipient drift, exact-head overclaim, premature acceptance, and orphan acceptance without a preceding pending-repair event.
 - Added focused Behavioral Rule Coverage tests, focused artifact byte tests, and full-suite CI across Python 3.10–3.14.
 - Added the decision projection, reason registry, coverage matrix, schemas, policies, templates, and pipeline to the active v1.8 load order and release lock.
-- Preserved the released v1.7.0 snapshot and release lock byte-for-byte.
+- Preserved the released v1.7.0 protocol snapshot and release lock byte-for-byte.
 
 ## 1.7.0
 

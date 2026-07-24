@@ -61,9 +61,11 @@ def validate_git_diff(
         scope = load_json_strict(root / SCOPE_PATH)
         if not isinstance(scope, dict):
             raise ValueError("Scope must be a JSON object")
-        declared = scope.get("committed_paths", [])
-        if not isinstance(declared, list):
-            raise ValueError("Scope committed_paths must be an array")
+        committed = scope.get("committed_paths", [])
+        deleted = scope.get("deleted_paths", [])
+        if not isinstance(committed, list) or not isinstance(deleted, list):
+            raise ValueError("Scope committed_paths and deleted_paths must be arrays")
+        declared = sorted([*committed, *deleted])
         report["declared_base_sha"] = scope.get("base_sha")
         report["declared_changed_paths"] = declared
 

@@ -146,6 +146,56 @@
       "expected_diagnostic": "candidate_output_api_migration_error",
       "mutation": "import_or_call_candidate_projection_renderer_verifier_or_owner_composer",
       "rule_id": "PRR-OUTPUT-AUTHORITY-001"
+    },
+    {
+      "case_id": "raw_or_lookalike_package_reaches_completion",
+      "expected_diagnostic": "PRI-PACKAGE-AUTHORITY-001",
+      "mutation": "pass_raw_path_mapping_fixture_copy_or_subclass_to_official_completion",
+      "rule_id": "PRR-AUTH-PACKAGE-BOUNDARY-001"
+    },
+    {
+      "case_id": "caller_injected_source_or_partial_enumeration_accepted",
+      "expected_diagnostic": "TypeError_or_ReviewAssemblyError",
+      "mutation": "inject_static_source_into_public_completion_or_accept_incomplete_pagination",
+      "rule_id": "PRR-AUTH-EVIDENCE-COMPLETENESS-001"
+    },
+    {
+      "case_id": "unsupported_claim_authority_escalation",
+      "expected_diagnostic": "ReviewAssemblyError",
+      "mutation": "claim_CODE_SUPPORTED_or_REPRODUCED_without_compatible_verified_evidence",
+      "rule_id": "PRR-AUTH-CLAIM-COMPATIBILITY-001"
+    },
+    {
+      "case_id": "caller_selected_derived_fact",
+      "expected_diagnostic": "ReviewDraft_validation_failed",
+      "mutation": "author_coverage_complete_check_result_identity_or_timestamp_in_review_draft",
+      "rule_id": "PRR-AUTH-DERIVED-FACTS-001"
+    },
+    {
+      "case_id": "manual_judgment_promoted_or_rejected",
+      "expected_diagnostic": "authority_provenance_mismatch",
+      "mutation": "promote_manual_judgment_to_verified_evidence_or_reject_attributed_hypothesis",
+      "rule_id": "PRR-AUTH-HUMAN-JUDGMENT-001"
+    },
+    {
+      "case_id": "preview_promoted_to_official",
+      "expected_diagnostic": "PRI-PACKAGE-AUTHORITY-001",
+      "mutation": "pass_DECLARATION_preview_to_official_completion",
+      "rule_id": "PRR-AUTH-PREVIEW-ISOLATION-001"
+    },
+    {
+      "case_id": "persisted_bundle_or_forged_completion_reverified",
+      "expected_diagnostic": "CompletionError_or_TypeError",
+      "mutation": "construct_self_consistent_package_directory_fake_head_source_or_copied_completion_and_attempt_public_reverification",
+      "rule_id": "PRR-AUTH-REVERIFY-BOUNDARY-001"
+    },
+    {
+      "case_id": "uninspected_external_source_produces_green",
+      "expected_reasons": [
+        "RSN-EXTERNAL-REVIEW-INCOMPLETE"
+      ],
+      "mutation": "omit_disposition_for_collected_issue_review_or_inline_comment",
+      "rule_id": "PRR-AUTH-EXTERNAL-RECONCILIATION-001"
     }
   ],
   "schema_version": 1

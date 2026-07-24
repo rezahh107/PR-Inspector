@@ -14,11 +14,15 @@ Repository code validates artifacts, provenance, identities, lifecycle sequences
 
 Repository authority is determined from live `main`. A post-package integration must consume `VerifiedReviewCompletion` and return owner-facing output through `official_owner_delivery`; manual concatenation and reconstructed Candidate output are unsupported. Profile-selection commands remain a separate verified artifact.
 
-## Current v1.11.1 status
+## Active v1.12.0 authority model
 
-The `v1.11.1` corrected-activation patch preserves dual-profile `minimal` / `strict` inspection while eliminating the independent Candidate output stack retained during the v1.11.0 rollout. Candidate compatibility is limited to pre-package intake, target, Head, review-surface, provenance, and evidence helpers. Official projection, artifact generation, verification, and owner delivery are the sole output authority.
+The active runtime accepts caller intent as `ReviewRequest` and bounded reviewer analysis as `ReviewAssessment`. One `ReviewEvidenceSource` collects exact repository/PR identity, Base, Head, merge base, changed files, checks, review surfaces, timestamps, and evidence. `assemble_review_package` deterministically creates one `CanonicalReviewPackage`; `review-package.json` is an official output rather than an authoritative input.
 
-Prompt-required output is both byte-canonical and semantically validated. Generic prompts, the historical PR #22 placeholder, manual composition, Candidate composition, and embedded profile-selection commands fail closed. `OWNER_PROFILE_COMMANDS.fa.txt` remains separate.
+The `minimal` profile requires correctness evidence such as exact-Head required checks but no cryptographic, key-management, GitHub-App, or repository-settings framework. The official runtime constructs its evidence source and verified protocol context internally, paginates all check and review surfaces, represents missing configured checks as `UNKNOWN`, and blocks Green until every collected external review source is reconciled. The `strict` profile may additionally require governance evidence. Preview rendering remains a non-authoritative `DECLARATION`. Raw paths, mappings, arbitrary JSON, and prebuilt package objects cannot enter public completion.
+
+Official completion authority is process-local. `reverify_completed_review` and the compatibility name `verify_completed_review` accept only the original genuine `VerifiedReviewCompletion`, validate its bound output directory and live-Head source, and return the same object. A persisted bundle may be inspected as an artifact, but it cannot mint or restore completion authority after the original process ends; a fresh official review is required.
+
+The immutable `v1.11.1` snapshot remains historical and retains only its original assurance. It is not retroactively reclassified.
 
 Repository-settings enforcement remains `insufficient_evidence`. Successful CI does not prove branch protection, Rulesets, required reviews, CODEOWNERS enforcement, stale-approval dismissal, bypass restrictions, or merge-queue enforcement.
 
@@ -36,6 +40,7 @@ python scripts/validate_repository_v2.py
 python scripts/validate_planning_governance.py --check-static
 python -m pytest -q tests/test_planning_governance.py
 python -m pytest -q tests/test_behavioral_rule_coverage.py
+python -m pytest -q tests/test_v1_12_verified_review_authority.py
 python -m pytest -q tests/test_repository_closure.py
 python -m pytest -q tests/test_v1_11_1_output_authority.py
 python -m pytest
@@ -43,9 +48,9 @@ python -m pytest
 
 ## Active protocol
 
-`v1.11.1`
+`v1.12.0`
 
-`CURRENT_VERSION` selects [`protocols/v1.11.1/`](protocols/v1.11.1/), protected by [`release-locks/v1.11.1.sha256`](release-locks/v1.11.1.sha256). The immutable `v1.11.0` snapshot and earlier releases remain addressable historical releases.
+`CURRENT_VERSION` selects [`protocols/v1.12.0/`](protocols/v1.12.0/), protected by [`release-locks/v1.12.0.sha256`](release-locks/v1.12.0.sha256). The immutable `v1.11.1` snapshot and earlier releases remain addressable historical releases.
 
 ## License
 

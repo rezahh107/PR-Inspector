@@ -1,0 +1,157 @@
+{
+  "$id": "https://github.com/rezahh107/PR-Inspector/protocols/v1.12.0/schemas/rereview-sequence.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "events": {
+      "items": {
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "event_type": {
+                  "const": "pr_inspector_rereview_completed"
+                }
+              },
+              "required": [
+                "event_type"
+              ]
+            },
+            "then": {
+              "required": [
+                "reviewed_head_sha",
+                "review_validity",
+                "inspector_repository",
+                "inspector_repository_id",
+                "inspector_commit_sha",
+                "inspector_commit_api_url",
+                "inspector_commit_html_url",
+                "inspector_evidence_source",
+                "protocol_version",
+                "review_evidence_id",
+                "review_package_canonical_sha256",
+                "review_package_file_sha256",
+                "decision_projection_sha256",
+                "artifact_manifest_sha256"
+              ]
+            }
+          }
+        ],
+        "properties": {
+          "artifact_manifest_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "decision_projection_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "event_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "event_type": {
+            "enum": [
+              "implemented_pending_rereview",
+              "pr_inspector_rereview_completed",
+              "technically_accepted",
+              "merge_authorized",
+              "merged"
+            ]
+          },
+          "governance_evidence_id": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "inspector_commit_api_url": {
+            "pattern": "^https://api\\.github\\.com/repos/rezahh107/PR-Inspector/commits/[0-9a-f]{40}$",
+            "type": "string"
+          },
+          "inspector_commit_html_url": {
+            "pattern": "^https://github\\.com/rezahh107/PR-Inspector/commit/[0-9a-f]{40}$",
+            "type": "string"
+          },
+          "inspector_commit_sha": {
+            "pattern": "^[0-9a-f]{40}$",
+            "type": "string"
+          },
+          "inspector_evidence_source": {
+            "const": "github_rest_api_https",
+            "type": "string"
+          },
+          "inspector_repository": {
+            "const": "rezahh107/PR-Inspector",
+            "type": "string"
+          },
+          "inspector_repository_id": {
+            "const": 1288323264,
+            "type": "integer"
+          },
+          "pr_number": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "protocol_version": {
+            "enum": [
+              "v1.11.0",
+              "v1.11.1",
+              "v1.12.0"
+            ],
+            "type": "string"
+          },
+          "resulting_head_sha": {
+            "pattern": "^[0-9a-f]{40}$",
+            "type": "string"
+          },
+          "review_evidence_id": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "review_package_canonical_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "review_package_file_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "review_validity": {
+            "enum": [
+              "CURRENT",
+              "STALE",
+              "UNKNOWN"
+            ]
+          },
+          "reviewed_head_sha": {
+            "pattern": "^[0-9a-f]{40}$",
+            "type": "string"
+          },
+          "target_repository": {
+            "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "event_type",
+          "target_repository",
+          "pr_number",
+          "resulting_head_sha"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 3
+    }
+  },
+  "required": [
+    "schema_version",
+    "events"
+  ],
+  "title": "PR Inspector Governance-Bound Re-review Sequence v1.12.0",
+  "type": "object"
+}

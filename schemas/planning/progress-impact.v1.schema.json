@@ -1,38 +1,145 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "git_sha": {
+      "pattern": "^[0-9a-f]{40}$",
+      "type": "string"
+    },
+    "id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "type": "string"
+    },
+    "string_set": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    }
+  },
   "$id": "https://github.com/rezahh107/PR-Inspector/schemas/planning/progress-impact.v1.schema.json",
-  "title": "PR Inspector Progress Impact Record",
-  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
-    "schema_version": {"const": "progress-impact.v1"},
-    "impact_id": {"$ref": "#/$defs/id"},
-    "sequence": {"type": "integer", "minimum": 1},
-    "previous_impact_ref": {"oneOf": [{"type": "null"}, {"type": "string", "minLength": 1}]},
-    "program_id": {"$ref": "#/$defs/id"},
-    "initiative_id": {"$ref": "#/$defs/id"},
-    "task_id": {"$ref": "#/$defs/id"},
-    "work_package_id": {"$ref": "#/$defs/id"},
-    "scope_id": {"$ref": "#/$defs/id"},
-    "repository": {"const": "rezahh107/PR-Inspector"},
-    "base_sha": {"$ref": "#/$defs/git_sha"},
-    "head_binding": {"const": "derived_at_runtime"},
-    "changed_paths": {"$ref": "#/$defs/string_set"},
-    "classification": {"const": "planning_infrastructure"},
-    "state_before": {"type": "string", "minLength": 1},
-    "state_after": {"type": "string", "minLength": 1},
-    "completed_obligations": {"$ref": "#/$defs/string_set"},
-    "remaining_obligations": {"$ref": "#/$defs/string_set"},
-    "known_gaps": {"$ref": "#/$defs/string_set"},
-    "material_progress": {"type": "boolean"},
-    "zero_progress": {"type": "boolean"},
-    "completion_claimed": {"type": "boolean"},
-    "next_lifecycle_action": {"enum": ["exact_head_validation", "independent_review", "owner_merge", "exact_main_validation", "post_merge_reconciliation", "none"]}
+    "base_sha": {
+      "$ref": "#/$defs/git_sha"
+    },
+    "changed_paths": {
+      "$ref": "#/$defs/string_set"
+    },
+    "classification": {
+      "enum": [
+        "planning_infrastructure",
+        "protocol_authority_migration"
+      ]
+    },
+    "completed_obligations": {
+      "$ref": "#/$defs/string_set"
+    },
+    "completion_claimed": {
+      "type": "boolean"
+    },
+    "deleted_paths": {
+      "$ref": "#/$defs/string_set"
+    },
+    "head_binding": {
+      "const": "derived_at_runtime"
+    },
+    "impact_id": {
+      "$ref": "#/$defs/id"
+    },
+    "initiative_id": {
+      "$ref": "#/$defs/id"
+    },
+    "known_gaps": {
+      "$ref": "#/$defs/string_set"
+    },
+    "material_progress": {
+      "type": "boolean"
+    },
+    "next_lifecycle_action": {
+      "enum": [
+        "exact_head_validation",
+        "independent_review",
+        "owner_merge",
+        "exact_main_validation",
+        "post_merge_reconciliation",
+        "none"
+      ]
+    },
+    "previous_impact_ref": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "minLength": 1,
+          "type": "string"
+        }
+      ]
+    },
+    "program_id": {
+      "$ref": "#/$defs/id"
+    },
+    "remaining_obligations": {
+      "$ref": "#/$defs/string_set"
+    },
+    "repository": {
+      "const": "rezahh107/PR-Inspector"
+    },
+    "schema_version": {
+      "const": "progress-impact.v1"
+    },
+    "scope_id": {
+      "$ref": "#/$defs/id"
+    },
+    "sequence": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "state_after": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "state_before": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "task_id": {
+      "$ref": "#/$defs/id"
+    },
+    "work_package_id": {
+      "$ref": "#/$defs/id"
+    },
+    "zero_progress": {
+      "type": "boolean"
+    }
   },
-  "required": ["schema_version", "impact_id", "sequence", "previous_impact_ref", "program_id", "initiative_id", "task_id", "work_package_id", "scope_id", "repository", "base_sha", "head_binding", "changed_paths", "classification", "state_before", "state_after", "completed_obligations", "remaining_obligations", "known_gaps", "material_progress", "zero_progress", "completion_claimed", "next_lifecycle_action"],
-  "$defs": {
-    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
-    "git_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
-    "string_set": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
-  }
+  "required": [
+    "schema_version",
+    "impact_id",
+    "sequence",
+    "previous_impact_ref",
+    "program_id",
+    "initiative_id",
+    "task_id",
+    "work_package_id",
+    "scope_id",
+    "repository",
+    "base_sha",
+    "head_binding",
+    "changed_paths",
+    "classification",
+    "state_before",
+    "state_after",
+    "completed_obligations",
+    "remaining_obligations",
+    "known_gaps",
+    "material_progress",
+    "zero_progress",
+    "completion_claimed",
+    "next_lifecycle_action"
+  ],
+  "title": "PR Inspector Progress Impact Record",
+  "type": "object"
 }

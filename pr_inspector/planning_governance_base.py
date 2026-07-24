@@ -13,8 +13,8 @@ from jsonschema import Draft202012Validator
 from .diagnostics import Diagnostic
 
 REGISTRY_PATH = Path("planning/tasks/task-registry.v1.json")
-SCOPE_PATH = Path("planning/scopes/PINS-PLAN-001.scope.json")
-IMPACT_PATH = Path("planning/progress/impacts/PINS-PLAN-001.implementation.json")
+SCOPE_PATH = Path("planning/scopes/PINS-VERIFIED-REVIEW-001.scope.json")
+IMPACT_PATH = Path("planning/progress/impacts/PINS-VERIFIED-REVIEW-001.implementation.json")
 NEXT_WORK_PATH = Path("planning/NEXT_WORK.md")
 PLAN_PATH = Path("planning/PR_INSPECTOR_EXECUTION_PLAN.md")
 BASELINE_PATH = Path("planning/PR_INSPECTOR_EXECUTION_PLAN_BASELINE.md")
@@ -23,7 +23,7 @@ SCHEMAS = {
     "scope": Path("schemas/planning/work-package-scope.v1.schema.json"),
     "impact": Path("schemas/planning/progress-impact.v1.schema.json"),
 }
-ALLOWED_EXACT = {
+PLANNING_ALLOWED_EXACT = {
     ".github/workflows/validate-repository.yml",
     "AGENTS.md",
     "README.md",
@@ -40,16 +40,16 @@ ALLOWED_EXACT = {
     "tests/test_planning_governance.py",
     "tests/test_planning_governance_authority.py",
 }
-ALLOWED_PREFIXES = ("planning/", "schemas/planning/", "tests/fixtures/planning/")
+PLANNING_ALLOWED_PREFIXES = ("planning/", "schemas/planning/", "tests/fixtures/planning/")
 _PINNED_GOVERNANCE_EXCLUSION = "/".join(("governance", "aigov")) + "/**"
-REQUIRED_EXCLUDED = {
+PLANNING_REQUIRED_EXCLUDED = {
     "CURRENT_VERSION",
     _PINNED_GOVERNANCE_EXCLUSION,
     "protocol-manifest.yaml",
     "protocols/**",
     "release-locks/**",
 }
-REQUIRED_FORBIDDEN = {
+PLANNING_REQUIRED_FORBIDDEN = {
     "AIGOV adoption",
     "AIGOV implementation",
     "AIGOV activation",
@@ -68,6 +68,48 @@ REQUIRED_FORBIDDEN = {
     "Rulesets",
     "teams",
 }
+PROTOCOL_ALLOWED_EXACT = {
+    ".github/workflows/export-pr21-rerepair.yml",
+    ".github/workflows/validate-repository.yml",
+    "CHANGELOG.md",
+    "CURRENT_VERSION",
+    "README.md",
+    "protocol-manifest.yaml",
+    "pyproject.toml",
+}
+PROTOCOL_ALLOWED_PREFIXES = (
+    "docs/",
+    "fixtures/behavioral-rules/",
+    "planning/",
+    "pr_inspector/",
+    "protocols/v1.12.0/",
+    "release-locks/",
+    "schemas/planning/",
+    "scripts/",
+    "tests/",
+)
+PROTOCOL_REQUIRED_EXCLUDED = {
+    _PINNED_GOVERNANCE_EXCLUSION,
+    "protocols/v1.11.1/**",
+    "release-locks/v1.11.1.sha256",
+}
+PROTOCOL_REQUIRED_FORBIDDEN = {
+    "AIGOV activation",
+    "Receipt publication activation",
+    "auto-merge",
+    "branch protection",
+    "bypass configuration",
+    "deployment",
+    "external repository modification",
+    "force push",
+    "historical protocol mutation",
+    "history rewrite",
+    "merge",
+    "permissions",
+    "repository settings",
+    "Rulesets",
+    "teams",
+}
 REQUIRED_REMAINING = {
     "exact_head_github_actions_validation",
     "independent_review_if_required_by_repository_policy",
@@ -75,6 +117,22 @@ REQUIRED_REMAINING = {
     "successful_push_validation_on_exact_main",
     "bounded_post_merge_lifecycle_reconciliation",
 }
+
+SCOPE_POLICIES = {
+    "planning_infrastructure": {
+        "allowed_exact": PLANNING_ALLOWED_EXACT,
+        "allowed_prefixes": PLANNING_ALLOWED_PREFIXES,
+        "required_excluded": PLANNING_REQUIRED_EXCLUDED,
+        "required_forbidden": PLANNING_REQUIRED_FORBIDDEN,
+    },
+    "protocol_authority_migration": {
+        "allowed_exact": PROTOCOL_ALLOWED_EXACT,
+        "allowed_prefixes": PROTOCOL_ALLOWED_PREFIXES,
+        "required_excluded": PROTOCOL_REQUIRED_EXCLUDED,
+        "required_forbidden": PROTOCOL_REQUIRED_FORBIDDEN,
+    },
+}
+
 NEXT_MARKERS = ("<!-- PINS:NEXT-WORK:BEGIN -->", "<!-- PINS:NEXT-WORK:END -->")
 PLAN_MARKERS = ("<!-- PINS:PLAN-SNAPSHOT:BEGIN -->", "<!-- PINS:PLAN-SNAPSHOT:END -->")
 

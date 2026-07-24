@@ -1,121 +1,80 @@
 #!/usr/bin/env python3
-from pathlib import Path
+"""Render a clearly non-authoritative ReviewDraft preview.
+
+The historical raw review-package official-completion interface was removed in
+v1.12.0. Official initial publication requires a CanonicalReviewPackage minted by
+the in-process assembler. Persisted artifacts cannot reconstruct completion
+authority; re-verification requires the original genuine VerifiedReviewCompletion.
+"""
+
+from __future__ import annotations
+
 import argparse
-import os
+import json
+from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from pr_inspector.official_review import (
-    CompletionError,
-    IncompleteReview,
-    complete_review,
-    github_pull_request_head_source,
-    is_verified_review_completion,
-    official_owner_delivery,
+from pr_inspector.verified_review import (
+    ReviewAssemblyError,
+    parse_review_draft,
+    render_unverified_preview,
 )
-from pr_inspector.review_provenance import trust_policy
-from pr_inspector.evidence_adapter import mint_evidence_from_governance_fixture
+
+
+def _bytes(value: object) -> bytes:
+    return (
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode("utf-8")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Produce an official PR Inspector artifact bundle only after canonical "
-            "validation and live GitHub PR-head rechecks. On success, stdout contains "
-            "the complete owner delivery, including the canonical prompt when required."
+            "Render a non-authoritative DECLARATION preview from a v1.12 ReviewDraft. "
+            "This command cannot create official owner output, a Gate decision, or a Receipt."
         )
     )
-    parser.add_argument("package", type=Path)
-    parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--target-repository", required=True)
-    parser.add_argument("--pr-number", type=int, required=True)
-    parser.add_argument("--governance-fixture", type=Path)
-    parser.add_argument("--reviewed-head-sha")
-    parser.add_argument("--sequence-app-id", type=int, default=15368)
-    parser.add_argument("--sequence-workflow-path", default=".github/workflows/validate-rereview-sequence.yml")
-    parser.add_argument("--sequence-workflow-sha")
-    parser.add_argument("--sequence-validator-command", default="python scripts/validate_rereview_sequence.py SEQUENCE.json --review EVENT=REVIEW_DIRECTORY")
+    parser.add_argument("draft", type=Path)
     parser.add_argument(
-        "--github-token-env",
-        default="GITHUB_TOKEN",
-        help="Environment variable containing an optional GitHub token.",
+        "--output",
+        type=Path,
+        help="Optional preview JSON path. Stdout is used when omitted.",
     )
     args = parser.parse_args()
 
     try:
-        api_version = trust_policy()["github_api_version"]
-        head_source = github_pull_request_head_source(
-            args.target_repository,
-            args.pr_number,
-            token=os.environ.get(args.github_token_env),
-            api_version=api_version,
-        )
-    except Exception as exc:
+        raw = json.loads(args.draft.read_text(encoding="utf-8"))
+        if isinstance(raw, dict):
+            raw = dict(raw)
+            raw.pop("inspection_profile", None)
+        draft = parse_review_draft(raw)
+        preview = render_unverified_preview(draft)
+        rendered = _bytes(preview)
+        if args.output is None:
+            sys.stdout.buffer.write(rendered)
+        else:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_bytes(rendered)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ReviewAssemblyError) as exc:
         print(
-            "The official PR Inspector review did not complete.\n"
-            "No valid decision or action prompt was produced.",
+            "ReviewDraft preview was not produced. No official completion or owner output occurred.",
             file=sys.stderr,
         )
-        print(f"ERROR: PRI-COMPLETE-008 /live-target-head: {exc}", file=sys.stderr)
+        print(f"ERROR: PRI-PREVIEW-001 /review-draft: {exc}", file=sys.stderr)
         return 1
 
-    governance_evidence = None
-    sequence_enforcement = None
-    if args.governance_fixture is not None:
-        if not args.reviewed_head_sha or not args.sequence_workflow_sha:
-            print("ERROR: --governance-fixture requires --reviewed-head-sha and --sequence-workflow-sha", file=sys.stderr)
-            return 1
-        governance_evidence, sequence_enforcement = mint_evidence_from_governance_fixture(
-            args.governance_fixture,
-            repository=args.target_repository,
-            pr_number=args.pr_number,
-            head_sha=args.reviewed_head_sha,
-            sequence_app_id=args.sequence_app_id,
-            sequence_workflow_path=args.sequence_workflow_path,
-            sequence_workflow_sha=args.sequence_workflow_sha,
-            sequence_validator_command=args.sequence_validator_command,
-            token=os.environ.get(args.github_token_env),
-            api_version=api_version,
-        )
-
-    outcome = complete_review(
-        args.package,
-        args.output_dir,
-        head_source=head_source,
-        governance_evidence=governance_evidence,
-        sequence_enforcement=sequence_enforcement,
-    )
-    if isinstance(outcome, IncompleteReview):
-        print(outcome.technical_message, end="", file=sys.stderr)
-        for item in outcome.diagnostics:
-            print("ERROR:", item.line(), file=sys.stderr)
-        return 1
-    if not is_verified_review_completion(outcome):
-        print(
-            "The official PR Inspector review did not complete.\n"
-            "No valid decision or action prompt was produced.",
-            file=sys.stderr,
-        )
-        return 1
-
-    try:
-        delivery = official_owner_delivery(outcome)
-    except CompletionError as exc:
-        print(
-            "The official PR Inspector owner delivery did not complete.\n"
-            "No partial owner result or prompt was emitted.",
-            file=sys.stderr,
-        )
-        print(f"ERROR: PRI-DELIVERY-001 /owner-delivery: {exc}", file=sys.stderr)
-        return 1
-
-    sys.stdout.write(delivery)
     print(
-        "OK: canonical package, projection, rendered artifacts, manifest, final bytes, "
-        f"live GitHub head {outcome.reviewed_head_sha}, and atomic owner delivery completed "
-        "verified validation.",
+        "OK: non-authoritative DECLARATION preview rendered; official_completion=false.",
         file=sys.stderr,
     )
     return 0

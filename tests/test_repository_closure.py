@@ -56,19 +56,19 @@ def test_active_version_metadata_and_load_order_are_aligned():
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     version_match = re.search(r'(?ms)^\[project\].*?^version\s*=\s*"([^"]+)"', pyproject)
 
-    assert current == "v1.11.1"
+    assert current == "v1.12.0"
     assert manifest["active_version"] == current
     assert manifest["status"] == "active"
-    assert manifest["release_lock"] == "release-locks/v1.11.1.sha256"
-    assert manifest["canonical_contract"].startswith("protocols/v1.11.1/")
-    assert manifest["canonical_schema"].startswith("protocols/v1.11.1/")
-    assert len(manifest["load_order"]) == 24
+    assert manifest["release_lock"] == "release-locks/v1.12.0.sha256"
+    assert manifest["canonical_contract"].startswith("protocols/v1.12.0/")
+    assert manifest["canonical_schema"].startswith("protocols/v1.12.0/")
+    assert len(manifest["load_order"]) == 27
     assert len(manifest["load_order"]) == len(set(manifest["load_order"]))
-    assert all(path.startswith("protocols/v1.11.1/") for path in manifest["load_order"])
+    assert all(path.startswith("protocols/v1.12.0/") for path in manifest["load_order"])
     assert all((ROOT / path).is_file() for path in manifest["load_order"])
-    assert version_match and version_match.group(1) == "1.11.1"
-    assert pr_inspector.__version__ == "1.11.1"
-    assert "## Active protocol" in readme and "`v1.11.1`" in readme
+    assert version_match and version_match.group(1) == "1.12.0"
+    assert pr_inspector.__version__ == "1.12.0"
+    assert "## Active protocol" in readme and "`v1.12.0`" in readme
 
 
 def test_v1_11_1_status_document_is_explicit_and_truthful():
@@ -114,7 +114,7 @@ def test_active_and_historical_release_locks_match_exact_bytes():
 
 
 def test_active_protocol_versions_and_authority_contract_are_coherent():
-    current = "v1.11.1"
+    current = "v1.12.0"
     owner_contract = json.loads(
         (ROOT / f"protocols/{current}/policies/OWNER_DELIVERY_CONTRACT.json").read_text(encoding="utf-8")
     )
@@ -329,3 +329,25 @@ def test_operational_github_receipt_factory_is_closure_bound():
                     if node.module.endswith("_governance_transport"):
                         assert all(alias.name != "_mint_response" for alias in node.names), path
 
+
+
+def test_v1_12_authority_rules_are_behaviorally_closed():
+    matrix = (
+        ROOT / "protocols/v1.12.0/policies/BEHAVIORAL_RULE_COVERAGE.md"
+    ).read_text(encoding="utf-8")
+    mutations = json.loads(
+        (ROOT / "fixtures/behavioral-rules/mutation-cases.json").read_text(encoding="utf-8")
+    )
+    rules = {item["rule_id"] for item in mutations["cases"]}
+    required = {
+        "PRR-AUTH-PACKAGE-BOUNDARY-001",
+        "PRR-AUTH-EVIDENCE-COMPLETENESS-001",
+        "PRR-AUTH-CLAIM-COMPATIBILITY-001",
+        "PRR-AUTH-DERIVED-FACTS-001",
+        "PRR-AUTH-HUMAN-JUDGMENT-001",
+        "PRR-AUTH-PREVIEW-ISOLATION-001",
+        "PRR-AUTH-REVERIFY-BOUNDARY-001",
+        "PRR-AUTH-EXTERNAL-RECONCILIATION-001",
+    }
+    assert required <= rules
+    assert all(rule in matrix for rule in required)

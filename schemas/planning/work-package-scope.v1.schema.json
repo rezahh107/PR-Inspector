@@ -1,1 +1,112 @@
-{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://github.com/rezahh107/PR-Inspector/schemas/planning/work-package-scope.v1.schema.json","title":"PR Inspector Work Package Scope","type":"object","additionalProperties":false,"properties":{"schema_version":{"const":"work-package-scope.v1"},"scope_id":{"$ref":"#/$defs/id"},"program_id":{"$ref":"#/$defs/id"},"initiative_id":{"$ref":"#/$defs/id"},"task_id":{"$ref":"#/$defs/id"},"work_package_id":{"$ref":"#/$defs/id"},"repository":{"const":"rezahh107/PR-Inspector"},"base_branch":{"const":"main"},"base_sha":{"$ref":"#/$defs/git_sha"},"head_binding":{"const":"derived_at_runtime"},"change_class":{"const":"planning_infrastructure"},"scope_revision":{"type":"string","pattern":"^sha256:[0-9a-f]{64}$"},"committed_paths":{"$ref":"#/$defs/string_set"},"excluded_paths":{"$ref":"#/$defs/string_set"},"deferred_not_deleted":{"$ref":"#/$defs/string_set"},"dependencies":{"$ref":"#/$defs/string_set"},"completion_evidence_required":{"$ref":"#/$defs/string_set"},"authorized_operations":{"$ref":"#/$defs/string_set"},"forbidden_changes":{"$ref":"#/$defs/string_set"}},"required":["schema_version","scope_id","program_id","initiative_id","task_id","work_package_id","repository","base_branch","base_sha","head_binding","change_class","scope_revision","committed_paths","excluded_paths","deferred_not_deleted","dependencies","completion_evidence_required","authorized_operations","forbidden_changes"],"$defs":{"id":{"type":"string","pattern":"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},"git_sha":{"type":"string","pattern":"^[0-9a-f]{40}$"},"string_set":{"type":"array","uniqueItems":true,"items":{"type":"string","minLength":1}}}}
+{
+  "$defs": {
+    "git_sha": {
+      "pattern": "^[0-9a-f]{40}$",
+      "type": "string"
+    },
+    "id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "type": "string"
+    },
+    "string_set": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    }
+  },
+  "$id": "https://github.com/rezahh107/PR-Inspector/schemas/planning/work-package-scope.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "authorized_operations": {
+      "$ref": "#/$defs/string_set"
+    },
+    "base_branch": {
+      "const": "main"
+    },
+    "base_sha": {
+      "$ref": "#/$defs/git_sha"
+    },
+    "change_class": {
+      "enum": [
+        "planning_infrastructure",
+        "protocol_authority_migration"
+      ]
+    },
+    "committed_paths": {
+      "$ref": "#/$defs/string_set"
+    },
+    "completion_evidence_required": {
+      "$ref": "#/$defs/string_set"
+    },
+    "deferred_not_deleted": {
+      "$ref": "#/$defs/string_set"
+    },
+    "deleted_paths": {
+      "$ref": "#/$defs/string_set"
+    },
+    "dependencies": {
+      "$ref": "#/$defs/string_set"
+    },
+    "excluded_paths": {
+      "$ref": "#/$defs/string_set"
+    },
+    "forbidden_changes": {
+      "$ref": "#/$defs/string_set"
+    },
+    "head_binding": {
+      "const": "derived_at_runtime"
+    },
+    "initiative_id": {
+      "$ref": "#/$defs/id"
+    },
+    "program_id": {
+      "$ref": "#/$defs/id"
+    },
+    "repository": {
+      "const": "rezahh107/PR-Inspector"
+    },
+    "schema_version": {
+      "const": "work-package-scope.v1"
+    },
+    "scope_id": {
+      "$ref": "#/$defs/id"
+    },
+    "scope_revision": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "task_id": {
+      "$ref": "#/$defs/id"
+    },
+    "work_package_id": {
+      "$ref": "#/$defs/id"
+    }
+  },
+  "required": [
+    "schema_version",
+    "scope_id",
+    "program_id",
+    "initiative_id",
+    "task_id",
+    "work_package_id",
+    "repository",
+    "base_branch",
+    "base_sha",
+    "head_binding",
+    "change_class",
+    "scope_revision",
+    "committed_paths",
+    "excluded_paths",
+    "deferred_not_deleted",
+    "dependencies",
+    "completion_evidence_required",
+    "authorized_operations",
+    "forbidden_changes"
+  ],
+  "title": "PR Inspector Work Package Scope",
+  "type": "object"
+}

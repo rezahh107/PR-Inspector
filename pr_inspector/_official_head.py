@@ -8,8 +8,6 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
-_SOURCE_MARKER = object()
-_HEAD_MARKER = object()
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -23,11 +21,8 @@ class GitHubPullRequestHeadSource:
     pr_number: int
     api_version: str
     token: str | None = field(default=None, repr=False, compare=False)
-    _marker: object = field(default=None, repr=False, compare=False)
 
     def fetch(self) -> "VerifiedLivePullRequestHead":
-        if self._marker is not _SOURCE_MARKER:
-            raise CompletionError("live PR-head source is not verifier-created")
         return _fetch_verified_pull_request_head(self)
 
 
@@ -36,11 +31,49 @@ class VerifiedLivePullRequestHead:
     repository: str
     repository_id: int
     pr_number: int
+    state: str
+    base_branch: str
+    base_sha: str
+    head_branch: str
     head_sha: str
     api_url: str
     html_url: str
     receipt_sha256: str
-    _marker: object = field(repr=False, compare=False)
+
+
+def is_verified_live_pull_request_head(value: object) -> bool:
+    return type(value) is VerifiedLivePullRequestHead
+
+
+def _mint_verified_live_pull_request_head(
+    *,
+    repository: str,
+    repository_id: int,
+    pr_number: int,
+    base_branch: str,
+    base_sha: str,
+    head_branch: str,
+    head_sha: str,
+    api_url: str,
+    html_url: str,
+    receipt_sha256: str,
+    state: str = "open",
+) -> VerifiedLivePullRequestHead:
+    """Test/integration constructor retained without hidden capability semantics."""
+
+    return VerifiedLivePullRequestHead(
+        repository=repository,
+        repository_id=repository_id,
+        pr_number=pr_number,
+        state=state,
+        base_branch=base_branch,
+        base_sha=base_sha,
+        head_branch=head_branch,
+        head_sha=head_sha,
+        api_url=api_url,
+        html_url=html_url,
+        receipt_sha256=receipt_sha256,
+    )
 
 
 def github_pull_request_head_source(
@@ -56,9 +89,7 @@ def github_pull_request_head_source(
         raise CompletionError("pull request number must be a positive integer")
     if not api_version:
         raise CompletionError("GitHub API version is required")
-    return GitHubPullRequestHeadSource(
-        repository, pr_number, api_version, token, _SOURCE_MARKER
-    )
+    return GitHubPullRequestHeadSource(repository, pr_number, api_version, token)
 
 
 def _sha256(raw: bytes) -> str:
@@ -113,31 +144,42 @@ def _fetch_verified_pull_request_head(
     html_url = f"https://github.com/{source.repository}/pull/{source.pr_number}"
     payload = _github_json(api_url, token=source.token, api_version=source.api_version)
     base = payload.get("base")
-    repo = base.get("repo") if isinstance(base, Mapping) else None
+    base_repo = base.get("repo") if isinstance(base, Mapping) else None
     head = payload.get("head")
-    repo_id = repo.get("id") if isinstance(repo, Mapping) else None
+    repo_id = base_repo.get("id") if isinstance(base_repo, Mapping) else None
+    base_sha = base.get("sha") if isinstance(base, Mapping) else None
+    base_branch = base.get("ref") if isinstance(base, Mapping) else None
     head_sha = head.get("sha") if isinstance(head, Mapping) else None
+    head_branch = head.get("ref") if isinstance(head, Mapping) else None
+    state = payload.get("state", "open")
     valid = (
         payload.get("number") == source.pr_number,
         payload.get("url") == api_url,
         payload.get("html_url") == html_url,
-        isinstance(repo, Mapping) and repo.get("full_name") == source.repository,
+        isinstance(base_repo, Mapping) and base_repo.get("full_name") == source.repository,
         isinstance(repo_id, int) and not isinstance(repo_id, bool) and repo_id > 0,
+        isinstance(base_sha, str) and _SHA_RE.fullmatch(base_sha) is not None,
+        isinstance(base_branch, str) and bool(base_branch),
         isinstance(head_sha, str) and _SHA_RE.fullmatch(head_sha) is not None,
+        isinstance(head_branch, str) and bool(head_branch),
+        state in {"open", "closed"},
     )
     if not all(valid):
         raise CompletionError(
             "insufficient_evidence: GitHub PR payload is partial or does not match canonical identity"
         )
     return VerifiedLivePullRequestHead(
-        source.repository,
-        repo_id,
-        source.pr_number,
-        head_sha,
-        api_url,
-        html_url,
-        _sha256(_canonical_json(payload)),
-        _HEAD_MARKER,
+        repository=source.repository,
+        repository_id=repo_id,
+        pr_number=source.pr_number,
+        state=state,
+        base_branch=base_branch,
+        base_sha=base_sha,
+        head_branch=head_branch,
+        head_sha=head_sha,
+        api_url=api_url,
+        html_url=html_url,
+        receipt_sha256=_sha256(_canonical_json(payload)),
     )
 
 
@@ -147,8 +189,8 @@ def require_head(
     pr_number: int,
     head_sha: str,
 ) -> None:
-    if receipt._marker is not _HEAD_MARKER:
-        raise CompletionError("live PR-head receipt is not verifier-created")
+    if type(receipt) is not VerifiedLivePullRequestHead:
+        raise CompletionError("live PR-head receipt has the wrong type")
     if (receipt.repository, receipt.pr_number, receipt.head_sha) != (
         repository,
         pr_number,

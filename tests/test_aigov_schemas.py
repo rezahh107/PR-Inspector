@@ -380,7 +380,7 @@ def test_scope_and_method_evidence_fail_closed_structurally():
     _assert_invalid("post_merge_closure", payload)
 
 
-def test_new_schemas_are_outside_active_runtime_and_load_order():
+def test_aigov_common_schemas_remain_outside_successor_runtime_and_load_order():
     manifest = yaml.safe_load(
         (ROOT / "protocol-manifest.yaml").read_text(encoding="utf-8")
     )
@@ -388,7 +388,7 @@ def test_new_schemas_are_outside_active_runtime_and_load_order():
     assert "active_version" in manifest, "protocol-manifest.yaml lacks active_version"
     assert "load_order" in manifest, "protocol-manifest.yaml lacks load_order"
     assert isinstance(manifest["load_order"], list), "load_order must be a list"
-    assert manifest["active_version"] == "v1.11.1"
+    assert manifest["active_version"] == "v1.12.0"
     assert all("schemas/aigov/" not in path for path in manifest["load_order"])
 
     forbidden = (

@@ -202,6 +202,8 @@ def validate_planning_repository(root: Path) -> list[Diagnostic]:
 
     artifact_output, scopes, impacts = _validate_registered_artifacts(root, registry, schemas)
     output += artifact_output
+    if any(item.code == _SCHEMA_ERROR for item in artifact_output):
+        return sorted(set(output))
     output += _validate_task_completion_and_dependencies(registry, scopes, impacts)
 
     current_id = registry["current_work_package_id"]
@@ -214,6 +216,9 @@ def validate_planning_repository(root: Path) -> list[Diagnostic]:
         for path in scope["committed_paths"]:
             if validate_repo_path(path) is None and not (root / path).is_file():
                 output.append(diagnostic("PINS-SCOPE-DISCLOSURE-MISMATCH", f"/{path}", "declared path is missing"))
+        for path in scope.get("deleted_paths", []):
+            if validate_repo_path(path) is None and (root / path).exists():
+                output.append(diagnostic("PINS-SCOPE-DISCLOSURE-MISMATCH", f"/{path}", "declared deleted path still exists"))
     return sorted(set(output))
 
 

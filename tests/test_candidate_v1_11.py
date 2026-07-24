@@ -37,6 +37,7 @@ from pr_inspector.sequence_enforcement import (
     verify_sequence_ci_enforcement,
     verify_sequence_producer_evidence,
 )
+from tests.verified_review_test_support import complete_fixture_review
 from tests.governance_test_support import (
     fixture as governance_fixture,
     responses as governance_responses,
@@ -194,8 +195,13 @@ def _pr_payload(head_sha: str) -> dict:
         "number": PR_NUMBER,
         "url": url,
         "html_url": f"https://github.com/{REPOSITORY}/pull/{PR_NUMBER}",
-        "base": {"repo": {"id": REPOSITORY_ID, "full_name": REPOSITORY}},
-        "head": {"sha": head_sha},
+        "state": "open",
+        "base": {
+            "repo": {"id": REPOSITORY_ID, "full_name": REPOSITORY},
+            "sha": "2" * 40,
+            "ref": "main",
+        },
+        "head": {"sha": head_sha, "ref": "feature"},
     }
 
 
@@ -262,10 +268,8 @@ def _sequence_capability(head_sha: str):
 
 def _completion(tmp_path: Path, monkeypatch, head_sha: str) -> VerifiedReviewCompletion:
     _install_live_head(monkeypatch, head_sha)
-    package_path = tmp_path / f"package-{head_sha[:8]}.json"
-    _write_package(package_path, _package(head_sha))
-    result = complete_review(
-        package_path,
+    result, _ = complete_fixture_review(
+        _package(head_sha),
         tmp_path / f"review-{head_sha[:8]}",
         head_source=_head_source(),
         sequence_enforcement=_sequence_capability(head_sha),

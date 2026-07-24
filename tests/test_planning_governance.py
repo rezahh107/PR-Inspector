@@ -45,6 +45,22 @@ def codes(items):
     return {item.code for item in items}
 
 
+
+
+def current_package(registry: dict) -> dict:
+    return next(
+        package
+        for package in registry["work_packages"]
+        if package["work_package_id"] == registry["current_work_package_id"]
+    )
+
+
+def package_by_id(registry: dict, package_id: str) -> dict:
+    return next(
+        package for package in registry["work_packages"] if package["work_package_id"] == package_id
+    )
+
+
 def schemas():
     return (
         read("schemas/planning/task-registry.v1.schema.json"),
@@ -92,7 +108,7 @@ def mutate_registry(name: str):
     elif name == "unauthorized_implementation":
         registry["tasks"][1].update(status="in_progress", implementation_authorized=True)
     elif name == "invalid_current_work_package":
-        registry["work_packages"][0]["current"] = False
+        current_package(registry)["current"] = False
     return registry
 
 
@@ -128,7 +144,7 @@ def test_scope_revision_and_impact_sequence_fail_closed():
     scope = read("planning/scopes/PINS-PLAN-001.scope.json")
     impact = read("planning/progress/impacts/PINS-PLAN-001.implementation.json")
     scope["scope_revision"] = "sha256:" + "0" * 64
-    assert "PINS-SCOPE-REVISION-MISMATCH" in codes(validate_scope(scope, scope_schema, registry))
+    assert "PINS-SCOPE-REVISION-MISMATCH" in codes(validate_scope(scope, scope_schema, registry, SCOPE_PATH.as_posix()))
     impact["sequence"] = 2
     assert "PINS-IMPACT-SEQUENCE-MISMATCH" in codes(
         validate_impact(
@@ -184,8 +200,13 @@ def test_false_completion_in_unbounded_prose_has_no_authority():
     assert extract_bounded_json(text, *NEXT_MARKERS)["current_task_status"] == "in_progress"
 
 
-def add_work_package(registry: dict, *, package_id: str = "PINS-PLAN-001-WP02", status: str = "planned") -> dict:
-    package = copy.deepcopy(registry["work_packages"][0])
+def add_work_package(
+    registry: dict,
+    *,
+    package_id: str = "PINS-VERIFIED-REVIEW-001-WP02",
+    status: str = "planned",
+) -> dict:
+    package = copy.deepcopy(current_package(registry))
     package.update(
         work_package_id=package_id,
         title="Dependent Work Package",
@@ -210,7 +231,7 @@ def add_work_package(registry: dict, *, package_id: str = "PINS-PLAN-001-WP02", 
 def test_work_package_dependencies_fail_closed(mutation, expected):
     registry_schema, _, _ = schemas()
     registry = read("planning/tasks/task-registry.v1.json")
-    current = registry["work_packages"][0]
+    current = current_package(registry)
     if mutation == "unknown":
         current["depends_on"] = ["UNKNOWN-WP"]
     elif mutation == "self":
@@ -228,7 +249,7 @@ def test_work_package_dependencies_fail_closed(mutation, expected):
 def test_dependency_blocked_requires_an_actual_blocker():
     registry_schema, _, _ = schemas()
     registry = read("planning/tasks/task-registry.v1.json")
-    registry["work_packages"][0]["status"] = "dependency_blocked"
+    current_package(registry)["status"] = "dependency_blocked"
     assert "PINS-WP-LIFECYCLE-INVALID" in codes(validate_registry(registry, registry_schema))
 
 
@@ -236,21 +257,21 @@ def test_dependency_blocked_requires_an_actual_blocker():
 def test_lifecycle_states_require_state_specific_evidence(status):
     registry_schema, _, _ = schemas()
     registry = read("planning/tasks/task-registry.v1.json")
-    package = registry["work_packages"][0]
+    package = current_package(registry)
     package["status"] = status
     package["current"] = status != "closed"
     if status == "closed":
         package["current"] = False
-        registry["current_work_package_id"] = "PINS-PLAN-001-WP02"
         successor = add_work_package(registry, status="planned")
         successor["current"] = True
+        registry["current_work_package_id"] = successor["work_package_id"]
     assert "PINS-WP-EVIDENCE-MISSING" in codes(validate_registry(registry, registry_schema))
 
 
 def test_evidence_cannot_lead_the_lifecycle_state():
     registry_schema, _, _ = schemas()
     registry = read("planning/tasks/task-registry.v1.json")
-    registry["work_packages"][0]["evidence_refs"] = ["exact_head:run-1"]
+    current_package(registry)["evidence_refs"] = ["exact_head:run-1"]
     assert "PINS-WP-LIFECYCLE-INVALID" in codes(validate_registry(registry, registry_schema))
 
 
@@ -265,7 +286,7 @@ def test_scope_enforces_full_program_to_work_package_chain():
             "authority_note": "test",
         }
     )
-    scope = read("planning/scopes/PINS-PLAN-001.scope.json")
+    scope = read(SCOPE_PATH)
     scope["program_id"] = "OTHER-PROGRAM"
     scope["scope_revision"] = canonical_scope_revision(scope)
     assert "PINS-CROSS-FILE-BINDING-MISMATCH" in codes(validate_scope(scope, scope_schema, registry))
@@ -274,35 +295,58 @@ def test_scope_enforces_full_program_to_work_package_chain():
 def test_scope_ref_must_bind_to_loaded_scope():
     _, scope_schema, _ = schemas()
     registry = read("planning/tasks/task-registry.v1.json")
-    registry["work_packages"][0]["scope_ref"] = "planning/scopes/STALE.scope.json"
-    scope = read("planning/scopes/PINS-PLAN-001.scope.json")
-    assert "PINS-CROSS-FILE-BINDING-MISMATCH" in codes(validate_scope(scope, scope_schema, registry))
+    current_package(registry)["scope_ref"] = "planning/scopes/STALE.scope.json"
+    scope = read(SCOPE_PATH)
+    assert "PINS-CROSS-FILE-BINDING-MISMATCH" in codes(
+        validate_scope(scope, scope_schema, registry, SCOPE_PATH.as_posix())
+    )
 
 
 def test_impact_ref_must_bind_to_loaded_impact():
     _, _, impact_schema = schemas()
     registry = read("planning/tasks/task-registry.v1.json")
-    registry["work_packages"][0]["impact_refs"] = ["planning/progress/impacts/STALE.json"]
-    scope = read("planning/scopes/PINS-PLAN-001.scope.json")
-    impact = read("planning/progress/impacts/PINS-PLAN-001.implementation.json")
+    current_package(registry)["impact_refs"] = ["planning/progress/impacts/STALE.json"]
+    scope = read(SCOPE_PATH)
+    impact = read(IMPACT_PATH)
     assert "PINS-CROSS-FILE-BINDING-MISMATCH" in codes(
-        validate_impact(impact, impact_schema, scope, registry)
+        validate_impact(
+            impact,
+            impact_schema,
+            scope,
+            registry,
+            IMPACT_PATH.as_posix(),
+        )
     )
 
 
 def copy_static_bundle(destination: Path) -> Path:
+    registry = read(REGISTRY_PATH)
+    registered_artifacts = {
+        package["scope_ref"]
+        for package in registry["work_packages"]
+    } | {
+        impact_ref
+        for package in registry["work_packages"]
+        for impact_ref in package["impact_refs"]
+    }
     for rel in [
         REGISTRY_PATH,
-        SCOPE_PATH,
-        IMPACT_PATH,
         NEXT_WORK_PATH,
         PLAN_PATH,
         BASELINE_PATH,
         *SCHEMAS.values(),
+        *sorted(registered_artifacts),
     ]:
         target = destination / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / rel, target)
+    for scope_ref in sorted(package["scope_ref"] for package in registry["work_packages"]):
+        scope = load_json_strict(destination / scope_ref)
+        for rel in scope["committed_paths"]:
+            target = destination / rel
+            if not target.exists():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("\n", encoding="utf-8")
     return destination
 
 
@@ -346,9 +390,10 @@ def init_git(cwd: Path) -> None:
 
 
 def write_scope(cwd: Path, base_sha: str, declared: list[str]) -> None:
-    scope = read("planning/scopes/PINS-PLAN-001.scope.json")
+    scope = read(SCOPE_PATH)
     scope["base_sha"] = base_sha
     scope["committed_paths"] = sorted(declared)
+    scope["deleted_paths"] = []
     scope["scope_revision"] = canonical_scope_revision(scope)
     path = cwd / SCOPE_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -361,7 +406,7 @@ def make_git_case(tmp_path: Path, declared_extra=None, actual_extra=None):
     git("add", "base.txt", cwd=tmp_path)
     git("commit", "-m", "base", cwd=tmp_path)
     base = git("rev-parse", "HEAD", cwd=tmp_path)
-    declared = ["planning/scopes/PINS-PLAN-001.scope.json", "planning/allowed.txt"]
+    declared = [str(SCOPE_PATH), "planning/allowed.txt"]
     if declared_extra:
         declared.append(declared_extra)
     write_scope(tmp_path, base, declared)
@@ -398,8 +443,8 @@ def test_git_diff_rejects_declared_but_unchanged(tmp_path):
 def test_git_diff_rejects_forbidden_path_hidden_among_allowed(tmp_path):
     base, head = make_git_case(
         tmp_path,
-        declared_extra="protocols/hidden.md",
-        actual_extra="protocols/hidden.md",
+        declared_extra="protocols/v1.11.1/hidden.md",
+        actual_extra="protocols/v1.11.1/hidden.md",
     )
     diagnostics, _ = validate_git_diff(tmp_path, base, head)
     assert "PINS-SCOPE-FORBIDDEN-PATH" in codes(diagnostics)
@@ -421,7 +466,7 @@ def test_authoritative_base_rejects_caller_selected_intermediate_commit(tmp_path
     write_scope(
         tmp_path,
         intermediate,
-        ["planning/scopes/PINS-PLAN-001.scope.json", "planning/allowed.txt"],
+        [str(SCOPE_PATH), "planning/allowed.txt"],
     )
     (tmp_path / "planning/allowed.txt").write_text("allowed\n", encoding="utf-8")
     git("add", ".", cwd=tmp_path)
@@ -447,7 +492,7 @@ def test_git_diff_includes_undeclared_type_change(tmp_path):
     write_scope(
         tmp_path,
         base,
-        ["planning/scopes/PINS-PLAN-001.scope.json", "planning/allowed.txt"],
+        [str(SCOPE_PATH), "planning/allowed.txt"],
     )
     (tmp_path / "planning/allowed.txt").write_text("allowed\n", encoding="utf-8")
     (tmp_path / "planning/hidden.txt").unlink()
@@ -476,7 +521,7 @@ def test_git_diff_rejects_non_ancestor_authoritative_base(tmp_path):
     write_scope(
         tmp_path,
         authoritative_base,
-        ["planning/scopes/PINS-PLAN-001.scope.json", "planning/allowed.txt"],
+        [str(SCOPE_PATH), "planning/allowed.txt"],
     )
     (tmp_path / "planning/allowed.txt").write_text("allowed\n", encoding="utf-8")
     git("add", ".", cwd=tmp_path)

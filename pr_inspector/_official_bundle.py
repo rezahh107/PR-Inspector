@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import tempfile
+import weakref
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
@@ -85,7 +86,7 @@ class VerifiedReviewCompletion:
     cleanup_diagnostics: tuple[Diagnostic, ...] = field(default=(), compare=False)
 
     def _reverify(self) -> _Bundle:
-        if self._marker is not _COMPLETION_MARKER:
+        if not is_verified_review_completion(self):
             raise CompletionError("review completion proof is not verifier-created")
         require_head(
             self._head_source.fetch(),
@@ -179,6 +180,9 @@ class VerifiedReviewCompletion:
                 "canonical projection requires a next-action prompt"
             )
         return utf8_bytes(PROMPT_NAME, prompt_bytes)
+
+
+_COMPLETION_CAPABILITIES: weakref.WeakSet[VerifiedReviewCompletion] = weakref.WeakSet()
 
 
 def sha256(raw: bytes) -> str:
@@ -343,7 +347,7 @@ def completion(
     *,
     cleanup_diagnostics: tuple[Diagnostic, ...] = (),
 ) -> VerifiedReviewCompletion:
-    return VerifiedReviewCompletion(
+    value = VerifiedReviewCompletion(
         bundle.directory,
         bundle.protocol_version,
         bundle.repository,
@@ -359,29 +363,37 @@ def completion(
         _COMPLETION_MARKER,
         cleanup_diagnostics,
     )
+    _COMPLETION_CAPABILITIES.add(value)
+    return value
+
+
+def reverify_completed_review(
+    value: VerifiedReviewCompletion,
+) -> VerifiedReviewCompletion:
+    """Revalidate one genuine process-local completion and return the same capability."""
+
+    if not is_verified_review_completion(value):
+        raise CompletionError(
+            "re-verification requires a genuine VerifiedReviewCompletion; "
+            "persisted review files require a fresh official review"
+        )
+    value._reverify()
+    return value
 
 
 def verify_completed_review(
-    review_directory: Path,
-    *,
-    head_source: GitHubPullRequestHeadSource,
+    value: VerifiedReviewCompletion,
 ) -> VerifiedReviewCompletion:
-    first = head_source.fetch()
-    bundle = validate_bundle(
-        Path(review_directory),
-        first.repository,
-        first.pr_number,
-        first.head_sha,
-    )
-    final = head_source.fetch()
-    require_head(final, bundle.repository, bundle.pr_number, bundle.head_sha)
-    return completion(bundle, head_source, final)
+    """Compatibility name for completion-centric re-verification."""
+
+    return reverify_completed_review(value)
 
 
 def is_verified_review_completion(value: object) -> bool:
     return (
-        isinstance(value, VerifiedReviewCompletion)
+        type(value) is VerifiedReviewCompletion
         and value._marker is _COMPLETION_MARKER
+        and value in _COMPLETION_CAPABILITIES
     )
 
 
