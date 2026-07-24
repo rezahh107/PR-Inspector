@@ -1,27 +1,28 @@
 name: Apply PR35 authority completeness repair
 
-# Triggered via the authenticated Contents API so the bounded push workflow executes.
 on:
-  push:
-    branches:
-      - feat/v1-12-verified-review-package
+  pull_request:
 
 permissions:
   contents: write
 
 jobs:
   apply-validate-clean:
+    if: github.event.pull_request.number == 35 && github.event.pull_request.head.ref == 'feat/v1-12-verified-review-package'
     runs-on: ubuntu-latest
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+      HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
     steps:
-      - name: Check out exact branch Head
+      - name: Check out exact PR Head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
-          ref: ${{ github.ref_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: true
 
       - name: Verify exact triggering Head
-        run: test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+        run: test "$(git rev-parse HEAD)" = "${EXPECTED_HEAD}"
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
@@ -66,4 +67,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "fix: close authority and evidence completeness gaps"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git push origin "HEAD:${HEAD_BRANCH}"
