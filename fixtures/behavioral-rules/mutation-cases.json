@@ -151,13 +151,13 @@
       "case_id": "raw_or_lookalike_package_reaches_completion",
       "expected_diagnostic": "PRI-PACKAGE-AUTHORITY-001",
       "mutation": "pass_raw_path_mapping_fixture_copy_or_subclass_to_official_completion",
-      "rule_id": "PRR-AUTH-PACKAGE-CAPABILITY-001"
+      "rule_id": "PRR-AUTH-PACKAGE-BOUNDARY-001"
     },
     {
-      "case_id": "caller_created_evidence_capability_accepted",
-      "expected_diagnostic": "ReviewAssemblyError",
-      "mutation": "pass_unregistered_scope_ci_execution_or_source_lookalike_to_assembler",
-      "rule_id": "PRR-AUTH-EVIDENCE-CAPABILITY-001"
+      "case_id": "caller_injected_source_or_partial_enumeration_accepted",
+      "expected_diagnostic": "TypeError_or_ReviewAssemblyError",
+      "mutation": "inject_static_source_into_public_completion_or_accept_incomplete_pagination",
+      "rule_id": "PRR-AUTH-EVIDENCE-COMPLETENESS-001"
     },
     {
       "case_id": "unsupported_claim_authority_escalation",
@@ -184,10 +184,18 @@
       "rule_id": "PRR-AUTH-PREVIEW-ISOLATION-001"
     },
     {
-      "case_id": "copied_bundle_reverified_without_capability",
+      "case_id": "copied_bundle_reverified_without_original_assembled_package",
       "expected_diagnostic": "CompletionError",
-      "mutation": "copy_v1_12_artifact_directory_and_reverify_without_original_package_capability",
-      "rule_id": "PRR-AUTH-REVERIFY-CAPABILITY-001"
+      "mutation": "copy_v1_12_artifact_directory_and_reverify_without_original_assembled_package",
+      "rule_id": "PRR-AUTH-REVERIFY-BOUNDARY-001"
+    },
+    {
+      "case_id": "uninspected_external_source_produces_green",
+      "expected_reasons": [
+        "RSN-EXTERNAL-REVIEW-INCOMPLETE"
+      ],
+      "mutation": "omit_disposition_for_collected_issue_review_or_inline_comment",
+      "rule_id": "PRR-AUTH-EXTERNAL-RECONCILIATION-001"
     }
   ],
   "schema_version": 1

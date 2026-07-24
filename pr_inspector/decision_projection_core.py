@@ -444,6 +444,16 @@ def collect_reason_instances(pkg: dict[str, Any]) -> list[dict[str, Any]]:
             for item in _accepted_external_suggestions(pkg)
         ],
     )
+    reconciliation = pkg.get("external_review_reconciliation") or {}
+    if (
+        reconciliation.get("collection_status") != "COMPLETE"
+        or reconciliation.get("uninspected_source_ids")
+    ):
+        _append_reason(
+            reasons,
+            "RSN-EXTERNAL-REVIEW-INCOMPLETE",
+            list(reconciliation.get("uninspected_source_ids") or ["collection_status"]),
+        )
     _append_reason(
         reasons,
         "RSN-REQUIRED-ACTION-PENDING",

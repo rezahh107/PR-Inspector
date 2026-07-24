@@ -350,15 +350,13 @@ def test_partial_output_directory_is_not_official(tmp_path, monkeypatch):
 
 def test_arbitrary_mapping_cannot_supply_evidence_source(tmp_path):
     runtime = fixture_review_runtime(package())
-    result = complete_review(
-        runtime.request,
-        runtime.assessment,
-        tmp_path / "review",
-        evidence_source={},  # type: ignore[arg-type]
-        _protocol_context=runtime.context,
-    )
-    assert isinstance(result, IncompleteReview)
-    assert {item.code for item in result.diagnostics} == {"PRI-ASSEMBLY-001"}
+    with pytest.raises(TypeError, match="unexpected keyword argument"):
+        complete_review(
+            runtime.request,
+            runtime.assessment,
+            tmp_path / "review",
+            evidence_source={},  # type: ignore[call-arg]
+        )
 
 
 def test_fabricated_completion_marker_and_low_level_renderer_are_not_official(

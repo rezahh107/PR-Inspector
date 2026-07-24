@@ -6,11 +6,16 @@ from pathlib import Path
 
 import pytest
 
-from pr_inspector import _official_complete
+from pr_inspector import _official_complete, official_review as official_review_module
 from pr_inspector._official_bundle import IncompleteReview
 from pr_inspector._official_head import VerifiedLivePullRequestHead
 from pr_inspector.decision_projection import project_decision
-from pr_inspector.official_review import complete_review, is_verified_review_completion
+from pr_inspector.official_review import (
+    OfficialReviewRuntime,
+    _complete_review_with_runtime,
+    complete_review,
+    is_verified_review_completion,
+)
 from pr_inspector.verified_review import (
     CanonicalReviewPackage,
     ChangedFile,
@@ -242,24 +247,75 @@ def test_repeated_assembly_is_byte_identical():
     assert project_decision(first.value()) == project_decision(second.value())
 
 
-def test_public_completion_collects_and_publishes_once(tmp_path: Path):
+def test_private_runtime_seam_collects_and_publishes_once(tmp_path: Path):
     facts = _facts()
     source = StaticSource(facts)
-    result = complete_review(
-        _request(), _assessment(), tmp_path / "out", evidence_source=source,
-        _protocol_context=_context(),
+    result = _complete_review_with_runtime(
+        _request(), _assessment(), tmp_path / "out",
+        runtime=OfficialReviewRuntime(source, _context()),
     )
     assert is_verified_review_completion(result)
     assert (tmp_path / "out" / "review-package.json").is_file()
     assert source.fetch_count >= 3
 
 
+
+
+@pytest.mark.parametrize(
+    ("keyword", "value"),
+    [
+        ("evidence_source", object()),
+        ("_protocol_context", _context()),
+        ("review_facts", _facts()),
+        ("verified_head", _head()),
+    ],
+)
+def test_public_completion_rejects_authority_injection_keywords(
+    tmp_path: Path, keyword: str, value: object
+):
+    with pytest.raises(TypeError, match="unexpected keyword argument"):
+        complete_review(
+            _request(),
+            _assessment(),
+            tmp_path / "out",
+            **{keyword: value},
+        )
+
+
+def test_public_completion_constructs_internal_runtime(tmp_path: Path, monkeypatch):
+    source = StaticSource(_facts())
+    runtime = OfficialReviewRuntime(source, _context())
+    calls = []
+
+    def factory(request):
+        calls.append(request)
+        return runtime
+
+    monkeypatch.setattr(official_review_module, "_create_official_runtime", factory)
+    result = complete_review(_request(), _assessment(), tmp_path / "out")
+    assert is_verified_review_completion(result)
+    assert calls == [_request()]
+
+
+def test_public_module_does_not_export_authority_bearing_runtime_types():
+    forbidden = {
+        "OfficialReviewRuntime",
+        "ReviewEvidenceSource",
+        "ReviewFacts",
+        "ProtocolContext",
+        "GitHubReviewEvidenceSource",
+        "CanonicalReviewPackage",
+        "VerifiedLivePullRequestHead",
+        "assemble_review_package",
+    }
+    assert forbidden.isdisjoint(set(official_review_module.__all__))
+
 def test_head_drift_before_publication_publishes_nothing(tmp_path: Path):
     facts = _facts()
     source = StaticSource(facts, [_head(), _head(head_sha="4" * 40)])
-    result = complete_review(
-        _request(), _assessment(), tmp_path / "out", evidence_source=source,
-        _protocol_context=_context(),
+    result = _complete_review_with_runtime(
+        _request(), _assessment(), tmp_path / "out",
+        runtime=OfficialReviewRuntime(source, _context()),
     )
     assert isinstance(result, IncompleteReview)
     assert any(item.code == "PRI-COMPLETE-008" for item in result.diagnostics)
@@ -268,16 +324,18 @@ def test_head_drift_before_publication_publishes_nothing(tmp_path: Path):
 
 def test_head_drift_preserves_existing_valid_bundle(tmp_path: Path):
     output = tmp_path / "out"
-    first = complete_review(
-        _request(), _assessment(), output, evidence_source=StaticSource(_facts()),
-        _protocol_context=_context(),
+    first = _complete_review_with_runtime(
+        _request(), _assessment(), output,
+        runtime=OfficialReviewRuntime(StaticSource(_facts()), _context()),
     )
     assert is_verified_review_completion(first)
     before = {path.name: path.read_bytes() for path in output.iterdir() if path.is_file()}
-    result = complete_review(
+    result = _complete_review_with_runtime(
         _request(), _assessment(), output,
-        evidence_source=StaticSource(_facts(), [_head(), _head(head_sha="4" * 40)]),
-        _protocol_context=_context(),
+        runtime=OfficialReviewRuntime(
+            StaticSource(_facts(), [_head(), _head(head_sha="4" * 40)]),
+            _context(),
+        ),
     )
     assert isinstance(result, IncompleteReview)
     after = {path.name: path.read_bytes() for path in output.iterdir() if path.is_file()}
@@ -289,9 +347,9 @@ def test_render_failure_leaves_no_partial_result(tmp_path: Path, monkeypatch):
         raise ValueError("render failed")
     monkeypatch.setattr(_official_complete, "write_review_artifacts", fail)
     output = tmp_path / "out"
-    result = complete_review(
-        _request(), _assessment(), output, evidence_source=StaticSource(_facts()),
-        _protocol_context=_context(),
+    result = _complete_review_with_runtime(
+        _request(), _assessment(), output,
+        runtime=OfficialReviewRuntime(StaticSource(_facts()), _context()),
     )
     assert isinstance(result, IncompleteReview)
     assert not output.exists()

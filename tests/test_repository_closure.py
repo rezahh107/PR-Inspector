@@ -340,13 +340,14 @@ def test_v1_12_authority_rules_are_behaviorally_closed():
     )
     rules = {item["rule_id"] for item in mutations["cases"]}
     required = {
-        "PRR-AUTH-PACKAGE-CAPABILITY-001",
-        "PRR-AUTH-EVIDENCE-CAPABILITY-001",
+        "PRR-AUTH-PACKAGE-BOUNDARY-001",
+        "PRR-AUTH-EVIDENCE-COMPLETENESS-001",
         "PRR-AUTH-CLAIM-COMPATIBILITY-001",
         "PRR-AUTH-DERIVED-FACTS-001",
         "PRR-AUTH-HUMAN-JUDGMENT-001",
         "PRR-AUTH-PREVIEW-ISOLATION-001",
-        "PRR-AUTH-REVERIFY-CAPABILITY-001",
+        "PRR-AUTH-REVERIFY-BOUNDARY-001",
+        "PRR-AUTH-EXTERNAL-RECONCILIATION-001",
     }
     assert required <= rules
     assert all(rule in matrix for rule in required)

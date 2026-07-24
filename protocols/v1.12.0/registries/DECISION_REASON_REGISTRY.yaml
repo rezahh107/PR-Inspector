@@ -211,6 +211,16 @@ reasons:
   may_modify_code: true
   prompt_kind: implementer_repair_prompt
   recovery_action: repair_request
+- reason_code: RSN-EXTERNAL-REVIEW-INCOMPLETE
+  concept: External Review Reconciliation Incomplete
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: YELLOW
+  action_effect: rerun_review
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: fresh_review_prompt
+  recovery_action: block
 - reason_code: RSN-REQUIRED-ACTION-PENDING
   concept: Required Action Pending
   trigger: canonical decision projection

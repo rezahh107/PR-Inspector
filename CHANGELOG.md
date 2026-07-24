@@ -5,6 +5,7 @@
 - Remove the PR-specific workspace export workflow and preserve the global-startup-hook closure regression.
 - Preserve v1.11.1 as immutable history.
 - Require exact-Head CI and a fresh independent PR Inspector rereview before any merge decision.
+- Close public evidence/context injection, require complete paginated check and review-surface collection, synthesize missing required checks as `UNKNOWN`, and block Green on unreconciled external review sources.
 
 # Changelog
 

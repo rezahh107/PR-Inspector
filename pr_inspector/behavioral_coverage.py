@@ -14,7 +14,7 @@ MUTATION_PATH = ROOT / "fixtures/behavioral-rules/mutation-cases.json"
 WORKFLOW_PATH = ROOT / ".github/workflows/validate-repository.yml"
 FOCUSED_COMMAND = "python -m pytest -q tests/test_behavioral_rule_coverage.py"
 EXTERNAL_COVERAGE_COMMAND = "python -m pytest -q tests/test_coverage_trust_gate.py"
-AUTHORITY_COMMAND = "python -m pytest -q tests/test_v1_12_verified_review_authority.py"
+AUTHORITY_COMMAND = "python -m pytest -q tests/test_v1_12_verified_review_authority.py tests/test_v1_12_evidence_completeness.py"
 
 COLUMNS = (
     "rule_id",
@@ -57,13 +57,14 @@ REQUIRED_RULE_IDS = {
     "PRR-GOV-PROJECTION-AUTHORITY-001",
     "PRR-PROMPT-SEMANTIC-001",
     "PRR-OUTPUT-AUTHORITY-001",
-    "PRR-AUTH-PACKAGE-CAPABILITY-001",
-    "PRR-AUTH-EVIDENCE-CAPABILITY-001",
+    "PRR-AUTH-PACKAGE-BOUNDARY-001",
+    "PRR-AUTH-EVIDENCE-COMPLETENESS-001",
     "PRR-AUTH-CLAIM-COMPATIBILITY-001",
     "PRR-AUTH-DERIVED-FACTS-001",
     "PRR-AUTH-HUMAN-JUDGMENT-001",
     "PRR-AUTH-PREVIEW-ISOLATION-001",
-    "PRR-AUTH-REVERIFY-CAPABILITY-001",
+    "PRR-AUTH-REVERIFY-BOUNDARY-001",
+    "PRR-AUTH-EXTERNAL-RECONCILIATION-001",
 }
 
 STATUS_RANK = {

@@ -19,9 +19,172 @@
       "type": "array"
     },
     "external_review_intake": {
+      "additionalProperties": false,
+      "properties": {
+        "sources_inspected": {
+          "items": {
+            "properties": {
+              "inspected": {
+                "type": "boolean"
+              },
+              "reviewed_head_sha": {
+                "type": "string"
+              },
+              "source_id": {
+                "type": "string"
+              },
+              "source_type": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "source_id",
+              "source_type",
+              "inspected",
+              "reviewed_head_sha"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "suggestions": {
+          "items": {
+            "properties": {
+              "external_suggestion_id": {
+                "type": "string"
+              },
+              "linked_finding_ids": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "source_id": {
+                "type": "string"
+              },
+              "triage_decision": {
+                "enum": [
+                  "accepted",
+                  "resolved",
+                  "duplicate",
+                  "false_positive",
+                  "deferred",
+                  "insufficient_evidence",
+                  "out_of_scope",
+                  "stale",
+                  "rejected"
+                ]
+              }
+            },
+            "required": [
+              "external_suggestion_id",
+              "source_id",
+              "triage_decision",
+              "linked_finding_ids"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "sources_inspected",
+        "suggestions"
+      ],
       "type": "object"
     },
     "external_review_reconciliation": {
+      "additionalProperties": false,
+      "properties": {
+        "collection_status": {
+          "enum": [
+            "COMPLETE",
+            "INCOMPLETE"
+          ]
+        },
+        "counts": {
+          "additionalProperties": false,
+          "properties": {
+            "accepted": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "deferred": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "duplicate": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "false_positive": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "insufficient_evidence": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "out_of_scope": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "resolved": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "stale": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "accepted",
+            "resolved",
+            "duplicate",
+            "false_positive",
+            "deferred",
+            "insufficient_evidence",
+            "out_of_scope",
+            "stale"
+          ],
+          "type": "object"
+        },
+        "inspected_total": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "open_bot_sources_total": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "suggestion_results": {
+          "type": "array"
+        },
+        "uninspected_source_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "valid_blocking_finding_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "collection_status",
+        "counts",
+        "inspected_total",
+        "open_bot_sources_total",
+        "suggestion_results",
+        "uninspected_source_ids",
+        "valid_blocking_finding_ids"
+      ],
       "type": "object"
     },
     "findings": {

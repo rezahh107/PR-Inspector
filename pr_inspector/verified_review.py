@@ -14,6 +14,7 @@ import re
 import subprocess
 import urllib.error
 import urllib.request
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
@@ -38,6 +39,17 @@ _ALLOWED_EVIDENCE_CLASSES = {
     "CODE_SUPPORTED",
     "REPRODUCED",
     "NOT_ASSESSABLE",
+}
+_EXTERNAL_REVIEW_KINDS = {"COMMENT", "REVIEW", "INLINE_COMMENT"}
+_EXTERNAL_REVIEW_CLASSIFICATIONS = {
+    "accepted",
+    "resolved",
+    "duplicate",
+    "false_positive",
+    "deferred",
+    "insufficient_evidence",
+    "out_of_scope",
+    "stale",
 }
 
 # Every canonical package surface resolves to one and only one authority class.
@@ -108,11 +120,17 @@ class ReviewRequest:
             "repository_id", "base_sha", "head_sha", "merge_base_sha", "changed_files",
             "ci_status", "tested_sha", "evidence", "technical_status", "risk",
             "recommendation", "next_action", "reason_codes", "completion_state",
+            "required_check_names", "protocol_context", "review_facts", "verified_head",
         }
         overlap = forbidden.intersection(self.execution_options)
         if overlap:
             raise ReviewAssemblyError(
                 "execution_options contains authoritative fields: " + ", ".join(sorted(overlap))
+            )
+        unsupported = set(self.execution_options) - {"repository_directory"}
+        if unsupported:
+            raise ReviewAssemblyError(
+                "unsupported execution options: " + ", ".join(sorted(unsupported))
             )
 
 
@@ -208,6 +226,8 @@ class ReviewFacts:
     review_started: str
     review_completed: str
     capabilities: Mapping[str, str]
+    check_enumeration_complete: bool = True
+    review_surface_enumeration_complete: bool = True
 
     def __post_init__(self) -> None:
         for name, sha in (
@@ -221,6 +241,10 @@ class ReviewFacts:
             raise ReviewAssemblyError("repository_id and pr_number must be positive")
         if self.pr_state not in {"open", "closed"}:
             raise ReviewAssemblyError("pr_state must be open or closed")
+        if not isinstance(self.check_enumeration_complete, bool):
+            raise ReviewAssemblyError("check_enumeration_complete must be boolean")
+        if not isinstance(self.review_surface_enumeration_complete, bool):
+            raise ReviewAssemblyError("review_surface_enumeration_complete must be boolean")
         paths = [item.path for item in self.changed_files]
         if len(paths) != len(set(paths)):
             raise ReviewAssemblyError("changed_files contains duplicate paths")
@@ -268,6 +292,28 @@ class ReviewFinding:
 
 
 @dataclass(frozen=True)
+class ExternalReviewDisposition:
+    source_id: str
+    classification: str
+    rationale: str
+    finding_ids: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.source_id:
+            raise ReviewAssemblyError("external review disposition source_id is required")
+        if self.classification not in _EXTERNAL_REVIEW_CLASSIFICATIONS:
+            raise ReviewAssemblyError(
+                f"unknown external review classification: {self.classification}"
+            )
+        if not self.rationale:
+            raise ReviewAssemblyError("external review disposition rationale is required")
+        if len(self.finding_ids) != len(set(self.finding_ids)):
+            raise ReviewAssemblyError(
+                f"duplicate finding reference for external source {self.source_id}"
+            )
+
+
+@dataclass(frozen=True)
 class ReviewAssessment:
     review_summary: str
     findings: tuple[ReviewFinding, ...]
@@ -276,6 +322,7 @@ class ReviewAssessment:
     unverified_areas: tuple[str, ...] = ()
     out_of_scope_observations: tuple[str, ...] = ()
     suggested_actions: tuple[str, ...] = ()
+    external_review_dispositions: tuple[ExternalReviewDisposition, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.review_summary or not self.owner_facing_explanation:
@@ -286,6 +333,9 @@ class ReviewAssessment:
         reviewed = [PurePosixPath(path).as_posix() for path in self.reviewed_files]
         if len(reviewed) != len(set(reviewed)):
             raise ReviewAssemblyError("reviewed_files contains duplicates")
+        sources = [item.source_id for item in self.external_review_dispositions]
+        if len(sources) != len(set(sources)):
+            raise ReviewAssemblyError("duplicate external review disposition")
 
 
 @dataclass(frozen=True)
@@ -294,28 +344,89 @@ class ProtocolContext:
     inspector_repository: str
     inspector_repository_id: int
     inspector_commit_sha: str
+    required_check_names: tuple[str, ...] = ()
 
     @classmethod
-    def from_repository(cls, repository_directory: Path = ROOT) -> "ProtocolContext":
+    def from_verified_repository(
+        cls,
+        repository_directory: Path = ROOT,
+        *,
+        token: str | None = None,
+        api_version: str = "2022-11-28",
+    ) -> "ProtocolContext":
+        """Load protocol metadata only after canonical repository and GitHub verification."""
+
         root = Path(repository_directory).resolve()
+        from .repository import validate_repository
+
+        diagnostics = validate_repository(root)
+        if diagnostics:
+            raise ReviewAssemblyError(
+                "Inspector repository verification failed: "
+                + "; ".join(item.line() for item in diagnostics)
+            )
         version = (root / "CURRENT_VERSION").read_text(encoding="utf-8").strip()
         manifest = _load_json_or_yaml(root / "protocol-manifest.yaml")
         if manifest.get("active_version") != version:
             raise ReviewAssemblyError("CURRENT_VERSION and protocol-manifest active_version differ")
+        if manifest.get("status") != "active":
+            raise ReviewAssemblyError("protocol-manifest status must be active")
+        if manifest.get("entrypoint") != "BOOTSTRAP.md":
+            raise ReviewAssemblyError("protocol-manifest entrypoint must be BOOTSTRAP.md")
         trust = json.loads(
             (root / f"protocols/{version}/trust/INSPECTOR_TRUST_POLICY.json").read_text(
                 encoding="utf-8"
             )
         )
+        if trust.get("protocol_version") != version:
+            raise ReviewAssemblyError("Inspector trust policy version mismatch")
+        repository = trust.get("inspector_repository")
+        repository_id = trust.get("inspector_repository_id")
+        if not isinstance(repository, str) or repository.count("/") != 1:
+            raise ReviewAssemblyError("Inspector trust policy repository is invalid")
+        if not isinstance(repository_id, int) or isinstance(repository_id, bool) or repository_id < 1:
+            raise ReviewAssemblyError("Inspector trust policy repository ID is invalid")
         commit_sha = _run_git(root, "rev-parse", "HEAD")
         if SHA40_RE.fullmatch(commit_sha) is None:
             raise ReviewAssemblyError("Inspector runtime commit SHA is invalid")
+        remote_repository = _repository_from_git_remote(_run_git(root, "remote", "get-url", "origin"))
+        if remote_repository != repository:
+            raise ReviewAssemblyError("Inspector checkout origin does not match the trust policy")
+        repository_url = f"https://api.github.com/repos/{repository}"
+        repository_payload = _fetch_github_json(
+            repository_url, token=token, api_version=api_version
+        )
+        if not isinstance(repository_payload, Mapping):
+            raise ReviewAssemblyError("Inspector repository endpoint must return an object")
+        if (
+            repository_payload.get("full_name") != repository
+            or repository_payload.get("id") != repository_id
+        ):
+            raise ReviewAssemblyError("Inspector GitHub repository identity mismatch")
+        commit_url = f"{repository_url}/commits/{commit_sha}"
+        commit_payload = _fetch_github_json(commit_url, token=token, api_version=api_version)
+        if not isinstance(commit_payload, Mapping) or commit_payload.get("sha") != commit_sha:
+            raise ReviewAssemblyError("Inspector commit evidence is missing or mismatched")
+        required_raw = manifest.get("required_check_names", [])
+        if not isinstance(required_raw, list) or any(
+            not isinstance(item, str) or not item for item in required_raw
+        ):
+            raise ReviewAssemblyError("required_check_names must be a list of non-empty strings")
+        if len(required_raw) != len(set(required_raw)):
+            raise ReviewAssemblyError("required_check_names contains duplicates")
         return cls(
             protocol_version=version,
-            inspector_repository=trust["inspector_repository"],
-            inspector_repository_id=trust["inspector_repository_id"],
+            inspector_repository=repository,
+            inspector_repository_id=repository_id,
             inspector_commit_sha=commit_sha,
+            required_check_names=tuple(required_raw),
         )
+
+    @classmethod
+    def from_repository(cls, repository_directory: Path = ROOT) -> "ProtocolContext":
+        """Compatibility alias; official completion uses from_verified_repository()."""
+
+        return cls.from_verified_repository(repository_directory)
 
 
 @dataclass(frozen=True)
@@ -351,7 +462,7 @@ class ReviewEvidenceSource(Protocol):
 
 @dataclass(frozen=True)
 class GitHubReviewEvidenceSource:
-    """Default production collector using the existing live Head source and local git."""
+    """Production collector with verified checkout and complete GitHub enumeration."""
 
     repository_directory: Path
     head_source: GitHubPullRequestHeadSource
@@ -371,8 +482,7 @@ class GitHubReviewEvidenceSource:
         if (request.target_repository, request.pr_number) != (head.repository, head.pr_number):
             raise ReviewAssemblyError("ReviewRequest does not match the collected live PR")
         directory = Path(self.repository_directory).resolve()
-        if _run_git(directory, "rev-parse", "HEAD") != head.head_sha:
-            raise ReviewAssemblyError("collector checkout HEAD does not match the live PR Head")
+        self._verify_checkout(directory, request, head)
         merge_base = _run_git(directory, "merge-base", head.base_sha, head.head_sha)
         changed_files = _collect_changed_files(directory, merge_base, head.head_sha)
         evidence: list[EvidenceRecord] = []
@@ -413,32 +523,74 @@ class GitHubReviewEvidenceSource:
                 "network": "AVAILABLE",
                 "shell_sandbox": "AVAILABLE",
                 "test_execution": "AVAILABLE_BUT_NOT_USED",
-                "ci_status_logs": "AVAILABLE" if checks else "UNAVAILABLE",
+                "ci_status_logs": "AVAILABLE",
                 "dependency_security_metadata": "UNAVAILABLE",
                 "credential_access": "UNAVAILABLE",
                 "production": "UNAVAILABLE",
             },
+            check_enumeration_complete=True,
+            review_surface_enumeration_complete=True,
         )
+
+    def _verify_checkout(
+        self,
+        directory: Path,
+        request: ReviewRequest,
+        head: VerifiedLivePullRequestHead,
+    ) -> None:
+        if _run_git(directory, "rev-parse", "--is-inside-work-tree") != "true":
+            raise ReviewAssemblyError("target checkout is not a git repository")
+        remote_repository = _repository_from_git_remote(
+            _run_git(directory, "remote", "get-url", "origin")
+        )
+        if remote_repository != request.target_repository:
+            raise ReviewAssemblyError("target checkout origin does not match ReviewRequest")
+        if _run_git(directory, "status", "--porcelain"):
+            raise ReviewAssemblyError("target checkout working tree must be clean")
+        if _run_git(directory, "rev-parse", "HEAD") != head.head_sha:
+            raise ReviewAssemblyError("collector checkout HEAD does not match the live PR Head")
+        _run_git(directory, "cat-file", "-e", f"{head.base_sha}^{{commit}}")
+        _run_git(directory, "cat-file", "-e", f"{head.head_sha}^{{commit}}")
 
     def _collect_checks(
         self, head: VerifiedLivePullRequestHead
     ) -> tuple[tuple[CheckFact, ...], tuple[EvidenceRecord, ...]]:
         url = f"https://api.github.com/repos/{head.repository}/commits/{head.head_sha}/check-runs"
-        payload = _fetch_github_json(url, token=self.token, api_version=self.api_version)
-        raw_runs = payload.get("check_runs", []) if isinstance(payload, Mapping) else []
+        raw_runs = _fetch_all_github_pages(
+            url,
+            token=self.token,
+            api_version=self.api_version,
+            item_key="check_runs",
+        )
+        by_id: dict[int, Mapping[str, Any]] = {}
+        for raw in raw_runs:
+            run_id = raw.get("id")
+            if not isinstance(run_id, int) or isinstance(run_id, bool) or run_id < 1:
+                raise ReviewAssemblyError("collected check run is missing a stable numeric ID")
+            previous = by_id.get(run_id)
+            if previous is not None and dict(previous) != dict(raw):
+                raise ReviewAssemblyError(f"conflicting duplicate check run ID: {run_id}")
+            by_id[run_id] = raw
+
         checks: list[CheckFact] = []
         evidence: list[EvidenceRecord] = []
-        for raw in raw_runs:
-            if not isinstance(raw, Mapping):
-                continue
+        observed_names: set[str] = set()
+        configured = set(self.required_check_names)
+        for run_id, raw in sorted(
+            by_id.items(), key=lambda item: (str(item[1].get("name") or ""), item[0])
+        ):
             tested_sha = raw.get("head_sha")
             if tested_sha != head.head_sha:
                 raise ReviewAssemblyError("collected check is bound to another Head")
             name = raw.get("name")
             status = raw.get("status")
             conclusion = raw.get("conclusion")
-            if not isinstance(name, str) or not name or not isinstance(status, str):
+            if not isinstance(name, str) or not name or not isinstance(status, str) or not status:
                 raise ReviewAssemblyError("collected check is missing required identity")
+            if conclusion is not None and not isinstance(conclusion, str):
+                raise ReviewAssemblyError("collected check conclusion must be string or null")
+            observed_names.add(name)
+            result = _result_from_conclusion(conclusion)
             record = EvidenceRecord.create(
                 kind="CI",
                 repository=head.repository,
@@ -449,12 +601,36 @@ class GitHubReviewEvidenceSource:
                     "name": name,
                     "status": status,
                     "conclusion": conclusion,
+                    "result": result,
                     "tested_sha": tested_sha,
-                    "check_run_id": raw.get("id"),
+                    "check_run_id": run_id,
+                    "enumeration_complete": True,
+                    "missing_required_check": False,
                 },
             )
-            required = not self.required_check_names or name in self.required_check_names
+            required = (not configured) or name in configured
             checks.append(CheckFact(record.evidence_id, name, required, status, conclusion, tested_sha))
+            evidence.append(record)
+
+        for name in sorted(configured - observed_names):
+            record = EvidenceRecord.create(
+                kind="CI",
+                repository=head.repository,
+                pr_number=head.pr_number,
+                head_sha=head.head_sha,
+                source=f"{url}#missing-required:{name}",
+                payload={
+                    "name": name,
+                    "status": "missing",
+                    "conclusion": None,
+                    "result": "UNKNOWN",
+                    "tested_sha": head.head_sha,
+                    "check_run_id": None,
+                    "enumeration_complete": True,
+                    "missing_required_check": True,
+                },
+            )
+            checks.append(CheckFact(record.evidence_id, name, True, "missing", None, head.head_sha))
             evidence.append(record)
         return tuple(checks), tuple(evidence)
 
@@ -463,34 +639,69 @@ class GitHubReviewEvidenceSource:
     ) -> tuple[EvidenceRecord, ...]:
         records: list[EvidenceRecord] = []
         endpoints = (
-            ("COMMENT", f"https://api.github.com/repos/{head.repository}/issues/{head.pr_number}/comments"),
-            ("REVIEW", f"https://api.github.com/repos/{head.repository}/pulls/{head.pr_number}/reviews"),
+            ("COMMENT", "issue_comment", f"https://api.github.com/repos/{head.repository}/issues/{head.pr_number}/comments"),
+            ("REVIEW", "review_submission", f"https://api.github.com/repos/{head.repository}/pulls/{head.pr_number}/reviews"),
+            ("INLINE_COMMENT", "inline_review_comment", f"https://api.github.com/repos/{head.repository}/pulls/{head.pr_number}/comments"),
         )
-        for kind, url in endpoints:
-            payload = _fetch_github_json(url, token=self.token, api_version=self.api_version)
-            if not isinstance(payload, list):
-                raise ReviewAssemblyError(f"{kind.lower()} endpoint did not return a list")
+        seen: dict[tuple[str, int], Mapping[str, Any]] = {}
+        for kind, source_kind, url in endpoints:
+            payload = _fetch_all_github_pages(
+                url, token=self.token, api_version=self.api_version
+            )
             for raw in payload:
-                if not isinstance(raw, Mapping):
+                github_id = raw.get("id")
+                if not isinstance(github_id, int) or isinstance(github_id, bool) or github_id < 1:
+                    raise ReviewAssemblyError(f"{source_kind} is missing a stable numeric ID")
+                key = (kind, github_id)
+                previous = seen.get(key)
+                if previous is not None:
+                    if dict(previous) != dict(raw):
+                        raise ReviewAssemblyError(
+                            f"conflicting duplicate {source_kind} ID: {github_id}"
+                        )
                     continue
+                seen[key] = raw
+                user = raw.get("user")
+                author = user.get("login") if isinstance(user, Mapping) else None
+                body = raw.get("body")
+                if body is None:
+                    body = ""
+                if not isinstance(body, str):
+                    raise ReviewAssemblyError(f"{source_kind} body must be string or null")
+                html_url = raw.get("html_url") or raw.get("url") or url
                 records.append(
                     EvidenceRecord.create(
                         kind=kind,
                         repository=head.repository,
                         pr_number=head.pr_number,
                         head_sha=head.head_sha,
-                        source=str(raw.get("html_url") or raw.get("url") or url),
+                        source=str(html_url),
                         payload={
-                            "id": raw.get("id"),
+                            "github_id": github_id,
+                            "source_kind": source_kind,
                             "state": raw.get("state"),
-                            "user": (raw.get("user") or {}).get("login")
-                            if isinstance(raw.get("user"), Mapping)
-                            else None,
-                            "body": raw.get("body", ""),
+                            "author": author or "unknown",
+                            "body": body,
+                            "path": raw.get("path"),
+                            "line": raw.get("line"),
+                            "start_line": raw.get("start_line"),
+                            "commit_id": raw.get("commit_id"),
+                            "in_reply_to_id": raw.get("in_reply_to_id"),
+                            "html_url": str(html_url),
+                            "enumeration_complete": True,
                         },
                     )
                 )
-        return tuple(records)
+        return tuple(
+            sorted(
+                records,
+                key=lambda item: (
+                    item.kind,
+                    int(item.payload.get("github_id") or 0),
+                    item.evidence_id,
+                ),
+            )
+        )
 
 
 def parse_review_assessment(value: Mapping[str, Any]) -> ReviewAssessment:
@@ -525,6 +736,15 @@ def parse_review_assessment(value: Mapping[str, Any]) -> ReviewAssessment:
         )
         for item in value["findings"]
     )
+    dispositions = tuple(
+        ExternalReviewDisposition(
+            source_id=item["source_id"],
+            classification=item["classification"],
+            rationale=item["rationale"],
+            finding_ids=tuple(item.get("finding_ids", [])),
+        )
+        for item in value.get("external_review_dispositions", [])
+    )
     return ReviewAssessment(
         review_summary=value["review_summary"],
         findings=findings,
@@ -533,6 +753,7 @@ def parse_review_assessment(value: Mapping[str, Any]) -> ReviewAssessment:
         unverified_areas=tuple(value.get("unverified_areas", [])),
         out_of_scope_observations=tuple(value.get("out_of_scope_observations", [])),
         suggested_actions=tuple(value.get("suggested_actions", [])),
+        external_review_dispositions=dispositions,
     )
 
 
@@ -579,6 +800,10 @@ def assemble_review_package(
         raise ReviewAssemblyError("inspection_profile must be minimal or strict")
     if inspection_profile == "strict" and governance_evidence is None:
         raise ReviewAssemblyError("strict profile requires governance evidence")
+    if not facts.check_enumeration_complete:
+        raise ReviewAssemblyError("check-run enumeration is incomplete")
+    if not facts.review_surface_enumeration_complete:
+        raise ReviewAssemblyError("review-surface enumeration is incomplete")
 
     evidence_by_id = _validate_evidence_catalog(facts)
     findings = [_finding_record(item, evidence_by_id, facts) for item in assessment.findings]
@@ -606,16 +831,10 @@ def assemble_review_package(
         }
         for index, item in enumerate(facts.checks, 1)
     ]
-    external_sources = [
-        {
-            "source_id": item.evidence_id,
-            "source_type": item.kind,
-            "source_name": item.source,
-            "source_status": "INSPECTED",
-        }
-        for item in facts.evidence_catalog
-        if item.kind in {"COMMENT", "REVIEW"}
-    ]
+    external_intake, external_reconciliation = _external_review_sections(
+        facts, assessment, findings
+    )
+    external_complete = external_reconciliation["collection_status"] == "COMPLETE"
     capabilities = {
         "repository_read": "UNAVAILABLE",
         "pr_metadata_diff": "UNAVAILABLE",
@@ -647,7 +866,7 @@ def assemble_review_package(
             "inspector_commit_sha": protocol_context.inspector_commit_sha,
             "review_started": facts.review_started,
             "review_completed": facts.review_completed,
-            "review_mode": "FULL" if coverage_complete else "PARTIAL",
+            "review_mode": "FULL" if coverage_complete and external_complete else "PARTIAL",
             "execution_mode": "CI_EVIDENCE_ONLY" if facts.checks else "NONE",
             "review_validity": "CURRENT",
         },
@@ -705,6 +924,7 @@ def assemble_review_package(
             "intent_fit_result": (
                 "satisfied"
                 if coverage_complete
+                and external_complete
                 and all((not check.required) or check.result == "PASS" for check in facts.checks)
                 and not any(item["blocking"] for item in findings)
                 else "not_assessable"
@@ -720,25 +940,8 @@ def assemble_review_package(
             ] if coverage_complete and facts.evidence_catalog else [],
             "unsupported_claims": [],
         },
-        "external_review_intake": {"sources_inspected": external_sources, "suggestions": []},
-        "external_review_reconciliation": {
-            "collection_status": "COMPLETE",
-            "counts": {
-                "accepted": 0,
-                "deferred": 0,
-                "duplicate": 0,
-                "false_positive": 0,
-                "insufficient_evidence": 0,
-                "out_of_scope": 0,
-                "resolved": 0,
-                "stale": 0,
-            },
-            "inspected_total": len(external_sources),
-            "open_bot_sources_total": 0,
-            "suggestion_results": [],
-            "uninspected_source_ids": [],
-            "valid_blocking_finding_ids": [item["finding_id"] for item in findings if item["blocking"]],
-        },
+        "external_review_intake": external_intake,
+        "external_review_reconciliation": external_reconciliation,
         # Seed values are overwritten below by the sole decision authority.
         "decision": {
             "technical_status": "YELLOW_CHANGES_OR_VERIFICATION_REQUIRED",
@@ -823,6 +1026,152 @@ def render_unverified_preview(assessment: ReviewAssessment) -> dict[str, Any]:
         ],
     }
 
+
+
+def _external_review_sections(
+    facts: ReviewFacts,
+    assessment: ReviewAssessment,
+    findings: Sequence[Mapping[str, Any]],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    external_records = {
+        item.evidence_id: item
+        for item in facts.evidence_catalog
+        if item.kind in _EXTERNAL_REVIEW_KINDS
+    }
+    finding_by_id = {item["finding_id"]: item for item in findings}
+    dispositions = {item.source_id: item for item in assessment.external_review_dispositions}
+    unknown_sources = sorted(set(dispositions) - set(external_records))
+    if unknown_sources:
+        raise ReviewAssemblyError(
+            "external review disposition references unknown source: "
+            + ", ".join(unknown_sources)
+        )
+    for disposition in dispositions.values():
+        record = external_records[disposition.source_id]
+        if record.kind not in _EXTERNAL_REVIEW_KINDS:
+            raise ReviewAssemblyError(
+                f"external review source {disposition.source_id} has the wrong kind"
+            )
+        unknown_findings = sorted(set(disposition.finding_ids) - set(finding_by_id))
+        if unknown_findings:
+            raise ReviewAssemblyError(
+                f"external review source {disposition.source_id} references unknown finding: "
+                + ", ".join(unknown_findings)
+            )
+        if disposition.classification == "accepted" and not disposition.finding_ids:
+            raise ReviewAssemblyError(
+                f"accepted external source {disposition.source_id} requires a linked finding"
+            )
+
+    collected_ids = set(external_records)
+    reconciled_ids = set(dispositions)
+    uninspected = sorted(collected_ids - reconciled_ids)
+    counts = {name: 0 for name in sorted(_EXTERNAL_REVIEW_CLASSIFICATIONS)}
+    for item in dispositions.values():
+        counts[item.classification] += 1
+
+    sources: list[dict[str, Any]] = []
+    suggestions: list[dict[str, Any]] = []
+    suggestion_results: list[dict[str, Any]] = []
+    valid_blocking: set[str] = set()
+    for index, source_id in enumerate(sorted(external_records), 1):
+        record = external_records[source_id]
+        payload = record.payload
+        disposition = dispositions.get(source_id)
+        classification = disposition.classification if disposition else "inspected_no_action"
+        author = str(payload.get("author") or "unknown")
+        body = str(payload.get("body") or "")
+        source_kind = str(payload.get("source_kind") or "other")
+        object_type = {
+            "issue_comment": "issue_comment",
+            "review_submission": "review_submission",
+            "inline_review_comment": "review_comment",
+        }.get(source_kind, "review_comment")
+        source_type = {
+            "issue_comment": "github_issue_comment",
+            "review_submission": "human_review_comment",
+            "inline_review_comment": "github_pr_review_comment",
+        }.get(source_kind, "other")
+        github_id = str(payload.get("github_id") or source_id)
+        sources.append(
+            {
+                "source_id": source_id,
+                "source_type": source_type,
+                "author": author,
+                "is_bot": author.endswith("[bot]"),
+                "url": str(payload.get("html_url") or record.source),
+                "inspected": True,
+                "github_source_key": f"{source_kind}:{github_id}",
+                "github_object_type": object_type,
+                "github_object_id": github_id,
+                "target_repository_id": facts.repository_id,
+                "pr_number": facts.pr_number,
+                "reviewed_head_sha": facts.head_sha,
+                "content_sha256": _sha256(body.encode("utf-8")),
+                "receipt_id": _sha256(_canonical_json_bytes(payload)),
+                "triage_disposition": classification,
+            }
+        )
+        if disposition is None:
+            continue
+        linked = list(disposition.finding_ids)
+        if disposition.classification == "accepted":
+            valid_blocking.update(
+                finding_id
+                for finding_id in linked
+                if finding_by_id[finding_id]["blocking"]
+            )
+        repair_handoff = None
+        if disposition.classification == "accepted":
+            repair_handoff = {
+                "smallest_safe_repair": [disposition.rationale],
+                "required_validation": ["Run exact-Head validation after the repair."],
+                "do_not_change": [],
+                "overclaim_guards": ["Do not claim completion before exact-Head validation."],
+            }
+        suggestions.append(
+            {
+                "external_suggestion_id": f"EXT-{index:03d}",
+                "source_id": source_id,
+                "author": author,
+                "is_bot": author.endswith("[bot]"),
+                "claim_type": "other",
+                "claim_summary": disposition.rationale,
+                "location": {
+                    "path": payload.get("path"),
+                    "line": payload.get("line"),
+                },
+                "evidence_refs": [source_id],
+                "linked_finding_ids": linked,
+                "triage_decision": disposition.classification,
+                "triage_reason": disposition.rationale,
+                "repair_handoff": repair_handoff,
+            }
+        )
+        suggestion_results.append(
+            {
+                "source_id": source_id,
+                "classification": disposition.classification,
+                "linked_finding_ids": linked,
+                "repair_authorized": disposition.classification == "accepted",
+                "duplicate_confirmed": disposition.classification == "duplicate",
+            }
+        )
+
+    reconciliation = {
+        "collection_status": "COMPLETE" if not uninspected else "INCOMPLETE",
+        "counts": counts,
+        "inspected_total": len(reconciled_ids),
+        "open_bot_sources_total": sum(
+            1
+            for source in sources
+            if source["is_bot"] and source["source_id"] in uninspected
+        ),
+        "suggestion_results": suggestion_results,
+        "uninspected_source_ids": uninspected,
+        "valid_blocking_finding_ids": sorted(valid_blocking),
+    }
+    return {"sources_inspected": sources, "suggestions": suggestions}, reconciliation
 
 def _validate_evidence_catalog(facts: ReviewFacts) -> dict[str, EvidenceRecord]:
     by_id: dict[str, EvidenceRecord] = {}
@@ -985,6 +1334,13 @@ def _run_git(directory: Path, *args: str) -> str:
 
 
 def _fetch_github_json(url: str, *, token: str | None, api_version: str) -> Any:
+    payload, _ = _fetch_github_page(url, token=token, api_version=api_version)
+    return payload
+
+
+def _fetch_github_page(
+    url: str, *, token: str | None, api_version: str
+) -> tuple[Any, str | None]:
     headers = {
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": api_version,
@@ -997,7 +1353,8 @@ def _fetch_github_json(url: str, *, token: str | None, api_version: str) -> Any:
         with urllib.request.urlopen(request, timeout=20) as response:
             if getattr(response, "status", 200) != 200:
                 raise ReviewAssemblyError(f"GitHub endpoint returned HTTP {response.status}")
-            return json.loads(response.read().decode("utf-8"))
+            payload = json.loads(response.read().decode("utf-8"))
+            link = response.headers.get("Link")
     except ReviewAssemblyError:
         raise
     except (
@@ -1008,7 +1365,110 @@ def _fetch_github_json(url: str, *, token: str | None, api_version: str) -> Any:
         json.JSONDecodeError,
     ) as exc:
         raise ReviewAssemblyError(f"GitHub evidence collection failed: {exc}") from exc
+    return payload, _github_next_link(link)
 
+
+def _fetch_all_github_pages(
+    initial_url: str,
+    *,
+    token: str | None,
+    api_version: str,
+    item_key: str | None = None,
+    max_pages: int = 100,
+) -> tuple[Mapping[str, Any], ...]:
+    if max_pages < 1:
+        raise ReviewAssemblyError("max_pages must be positive")
+    next_url: str | None = _with_per_page(initial_url, 100)
+    seen_urls: set[str] = set()
+    items: list[Mapping[str, Any]] = []
+    expected_total: int | None = None
+    page_count = 0
+    while next_url is not None:
+        if next_url in seen_urls:
+            raise ReviewAssemblyError("GitHub pagination loop detected")
+        seen_urls.add(next_url)
+        page_count += 1
+        if page_count > max_pages:
+            raise ReviewAssemblyError("GitHub pagination exceeded the maximum page count")
+        payload, following = _fetch_github_page(
+            next_url, token=token, api_version=api_version
+        )
+        if following is not None and _pagination_endpoint(following) != _pagination_endpoint(initial_url):
+            raise ReviewAssemblyError("GitHub pagination next link changed endpoint")
+        if item_key is None:
+            if not isinstance(payload, list):
+                raise ReviewAssemblyError("paginated GitHub list endpoint returned a non-list payload")
+            page_items = payload
+        else:
+            if not isinstance(payload, Mapping):
+                raise ReviewAssemblyError("paginated GitHub mapping endpoint returned a non-object payload")
+            page_items = payload.get(item_key)
+            if not isinstance(page_items, list):
+                raise ReviewAssemblyError(f"GitHub payload field {item_key} must be a list")
+            total = payload.get("total_count")
+            if not isinstance(total, int) or isinstance(total, bool) or total < 0:
+                raise ReviewAssemblyError("GitHub mapping endpoint total_count is missing or invalid")
+            if expected_total is None:
+                expected_total = total
+            elif total != expected_total:
+                raise ReviewAssemblyError("GitHub pagination total_count changed between pages")
+        for item in page_items:
+            if not isinstance(item, Mapping):
+                raise ReviewAssemblyError("GitHub paginated item must be an object")
+            items.append(item)
+        next_url = following
+    if item_key is not None and expected_total != len(items):
+        raise ReviewAssemblyError(
+            f"GitHub pagination total_count mismatch: expected {expected_total}, collected {len(items)}"
+        )
+    return tuple(items)
+
+
+def _pagination_endpoint(url: str) -> tuple[str, str, str]:
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or not parsed.netloc or not parsed.path:
+        raise ReviewAssemblyError("GitHub pagination URL is malformed")
+    return parsed.scheme, parsed.netloc, parsed.path
+
+
+def _with_per_page(url: str, per_page: int) -> str:
+    parsed = urlparse(url)
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    query["per_page"] = str(per_page)
+    return urlunparse(parsed._replace(query=urlencode(query)))
+
+
+def _github_next_link(header: str | None) -> str | None:
+    if not header:
+        return None
+    found: str | None = None
+    for part in header.split(","):
+        match = re.match(r'\s*<([^>]+)>\s*;\s*rel="([^"]+)"(?:\s*;.*)?\s*$', part)
+        if match is None:
+            if 'rel="next"' in part:
+                raise ReviewAssemblyError("malformed GitHub pagination Link header")
+            continue
+        url, relation = match.groups()
+        if relation == "next":
+            if found is not None:
+                raise ReviewAssemblyError("multiple GitHub pagination next links")
+            found = url
+    return found
+
+
+
+def _repository_from_git_remote(value: str) -> str:
+    remote = value.strip()
+    patterns = (
+        r"https://github\.com/([^/]+/[^/]+?)(?:\.git)?$",
+        r"git@github\.com:([^/]+/[^/]+?)(?:\.git)?$",
+        r"ssh://git@github\.com/([^/]+/[^/]+?)(?:\.git)?$",
+    )
+    for pattern in patterns:
+        match = re.fullmatch(pattern, remote)
+        if match:
+            return match.group(1)
+    raise ReviewAssemblyError("git origin must be a canonical github.com repository URL")
 
 def _canonical_json_bytes(value: Any) -> bytes:
     try:

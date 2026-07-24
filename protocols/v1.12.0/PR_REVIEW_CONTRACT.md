@@ -12,8 +12,9 @@ The caller supplies only `ReviewRequest` and bounded `ReviewAssessment`. The off
 
 ```text
 ReviewRequest + ReviewAssessment
-→ ReviewEvidenceSource.collect()
-→ ReviewFacts
+→ internal OfficialReviewRuntime factory
+→ verified ProtocolContext + complete paginated GitHub collection
+→ ReviewFacts + explicit external-review reconciliation
 → assemble_review_package()
 → CanonicalReviewPackage
 → project_decision
@@ -23,7 +24,9 @@ ReviewRequest + ReviewAssessment
 → official_owner_delivery
 ```
 
-There is one package assembler, one canonical projection authority, one artifact builder, one bundle validator, and one owner-delivery authority.
+There is one package assembler, one canonical projection authority, one artifact builder, one bundle validator, and one owner-delivery authority. Public `complete_review` accepts no evidence source, facts, live-Head object, or protocol context. A private `_complete_review_with_runtime` seam exists only for deterministic internal tests.
+
+All check runs, issue comments, review submissions, and inline review comments are enumerated through bounded pagination. Missing configured required checks are represented as required `UNKNOWN` checks; incomplete enumeration fails assembly. Every collected external review source must receive an explicit bounded disposition before reconciliation is `COMPLETE`; otherwise technical Green is blocked.
 
 ## Dual profiles
 
@@ -58,4 +61,4 @@ PR #12 is historical provenance only. Its recorded review state `COMMENTED` did 
 
 ## Review-package authority boundary
 
-The v1.12 runtime uses ordinary typed immutable values. Machine facts, reviewer assessment, deterministic derivations, and protocol metadata are explicitly classified by `FIELD_AUTHORITY`. A raw file, path, mapping, arbitrary JSON object, or prebuilt package cannot enter official completion. The old signature returns `PRI-PACKAGE-AUTHORITY-001`.
+The v1.12 runtime uses ordinary typed immutable values and one internally constructed runtime. Machine facts, reviewer assessment, deterministic derivations, and protocol metadata are explicitly classified by `FIELD_AUTHORITY`. A raw file, path, mapping, arbitrary JSON object, or prebuilt package cannot enter official completion. The old signature returns `PRI-PACKAGE-AUTHORITY-001`.

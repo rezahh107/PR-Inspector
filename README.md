@@ -18,7 +18,7 @@ Repository authority is determined from live `main`. A post-package integration 
 
 The active runtime accepts caller intent as `ReviewRequest` and bounded reviewer analysis as `ReviewAssessment`. One `ReviewEvidenceSource` collects exact repository/PR identity, Base, Head, merge base, changed files, checks, review surfaces, timestamps, and evidence. `assemble_review_package` deterministically creates one `CanonicalReviewPackage`; `review-package.json` is an official output rather than an authoritative input.
 
-The `minimal` profile requires correctness evidence such as exact-Head required checks but no cryptographic, key-management, GitHub-App, or repository-settings framework. The `strict` profile may additionally require governance evidence. Preview rendering remains a non-authoritative `DECLARATION`. Raw paths, mappings, arbitrary JSON, and prebuilt package objects cannot enter public completion.
+The `minimal` profile requires correctness evidence such as exact-Head required checks but no cryptographic, key-management, GitHub-App, or repository-settings framework. The official runtime constructs its evidence source and verified protocol context internally, paginates all check and review surfaces, represents missing configured checks as `UNKNOWN`, and blocks Green until every collected external review source is reconciled. The `strict` profile may additionally require governance evidence. Preview rendering remains a non-authoritative `DECLARATION`. Raw paths, mappings, arbitrary JSON, and prebuilt package objects cannot enter public completion.
 
 The immutable `v1.11.1` snapshot remains historical and retains only its original assurance. It is not retroactively reclassified.
 

@@ -4,7 +4,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from pr_inspector._official_head import GitHubPullRequestHeadSource, VerifiedLivePullRequestHead
-from pr_inspector.official_review import complete_review
+from pr_inspector.official_review import (
+    OfficialReviewRuntime,
+    _complete_review_with_runtime,
+)
 from pr_inspector.verified_review import (
     CanonicalReviewPackage,
     ChangedFile,
@@ -261,13 +264,15 @@ def complete_fixture_review(
         governance_evidence=governance_evidence,
         sequence_enforcement=sequence_enforcement,
     )
-    result = complete_review(
+    result = _complete_review_with_runtime(
         runtime.request,
         runtime.assessment,
         output,
-        evidence_source=runtime.source,
-        governance_evidence=governance_evidence,
-        sequence_enforcement=sequence_enforcement,
-        _protocol_context=runtime.context,
+        runtime=OfficialReviewRuntime(
+            runtime.source,
+            runtime.context,
+            governance_evidence,
+            sequence_enforcement,
+        ),
     )
     return result, runtime.package

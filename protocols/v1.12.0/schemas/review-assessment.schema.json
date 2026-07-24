@@ -5,11 +5,20 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "review_summary": {"type": "string", "minLength": 1},
-    "owner_facing_explanation": {"type": "string", "minLength": 1},
+    "review_summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "owner_facing_explanation": {
+      "type": "string",
+      "minLength": 1
+    },
     "reviewed_files": {
       "type": "array",
-      "items": {"type": "string", "minLength": 1},
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
       "uniqueItems": true,
       "default": []
     },
@@ -19,40 +28,159 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "finding_id": {"type": "string", "pattern": "^[A-Z][A-Z0-9_-]{2,63}$"},
-          "title": {"type": "string", "minLength": 1},
-          "description": {"type": "string", "minLength": 1},
-          "severity": {"enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"]},
-          "blocking": {"type": "boolean"},
-          "reviewer_rationale": {"type": "string", "minLength": 1},
+          "finding_id": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_-]{2,63}$"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "severity": {
+            "enum": [
+              "CRITICAL",
+              "HIGH",
+              "MEDIUM",
+              "LOW"
+            ]
+          },
+          "blocking": {
+            "type": "boolean"
+          },
+          "reviewer_rationale": {
+            "type": "string",
+            "minLength": 1
+          },
           "evidence_class": {
-            "enum": ["HUMAN_JUDGMENT", "HYPOTHESIS", "CODE_SUPPORTED", "REPRODUCED", "NOT_ASSESSABLE"],
+            "enum": [
+              "HUMAN_JUDGMENT",
+              "HYPOTHESIS",
+              "CODE_SUPPORTED",
+              "REPRODUCED",
+              "NOT_ASSESSABLE"
+            ],
             "default": "HUMAN_JUDGMENT"
           },
           "evidence_refs": {
             "type": "array",
-            "items": {"type": "string"},
+            "items": {
+              "type": "string"
+            },
             "uniqueItems": true,
             "default": []
           },
           "affected_surfaces": {
             "type": "array",
-            "items": {"type": "string"},
+            "items": {
+              "type": "string"
+            },
             "uniqueItems": true,
             "default": []
           },
-          "suggested_action": {"type": "string"},
-          "recommended_test": {"type": "string"},
-          "relevant_code": {"type": "string"},
-          "rule_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
-          "symbol": {"type": "string"}
+          "suggested_action": {
+            "type": "string"
+          },
+          "recommended_test": {
+            "type": "string"
+          },
+          "relevant_code": {
+            "type": "string"
+          },
+          "rule_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "symbol": {
+            "type": "string"
+          }
         },
-        "required": ["finding_id", "title", "description", "severity", "blocking", "reviewer_rationale"]
+        "required": [
+          "finding_id",
+          "title",
+          "description",
+          "severity",
+          "blocking",
+          "reviewer_rationale"
+        ]
       }
     },
-    "unverified_areas": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "default": []},
-    "out_of_scope_observations": {"type": "array", "items": {"type": "string"}, "default": []},
-    "suggested_actions": {"type": "array", "items": {"type": "string"}, "default": []}
+    "unverified_areas": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "default": []
+    },
+    "out_of_scope_observations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "suggested_actions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "external_review_dispositions": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "classification": {
+            "enum": [
+              "accepted",
+              "resolved",
+              "duplicate",
+              "false_positive",
+              "deferred",
+              "insufficient_evidence",
+              "out_of_scope",
+              "stale"
+            ]
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1
+          },
+          "finding_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_-]{2,63}$"
+            },
+            "uniqueItems": true,
+            "default": []
+          }
+        },
+        "required": [
+          "source_id",
+          "classification",
+          "rationale"
+        ]
+      }
+    }
   },
-  "required": ["review_summary", "findings", "owner_facing_explanation"]
+  "required": [
+    "review_summary",
+    "findings",
+    "owner_facing_explanation"
+  ]
 }

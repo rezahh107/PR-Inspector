@@ -10,7 +10,7 @@
   "base_sha": "273ba7d4a6930015eb07c32c5de7210fa4692b1c",
   "head_binding": "derived_at_runtime",
   "change_class": "protocol_authority_migration",
-  "scope_revision": "sha256:6bfad946ff7d7674d02dd40a1aaee09fa61f4c063a7784fe4b7726b6ed4548e3",
+  "scope_revision": "sha256:478c2a6f151576038569872abc590f7292b85a87c8f3460cabb13c1b8fad6394",
   "committed_paths": [
     ".github/workflows/validate-repository.yml",
     "CHANGELOG.md",
@@ -83,6 +83,7 @@
     "tests/test_planning_governance_authority.py",
     "tests/test_render_cli_owner_delivery.py",
     "tests/test_repository_closure.py",
+    "tests/test_v1_12_evidence_completeness.py",
     "tests/test_v1_12_verified_review_authority.py",
     "tests/verified_review_test_support.py"
   ],
