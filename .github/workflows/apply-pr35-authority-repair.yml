@@ -57,7 +57,10 @@ jobs:
         run: python -m pip install ".[dev]"
 
       - name: Validate versioned repository
-        run: python scripts/validate_repository_v2.py
+        shell: bash
+        run: |
+          set -o pipefail
+          python scripts/validate_repository_v2.py 2>&1 | tail -80
 
       - name: Validate static planning state
         run: python scripts/validate_planning_governance.py --check-static
