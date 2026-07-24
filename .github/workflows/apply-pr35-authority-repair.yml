@@ -110,4 +110,19 @@ jobs:
           test -z "$(git status --porcelain)"
 
       - name: Push validated final state
-        run: git push origin "HEAD:${HEAD_BRANCH}"
+        shell: bash
+        run: |
+          set +e
+          git push origin "HEAD:refs/heads/${HEAD_BRANCH}" >/tmp/push.log 2>&1
+          status=$?
+          cat /tmp/push.log
+          exit "$status"
+
+      - name: Upload push diagnostic
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pr35-push-diagnostic-${{ github.run_id }}
+          path: /tmp/push.log
+          if-no-files-found: error
+          retention-days: 1
