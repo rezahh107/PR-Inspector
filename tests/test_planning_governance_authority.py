@@ -257,6 +257,7 @@ def test_non_current_existing_scope_with_stale_identity_is_rejected(tmp_path):
 def test_fabricated_prefix_shaped_evidence_does_not_resolve():
     registry = read(REGISTRY_PATH)
     package = current_package(registry)
+    package["status"] = "implementing"
     package["evidence_refs"] = ["exact_head:run-1"]
     found = codes(validate_registry(registry, registry_schema()))
     assert "PINS-EVIDENCE-REFERENCE-INVALID" in found

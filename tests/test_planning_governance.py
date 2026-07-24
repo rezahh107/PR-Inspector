@@ -196,8 +196,10 @@ def test_instruction_like_strings_remain_data():
 
 
 def test_false_completion_in_unbounded_prose_has_no_authority():
-    text = (ROOT / "planning/NEXT_WORK.md").read_text(encoding="utf-8") + "\nPINS-PLAN-001 is complete.\n"
-    assert extract_bounded_json(text, *NEXT_MARKERS)["current_task_status"] == "in_progress"
+    canonical = (ROOT / "planning/NEXT_WORK.md").read_text(encoding="utf-8")
+    expected = extract_bounded_json(canonical, *NEXT_MARKERS)
+    text = canonical + "\nPINS-PLAN-001 is complete.\n"
+    assert extract_bounded_json(text, *NEXT_MARKERS) == expected
 
 
 def add_work_package(
@@ -259,6 +261,7 @@ def test_lifecycle_states_require_state_specific_evidence(status):
     registry = read("planning/tasks/task-registry.v1.json")
     package = current_package(registry)
     package["status"] = status
+    package["evidence_refs"] = []
     package["current"] = status != "closed"
     if status == "closed":
         package["current"] = False
@@ -271,7 +274,15 @@ def test_lifecycle_states_require_state_specific_evidence(status):
 def test_evidence_cannot_lead_the_lifecycle_state():
     registry_schema, _, _ = schemas()
     registry = read("planning/tasks/task-registry.v1.json")
-    current_package(registry)["evidence_refs"] = ["exact_head:run-1"]
+    package = current_package(registry)
+    package["status"] = "implementing"
+    exact_head_evidence = next(
+        record["evidence_id"]
+        for record in registry["evidence_records"]
+        if record["work_package_id"] == package["work_package_id"]
+        and record["evidence_type"] == "exact_head_ci"
+    )
+    package["evidence_refs"] = [exact_head_evidence]
     assert "PINS-WP-LIFECYCLE-INVALID" in codes(validate_registry(registry, registry_schema))
 
 

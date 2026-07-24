@@ -20,7 +20,7 @@
       "initiative_id": "PRINS-VERIFIED-REVIEW-AUTHORITY",
       "program_id": "PRINS-GOVERNED-EXECUTION-PROGRAM",
       "title": "Verified Review Authority Boundary",
-      "status": "active"
+      "status": "complete"
     }
   ],
   "tasks": [
@@ -53,11 +53,15 @@
       "task_id": "PINS-VERIFIED-REVIEW-001",
       "initiative_id": "PRINS-VERIFIED-REVIEW-AUTHORITY",
       "title": "Replace caller-authored official packages with verified evidence-bound assembly",
-      "status": "in_progress",
+      "status": "complete",
       "implementation_authorized": true,
       "depends_on": [],
-      "completion_claimed": false,
-      "evidence_refs": []
+      "completion_claimed": true,
+      "evidence_refs": [
+        "PINS-VERIFIED-REVIEW-001-WP01-EVIDENCE-EXACT-HEAD-CI-001",
+        "PINS-VERIFIED-REVIEW-001-WP01-EVIDENCE-MERGE-001",
+        "PINS-VERIFIED-REVIEW-001-WP01-EVIDENCE-POST-MERGE-001"
+      ]
     }
   ],
   "work_packages": [
@@ -81,14 +85,18 @@
       "work_package_id": "PINS-VERIFIED-REVIEW-001-WP01",
       "task_id": "PINS-VERIFIED-REVIEW-001",
       "title": "v1.12 verified review package migration",
-      "status": "implementing",
+      "status": "post_merge_verified",
       "depends_on": [],
       "current": true,
       "scope_ref": "planning/scopes/PINS-VERIFIED-REVIEW-001.scope.json",
       "impact_refs": [
         "planning/progress/impacts/PINS-VERIFIED-REVIEW-001.implementation.json"
       ],
-      "evidence_refs": []
+      "evidence_refs": [
+        "PINS-VERIFIED-REVIEW-001-WP01-EVIDENCE-EXACT-HEAD-CI-001",
+        "PINS-VERIFIED-REVIEW-001-WP01-EVIDENCE-MERGE-001",
+        "PINS-VERIFIED-REVIEW-001-WP01-EVIDENCE-POST-MERGE-001"
+      ]
     }
   ],
   "evidence_records": [
@@ -120,6 +128,51 @@
       "impact_ref": "planning/progress/impacts/PINS-PLAN-001.implementation.json",
       "producer": "github_merge_api",
       "source_ref": "github:pull-request:34:merge",
+      "verified": true
+    },
+    {
+      "evidence_id": "PINS-VERIFIED-REVIEW-001-WP01-EVIDENCE-EXACT-HEAD-CI-001",
+      "evidence_type": "exact_head_ci",
+      "repository": "rezahh107/PR-Inspector",
+      "task_id": "PINS-VERIFIED-REVIEW-001",
+      "work_package_id": "PINS-VERIFIED-REVIEW-001-WP01",
+      "base_sha": "273ba7d4a6930015eb07c32c5de7210fa4692b1c",
+      "head_sha": "fcb6fdeba236d6d32d925b44d9ac5f5b129a1fd5",
+      "merge_commit_sha": null,
+      "scope_ref": "planning/scopes/PINS-VERIFIED-REVIEW-001.scope.json",
+      "impact_ref": "planning/progress/impacts/PINS-VERIFIED-REVIEW-001.implementation.json",
+      "producer": "github_actions",
+      "source_ref": "github-actions:run:30086521605:job:89459874781",
+      "verified": true
+    },
+    {
+      "evidence_id": "PINS-VERIFIED-REVIEW-001-WP01-EVIDENCE-MERGE-001",
+      "evidence_type": "merge",
+      "repository": "rezahh107/PR-Inspector",
+      "task_id": "PINS-VERIFIED-REVIEW-001",
+      "work_package_id": "PINS-VERIFIED-REVIEW-001-WP01",
+      "base_sha": "273ba7d4a6930015eb07c32c5de7210fa4692b1c",
+      "head_sha": "fcb6fdeba236d6d32d925b44d9ac5f5b129a1fd5",
+      "merge_commit_sha": "be41cc8c4fad89a79f2b43b9dfa8a9dc42ee4684",
+      "scope_ref": "planning/scopes/PINS-VERIFIED-REVIEW-001.scope.json",
+      "impact_ref": "planning/progress/impacts/PINS-VERIFIED-REVIEW-001.implementation.json",
+      "producer": "github_merge_api",
+      "source_ref": "github:pull-request:35:merge",
+      "verified": true
+    },
+    {
+      "evidence_id": "PINS-VERIFIED-REVIEW-001-WP01-EVIDENCE-POST-MERGE-001",
+      "evidence_type": "post_merge_verification",
+      "repository": "rezahh107/PR-Inspector",
+      "task_id": "PINS-VERIFIED-REVIEW-001",
+      "work_package_id": "PINS-VERIFIED-REVIEW-001-WP01",
+      "base_sha": "273ba7d4a6930015eb07c32c5de7210fa4692b1c",
+      "head_sha": "fcb6fdeba236d6d32d925b44d9ac5f5b129a1fd5",
+      "merge_commit_sha": "be41cc8c4fad89a79f2b43b9dfa8a9dc42ee4684",
+      "scope_ref": "planning/scopes/PINS-VERIFIED-REVIEW-001.scope.json",
+      "impact_ref": "planning/progress/impacts/PINS-VERIFIED-REVIEW-001.implementation.json",
+      "producer": "post_merge_reconciler",
+      "source_ref": "github-actions:run:30093617391:job:89482333234",
       "verified": true
     }
   ],
