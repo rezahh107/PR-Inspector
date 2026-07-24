@@ -37,6 +37,14 @@ jobs:
           gzip -dc /tmp/pr35-authority-repair.patch.gz > /tmp/pr35-authority-repair.patch
           git apply --check /tmp/pr35-authority-repair.patch
           git apply /tmp/pr35-authority-repair.patch
+
+          test "$(find .github/pr35-authority-repair -maxdepth 1 -type f -name 'test-chunk-*' | wc -l)" -eq 2
+          cat .github/pr35-authority-repair/test-chunk-* > /tmp/pr35-evidence-test.patch.gz
+          echo "8e0cb8d4ea894ade4635cc1b05daef3228e76fb01e277e1abf859517b67b4077  /tmp/pr35-evidence-test.patch.gz" | sha256sum -c -
+          gzip -dc /tmp/pr35-evidence-test.patch.gz > /tmp/pr35-evidence-test.patch
+          git apply --check /tmp/pr35-evidence-test.patch
+          git apply /tmp/pr35-evidence-test.patch
+
           rm -rf \
             .github/pr35-authority-repair \
             .github/workflows/apply-pr35-authority-repair.yml
