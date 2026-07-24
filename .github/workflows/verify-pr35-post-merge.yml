@@ -1,4 +1,4 @@
-name: Verify PR35 post-merge main
+name: Validate PR35 lifecycle reconciliation
 
 on:
   pull_request:
@@ -8,22 +8,44 @@ permissions:
   contents: read
 
 jobs:
-  verify-pr35-main:
+  validate-reconciliation:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Check out exact PR35 merge commit
+      - name: Check out exact reconciliation Head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
-          ref: be41cc8c4fad89a79f2b43b9dfa8a9dc42ee4684
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Verify exact main identity
+      - name: Verify bounded reconciliation delta
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "be41cc8c4fad89a79f2b43b9dfa8a9dc42ee4684"
-          test "$(cat CURRENT_VERSION)" = "v1.12.0"
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          git diff --name-only --no-renames \
+            be41cc8c4fad89a79f2b43b9dfa8a9dc42ee4684..HEAD \
+            | sort > /tmp/actual-paths.txt
+          cat > /tmp/expected-paths.txt <<'EOF'
+          .github/workflows/verify-pr35-post-merge.yml
+          planning/NEXT_WORK.md
+          planning/PR_INSPECTOR_EXECUTION_PLAN.md
+          planning/progress/impacts/PINS-VERIFIED-REVIEW-001.implementation.json
+          planning/tasks/task-registry.v1.json
+          EOF
+          diff -u /tmp/expected-paths.txt /tmp/actual-paths.txt
+
+      - name: Construct prospective main tree
+        id: tree
+        run: |
+          set -euo pipefail
+          git rm --cached .github/workflows/verify-pr35-post-merge.yml
+          prospective_tree="$(git write-tree)"
+          echo "tree=${prospective_tree}" >> "${GITHUB_OUTPUT}"
+          printf '%s\n' "${prospective_tree}" > /tmp/prospective-main-tree.txt
+          mkdir /tmp/prospective-main
+          git archive "${prospective_tree}" | tar -x -C /tmp/prospective-main
+          git reset --hard HEAD
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
@@ -31,37 +53,41 @@ jobs:
           python-version: '3.13'
           cache: pip
 
-      - name: Install project dependencies
+      - name: Install dependencies
+        working-directory: /tmp/prospective-main
         run: python -m pip install --disable-pip-version-check ".[dev]"
 
-      - name: Validate repository and planning
+      - name: Validate prospective main repository and planning
+        working-directory: /tmp/prospective-main
         run: |
           python scripts/validate_repository_v2.py
           python scripts/validate_planning_governance.py --check-static
 
-      - name: Run focused lifecycle and authority suites
-        run: |
-          python -m pytest -q tests/test_planning_governance.py tests/test_planning_governance_authority.py
-          python -m pytest -q tests/test_v1_12_verified_review_authority.py tests/test_v1_12_evidence_completeness.py
-          python -m pytest -q tests/test_repository_closure.py
+      - name: Run focused planning tests
+        working-directory: /tmp/prospective-main
+        run: python -m pytest -q tests/test_planning_governance.py tests/test_planning_governance_authority.py
 
-      - name: Run complete repository suite
+      - name: Run full repository suite
+        working-directory: /tmp/prospective-main
         run: python -m pytest -q
 
-      - name: Validate compilation and clean exact tree
+      - name: Validate compilation and file bytes
+        working-directory: /tmp/prospective-main
         run: |
           python -m compileall -q pr_inspector scripts
-          git diff --check
-          test -z "$(git status --porcelain)"
-          printf '%s\n' "$(git rev-parse HEAD)" > /tmp/validated-main-sha.txt
-          printf '%s\n' "$(git rev-parse 'HEAD^{tree}')" > /tmp/validated-main-tree.txt
+          sha256sum \
+            planning/NEXT_WORK.md \
+            planning/PR_INSPECTOR_EXECUTION_PLAN.md \
+            planning/progress/impacts/PINS-VERIFIED-REVIEW-001.implementation.json \
+            planning/tasks/task-registry.v1.json \
+            > /tmp/reconciliation-sha256.txt
 
-      - name: Upload exact-main evidence
+      - name: Upload reconciliation evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: pr35-post-merge-main-${{ github.run_id }}
+          name: pr35-lifecycle-reconciliation-${{ github.run_id }}
           path: |
-            /tmp/validated-main-sha.txt
-            /tmp/validated-main-tree.txt
+            /tmp/prospective-main-tree.txt
+            /tmp/reconciliation-sha256.txt
           if-no-files-found: error
           retention-days: 7
