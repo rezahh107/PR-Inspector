@@ -5,7 +5,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate-reconciliation:
@@ -17,7 +17,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
-          persist-credentials: false
+          persist-credentials: true
 
       - name: Verify bounded reconciliation delta
         run: |
@@ -27,6 +27,7 @@ jobs:
             be41cc8c4fad89a79f2b43b9dfa8a9dc42ee4684..HEAD \
             | sort > /tmp/actual-paths.txt
           cat > /tmp/expected-paths.txt <<'EOF'
+          .github/pr35-reconciliation-tests.patch
           .github/workflows/verify-pr35-post-merge.yml
           planning/NEXT_WORK.md
           planning/PR_INSPECTOR_EXECUTION_PLAN.md
@@ -39,7 +40,12 @@ jobs:
         id: tree
         run: |
           set -euo pipefail
-          git rm --cached .github/workflows/verify-pr35-post-merge.yml
+          git apply --check .github/pr35-reconciliation-tests.patch
+          git apply .github/pr35-reconciliation-tests.patch
+          git add tests/test_planning_governance.py tests/test_planning_governance_authority.py
+          git rm --cached \
+            .github/pr35-reconciliation-tests.patch \
+            .github/workflows/verify-pr35-post-merge.yml
           prospective_tree="$(git write-tree)"
           echo "tree=${prospective_tree}" >> "${GITHUB_OUTPUT}"
           printf '%s\n' "${prospective_tree}" > /tmp/prospective-main-tree.txt
@@ -80,7 +86,22 @@ jobs:
             planning/PR_INSPECTOR_EXECUTION_PLAN.md \
             planning/progress/impacts/PINS-VERIFIED-REVIEW-001.implementation.json \
             planning/tasks/task-registry.v1.json \
+            tests/test_planning_governance.py \
+            tests/test_planning_governance_authority.py \
             > /tmp/reconciliation-sha256.txt
+
+      - name: Publish validated reconciliation commit
+        id: publish
+        env:
+          PROSPECTIVE_TREE: ${{ steps.tree.outputs.tree }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          final_commit="$(printf '%s\n' 'chore: reconcile PR35 post-merge lifecycle' | git commit-tree "${PROSPECTIVE_TREE}" -p be41cc8c4fad89a79f2b43b9dfa8a9dc42ee4684)"
+          printf '%s\n' "${final_commit}" > /tmp/reconciliation-commit.txt
+          echo "commit=${final_commit}" >> "${GITHUB_OUTPUT}"
+          git push origin "${final_commit}:refs/heads/agent/pr35-lifecycle-reconciliation-final"
 
       - name: Upload reconciliation evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -88,6 +109,7 @@ jobs:
           name: pr35-lifecycle-reconciliation-${{ github.run_id }}
           path: |
             /tmp/prospective-main-tree.txt
+            /tmp/reconciliation-commit.txt
             /tmp/reconciliation-sha256.txt
           if-no-files-found: error
           retention-days: 7
