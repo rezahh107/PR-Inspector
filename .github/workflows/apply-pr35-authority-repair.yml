@@ -59,8 +59,20 @@ jobs:
       - name: Validate versioned repository
         shell: bash
         run: |
-          set -o pipefail
-          python scripts/validate_repository_v2.py 2>&1 | tail -80
+          set +e
+          python scripts/validate_repository_v2.py >/tmp/repository-validator.log 2>&1
+          status=$?
+          tail -80 /tmp/repository-validator.log
+          exit "$status"
+
+      - name: Upload repository-validator diagnostic
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pr35-repository-validator-${{ github.run_id }}
+          path: /tmp/repository-validator.log
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Validate static planning state
         run: python scripts/validate_planning_governance.py --check-static
