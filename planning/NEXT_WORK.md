@@ -1,5 +1,30 @@
 # Next Work
 
 <!-- PINS:NEXT-WORK:BEGIN -->
-{"program_id":"PRINS-GOVERNED-EXECUTION-PROGRAM","program_status":"active","initiative_ids":["PRINS-PLANNING-FOUNDATION","PRINS-VERIFIED-REVIEW-AUTHORITY"],"task_ids":["PINS-AIGOV-BASELINE-001","PINS-PLAN-001","PINS-VERIFIED-REVIEW-001"],"current_work_package_id":"PINS-VERIFIED-REVIEW-001-WP01","current_task_id":"PINS-VERIFIED-REVIEW-001","current_task_status":"complete","current_work_package_status":"post_merge_verified","scope_id":"pins-verified-review-001-wp01","scope_revision":"sha256:478c2a6f151576038569872abc590f7292b85a87c8f3460cabb13c1b8fad6394","next_lifecycle_action":"none"}
+```json
+{
+  "current_task_id": "PINS-FUNCTIONAL-BOOTSTRAP-001",
+  "current_task_status": "implemented",
+  "current_work_package_id": "PINS-FUNCTIONAL-BOOTSTRAP-001-WP01",
+  "current_work_package_status": "implemented_pending_exact_head_validation",
+  "initiative_ids": [
+    "PRINS-FUNCTIONAL-BOOTSTRAP",
+    "PRINS-PLANNING-FOUNDATION",
+    "PRINS-VERIFIED-REVIEW-AUTHORITY"
+  ],
+  "next_lifecycle_action": "exact_head_validation",
+  "program_id": "PRINS-GOVERNED-EXECUTION-PROGRAM",
+  "program_status": "active",
+  "scope_id": "PINS-FUNCTIONAL-BOOTSTRAP-001-SCOPE-001",
+  "scope_revision": "sha256:7ea6ac43f511dda46d2181f5925e6a10fc90965eec52629744f7bef4257dd097",
+  "task_ids": [
+    "PINS-AIGOV-BASELINE-001",
+    "PINS-FUNCTIONAL-BOOTSTRAP-001",
+    "PINS-PLAN-001",
+    "PINS-VERIFIED-REVIEW-001"
+  ]
+}
+```
 <!-- PINS:NEXT-WORK:END -->
+
+The current Work Package is implemented but remains pending exact-Head GitHub Actions validation and a fresh independent review. Do not merge or claim completion.

@@ -1,0 +1,282 @@
+{
+  "$defs": {
+    "nonempty_strings": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "path": {
+      "pattern": "^(protocols/v1\\.13\\.0|pr_inspector|scripts|tests|fixtures|\\.github)/[^\\\\]+$",
+      "type": "string"
+    },
+    "reference": {
+      "pattern": "^(protocols/v1\\.13\\.0|pr_inspector|scripts|tests|fixtures|\\.github)/[^:]+:[A-Za-z_][A-Za-z0-9_]*$",
+      "type": "string"
+    }
+  },
+  "$id": "https://github.com/rezahh107/PR-Inspector/protocols/v1.13.0/schemas/functional-runtime-contract.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "const": "./schemas/functional-runtime-contract.schema.json"
+    },
+    "diagnostics": {
+      "additionalProperties": false,
+      "properties": {
+        "prefix": {
+          "const": "PRI-FUNCTIONAL-BOOTSTRAP"
+        },
+        "recovery_actions": {
+          "$ref": "#/$defs/nonempty_strings"
+        }
+      },
+      "required": [
+        "prefix",
+        "recovery_actions"
+      ],
+      "type": "object"
+    },
+    "field_authority": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "owner": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "surface": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "surface",
+          "owner"
+        ],
+        "type": "object"
+      },
+      "minItems": 4,
+      "type": "array"
+    },
+    "functional_rules": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "ci_command": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "negative_mutation": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "positive_control": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "recovery_action": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "risk": {
+            "enum": [
+              "Critical",
+              "High"
+            ]
+          },
+          "rule_id": {
+            "pattern": "^PRR-[A-Z0-9-]+$",
+            "type": "string"
+          },
+          "validator": {
+            "$ref": "#/$defs/reference"
+          }
+        },
+        "required": [
+          "rule_id",
+          "risk",
+          "validator",
+          "positive_control",
+          "negative_mutation",
+          "ci_command",
+          "recovery_action"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "model_bootstrap": {
+      "additionalProperties": false,
+      "properties": {
+        "assessment_obligations": {
+          "$ref": "#/$defs/nonempty_strings"
+        },
+        "instructions": {
+          "$ref": "#/$defs/nonempty_strings"
+        }
+      },
+      "required": [
+        "instructions",
+        "assessment_obligations"
+      ],
+      "type": "object"
+    },
+    "pipeline_stages": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "function": {
+            "$ref": "#/$defs/reference"
+          },
+          "owner": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "stage_id": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "stage_id",
+          "owner",
+          "function"
+        ],
+        "type": "object"
+      },
+      "minItems": 8,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "protocol": {
+      "additionalProperties": false,
+      "properties": {
+        "authority": {
+          "const": "functional_contract_ssot"
+        },
+        "inspector_repository": {
+          "const": "rezahh107/PR-Inspector"
+        },
+        "inspector_repository_id": {
+          "const": 1288323264
+        },
+        "profile": {
+          "const": "personal_single_operator"
+        },
+        "version": {
+          "const": "v1.13.0"
+        }
+      },
+      "required": [
+        "version",
+        "profile",
+        "inspector_repository",
+        "inspector_repository_id",
+        "authority"
+      ],
+      "type": "object"
+    },
+    "references": {
+      "additionalProperties": false,
+      "properties": {
+        "ci_identity_schema": {
+          "$ref": "#/$defs/path"
+        },
+        "coverage_view": {
+          "$ref": "#/$defs/path"
+        },
+        "decision_projection_schema": {
+          "$ref": "#/$defs/path"
+        },
+        "governance_coverage_view": {
+          "$ref": "#/$defs/path"
+        },
+        "governance_evidence_schema": {
+          "$ref": "#/$defs/path"
+        },
+        "intake_response": {
+          "$ref": "#/$defs/path"
+        },
+        "owner_decision_template": {
+          "$ref": "#/$defs/path"
+        },
+        "owner_delivery_contract": {
+          "$ref": "#/$defs/path"
+        },
+        "owner_delivery_schema": {
+          "$ref": "#/$defs/path"
+        },
+        "pipeline_view": {
+          "$ref": "#/$defs/path"
+        },
+        "reason_registry": {
+          "$ref": "#/$defs/path"
+        },
+        "rereview_sequence_schema": {
+          "$ref": "#/$defs/path"
+        },
+        "review_assessment_schema": {
+          "$ref": "#/$defs/path"
+        },
+        "review_package_schema": {
+          "$ref": "#/$defs/path"
+        },
+        "technical_handoff_template": {
+          "$ref": "#/$defs/path"
+        }
+      },
+      "required": [
+        "ci_identity_schema",
+        "coverage_view",
+        "decision_projection_schema",
+        "governance_coverage_view",
+        "governance_evidence_schema",
+        "intake_response",
+        "owner_decision_template",
+        "owner_delivery_contract",
+        "owner_delivery_schema",
+        "pipeline_view",
+        "reason_registry",
+        "rereview_sequence_schema",
+        "review_assessment_schema",
+        "review_package_schema",
+        "technical_handoff_template"
+      ],
+      "type": "object"
+    },
+    "required_artifacts": {
+      "$ref": "#/$defs/nonempty_strings"
+    },
+    "required_check_names": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "schema_version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "$schema",
+    "schema_version",
+    "protocol",
+    "model_bootstrap",
+    "pipeline_stages",
+    "field_authority",
+    "references",
+    "required_artifacts",
+    "required_check_names",
+    "functional_rules",
+    "diagnostics"
+  ],
+  "type": "object"
+}
