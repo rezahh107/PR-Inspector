@@ -46,9 +46,21 @@ jobs:
           EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then tested_ref_type="pull_request_head"; claim_exact_head="true"; else tested_ref_type="push_or_dispatch"; claim_exact_head="false"; fi
-          python scripts/record_ci_identity.py --tested-ref-type "${tested_ref_type}" --tested-sha "$(git rev-parse HEAD)" --tested-tree-sha "$(git rev-parse 'HEAD^{tree}')" --reviewed-head-sha "${EXPECTED_SHA}" --synthetic-merge false --claim-exact-head "${claim_exact_head}" --workflow-run-id "${GITHUB_RUN_ID}" --job-id "${GITHUB_JOB}-${{ matrix.python-version }}" --output ci-identity.json
+          python scripts/record_ci_identity.py --tested-ref-type "${tested_ref_type}" --tested-sha "$(git rev-parse HEAD)" --tested-tree-sha "$(git rev-pars`'HEAD^{tree}')" --reviewed-head-sha "${EXPECTED_SHA}" --synthetic-merge false --claim-exact-head "${claim_exact_head}" --workflow-run-id "${GITHUB_RUN_ID}" --job-id "${GITHUB_JOB}-${{ matrix.python-version }}" --output ci-identity.json
       - name: Validate compact functional runtime
         run: python scripts/validate_runtime_contract.py
+      - name: Validate active manifest
+        run: python -c "from pathlib import Path; from pr_inspector.repository import validate_manifest; _,d=validate_manifest(Path('.')); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
+      - name: Validate active release lock
+        run: python -c "from pathlib import Path; from pr_inspector.repository import validate_manifest,validate_active_release_lock; r=Path('.'); m,d=validate_manifest(r); d=d or validate_active_release_lock(r,m); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
+      - name: Validate active schemas
+        run: python -c "from pathlib import Path; from pr_inspector.repository import validate_manifest,validate_active_schemas; r=Path('.'); m,d=validate_manifest(r); d=d or validate_active_schemas(r,m); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
+      - name: Validate reason registry
+        run: python -c "from pathlib import Path; from pr_inspector.repository import validate_reason_registry; d=validate_reason_registry(Path('.')); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
+      - name: Validate candidate output closure
+        run: python -c "from pathlib import Path; from pr_inspector.repository import validate_candidate_output_closure; d=validate_candidate_output_closure(Path('.')); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
+      - name: Validate behavioral coverage closure
+        run: python -c "from pathlib import Path; from pr_inspector.behavioral_coverage import validate_behavioral_coverage; d=validate_behavioral_coverage(Path('.')); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
       - name: Validate versioned repository and release sources
         run: python scripts/validate_repository_v2.py
       - name: Validate static planning state
