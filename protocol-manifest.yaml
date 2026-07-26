@@ -20,7 +20,7 @@ runtime_bootstrap_inputs:
 - protocols/v1.13.0/prompts/INTAKE_RESPONSE.fa.md
 release_validation_sources:
 - protocols/v1.13.0/functional-runtime-contract.json
-- protocls/v1.13.0/schemas/functional-runtime-contract.schema.json
+- protocols/v1.13.0/schemas/functional-runtime-contract.schema.json
 - protocols/v1.13.0/schemas/review-assessment.schema.json
 - protocols/v1.13.0/schemas/review-package.schema.json
 - protocols/v1.13.0/schemas/decision-projection.schema.json
@@ -60,7 +60,7 @@ release_lock: release-locks/v1.13.0.sha256
 required_artifacts:
 - review-package.json
 - DECISION_PROJECTION.json
-- OWNER_RESULTT.fa.txt
+- OWNER_RESULT.fa.txt
 - TECHNICAL_HANDOFF.en.md
 - OWNER_PROFILE_COMMANDS.fa.txt
 - artifact-manifest.json
