@@ -61,6 +61,64 @@ jobs:
         run: python -c "from pathlib import Path; from pr_inspector.behavioral_coverage import validate_behavioral_coverage; d=validate_behavioral_coverage(Path('.')); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
       - name: Validate full repository closure
         run: python -c "from pathlib import Path; from pr_inspector.repository import validate_repository; d=validate_repository(Path('.')); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
+      - name: Validate planning registry
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from pr_inspector.planning_governance_base import REGISTRY_PATH, SCHEMAS, load_json_strict
+          from pr_inspector.planning_governance_registry import validate_registry
+          root = Path('.')
+          registry = load_json_strict(root / REGISTRY_PATH)
+          schema = load_json_strict(root / SCHEMAS['registry'])
+          diagnostics = validate_registry(registry, schema)
+          [print(item.line()) for item in diagnostics]
+          raise SystemExit(bool(diagnostics))
+          PY
+      - name: Validate registered planning artifacts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from pr_inspector.planning_governance_base import REGISTRY_PATH, SCHEMAS, load_json_strict
+          from pr_inspector.planning_governance_repository import _validate_registered_artifacts
+          root = Path('.')
+          registry = load_json_strict(root / REGISTRY_PATH)
+          schemas = {name: load_json_strict(root / path) for name, path in SCHEMAS.items()}
+          diagnostics, _, _ = _validate_registered_artifacts(root, registry, schemas)
+          [print(item.line()) for item in diagnostics]
+          raise SystemExit(bool(diagnostics))
+          PY
+      - name: Validate planning completion dependencies
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from pr_inspector.planning_governance_base import REGISTRY_PATH, SCHEMAS, load_json_strict
+          from pr_inspector.planning_governance_repository import _validate_registered_artifacts, _validate_task_completion_and_dependencies
+          root = Path('.')
+          registry = load_json_strict(root / REGISTRY_PATH)
+          schemas = {name: load_json_strict(root / path) for name, path in SCHEMAS.items()}
+          diagnostics, _, impacts = _validate_registered_artifacts(root, registry, schemas)
+          if not diagnostics:
+              diagnostics = _validate_task_completion_and_dependencies(registry, impacts)
+          [print(item.line()) for item in diagnostics]
+          raise SystemExit(bool(diagnostics))
+          PY
+      - name: Validate planning Markdown parity
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from pr_inspector.planning_governance_base import REGISTRY_PATH, SCHEMAS, load_json_strict
+          from pr_inspector.planning_governance_artifacts import validate_markdown
+          from pr_inspector.planning_governance_repository import _validate_registered_artifacts
+          root = Path('.')
+          registry = load_json_strict(root / REGISTRY_PATH)
+          schemas = {name: load_json_strict(root / path) for name, path in SCHEMAS.items()}
+          diagnostics, scopes, impacts = _validate_registered_artifacts(root, registry, schemas)
+          current_package = next(item for item in registry['work_packages'] if item['current'])
+          if not diagnostics:
+              diagnostics = validate_markdown(root, scopes[current_package['scope_ref']], impacts[current_package['impact_refs'][-1]])
+          [print(item.line()) for item in diagnostics]
+          raise SystemExit(bool(diagnostics))
+          PY
       - name: Validate planning repository
         run: python -c "from pathlib import Path; from pr_inspector.planning_governance import validate_planning_repository; d=validate_planning_repository(Path('.')); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
       - name: Validate versioned repository and release sources
