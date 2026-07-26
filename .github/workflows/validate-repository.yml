@@ -59,6 +59,10 @@ jobs:
         run: python -c "from pathlib import Path; from pr_inspector.repository import validate_candidate_output_closure; d=validate_candidate_output_closure(Path('.')); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
       - name: Validate behavioral coverage closure
         run: python -c "from pathlib import Path; from pr_inspector.behavioral_coverage import validate_behavioral_coverage; d=validate_behavioral_coverage(Path('.')); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
+      - name: Validate full repository closure
+        run: python -c "from pathlib import Path; from pr_inspector.repository import validate_repository; d=validate_repository(Path('.')); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
+      - name: Validate planning repository
+        run: python -c "from pathlib import Path; from pr_inspector.planning_governance import validate_planning_repository; d=validate_planning_repository(Path('.')); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
       - name: Validate versioned repository and release sources
         run: python scripts/validate_repository_v2.py
       - name: Validate static planning state
