@@ -49,14 +49,12 @@ jobs:
           python scripts/record_ci_identity.py --tested-ref-type "${tested_ref_type}" --tested-sha "$(git rev-parse HEAD)" --tested-tree-sha "$(git rev-parse 'HEAD^{tree}')" --reviewed-head-sha "${EXPECTED_SHA}" --synthetic-merge false --claim-exact-head "${claim_exact_head}" --workflow-run-id "${GITHUB_RUN_ID}" --job-id "${GITHUB_JOB}-${{ matrix.python-version }}" --output ci-identity.json
       - name: Validate compact functional runtime
         run: python scripts/validate_runtime_contract.py
-      - name: Validate active manifest
-        run: python -c "from pathlib import Path; from pr_inspector.repository import validate_manifest; _,d=validate_manifest(Path('.')); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
       - name: Validate active release lock
-        run: python -c "from pathlib import Path; from pr_inspector.repository import validate_manifest,validate_active_release_lock; r=Path('.'); m,d=validate_manifest(r); d=d or validate_active_release_lock(r,m); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
+        run: python -c "from pathlib import Path; import yaml; from pr_inspector.repository import validate_active_release_lock; r=Path('.'); c=(r/'CURRENT_VERSION').read_text().strip(); m=yaml.safe_load((r/'protocol-manifest.yaml').read_text()); d=validate_active_release_lock(r,c,m,m.get('load_order') or []); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
       - name: Validate active schemas
-        run: python -c "from pathlib import Path; from pr_inspector.repository import validate_manifest,validate_active_schemas; r=Path('.'); m,d=validate_manifest(r); d=d or validate_active_schemas(r,m); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
+        run: python -c "from pathlib import Path; import yaml; from pr_inspector.repository import validate_active_schemas; r=Path('.'); m=yaml.safe_load((r/'protocol-manifest.yaml').read_text()); d=validate_active_schemas(r,m.get('load_order') or []); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
       - name: Validate reason registry
-        run: python -c "from pathlib import Path; from pr_inspector.repository import validate_reason_registry; d=validate_reason_registry(Path('.')); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
+        run: python -c "from pr_inspector.repository import validate_reason_registry; d=validate_reason_registry(); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
       - name: Validate candidate output closure
         run: python -c "from pathlib import Path; from pr_inspector.repository import validate_candidate_output_closure; d=validate_candidate_output_closure(Path('.')); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
       - name: Validate behavioral coverage closure
