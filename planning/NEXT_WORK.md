@@ -16,7 +16,7 @@
   "program_id": "PRINS-GOVERNED-EXECUTION-PROGRAM",
   "program_status": "active",
   "scope_id": "PINS-FUNCTIONAL-BOOTSTRAP-001-SCOPE-001",
-  "scope_revision": "sha256:7ea6ac43f511dda46d2181f5925e6a10fc90965eec52629744f7bef4257dd097",
+  "scope_revision": "sha256:455292de009d239f00ea89b50108aa03c952501c2282589fa82f48bf63822e94",
   "task_ids": [
     "PINS-AIGOV-BASELINE-001",
     "PINS-FUNCTIONAL-BOOTSTRAP-001",
