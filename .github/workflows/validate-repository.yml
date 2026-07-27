@@ -170,6 +170,39 @@ jobs:
             --head-sha "$(git rev-parse HEAD)" \
             --report planning-scope-validation.json
 
+      - name: Run canonical exact-Head workflow contract tests
+        run: python -m pytest -q tests/test_exact_head_workflow.py
+
+      - name: Verify v1.13 CI controls are additive
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          workflow = Path(".github/workflows/validate-repository.yml").read_text(
+              encoding="utf-8"
+          )
+          required = (
+              "name: Verify exact checkout identity",
+              'actual_sha="$(git rev-parse HEAD)"',
+              'echo "expected_sha=${EXPECTED_SHA}"',
+              'echo "actual_sha=${actual_sha}"',
+              "name: Run focused Behavioral Rule Coverage mutations",
+              "run: python -m pytest -q tests/test_behavioral_rule_coverage.py",
+              "name: Run focused governance enforcement tests",
+              "name: Run focused artifact byte-consistency tests",
+              "name: Run semantic and rendering tests",
+              "name: Validate derived Runtime on exact Head",
+              "name: Validate fresh direct planning imports",
+              "name: Run v1.13 planning policy tests",
+              "name: Run v1.13 functional Runtime tests",
+              "name: Run v1.13 verified review authority tests",
+              "name: Run v1.13 evidence completeness tests",
+          )
+          missing = [item for item in required if item not in workflow]
+          if missing:
+              raise SystemExit("missing additive CI controls: " + repr(missing))
+          PY
+
       - name: Run focused Behavioral Rule Coverage mutations
         run: python -m pytest -q tests/test_behavioral_rule_coverage.py
 
