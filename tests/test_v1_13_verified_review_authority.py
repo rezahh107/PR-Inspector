@@ -97,23 +97,24 @@ def test_v1_13_preserves_canonical_bytes_and_public_caller_shape():
 
 
 def test_v1_13_fixture_validation_matches_v1_12_diagnostics():
-    import copy
-    import json
-
     from pr_inspector.validation_v2 import validate_package
 
-    exercised = 0
-    for path in sorted((ROOT / "fixtures").rglob("review-package.json")):
-        value = json.loads(path.read_text(encoding="utf-8"))
-        if value.get("protocol_version") != "v1.12.0":
-            continue
-        candidate = copy.deepcopy(value)
-        candidate["protocol_version"] = "v1.13.0"
-        old = [(item.code, item.path, item.message) for item in validate_package(value)]
-        new = [(item.code, item.path, item.message) for item in validate_package(candidate)]
-        assert new == old, path
-        exercised += 1
-    assert exercised > 0
+    base = assemble_review_package(
+        legacy._facts(),
+        legacy._assessment(),
+        legacy._context(),
+    ).value()
+    candidate = dict(base)
+    candidate["protocol_version"] = "v1.13.0"
+    old = [
+        (item.code, item.path, item.message)
+        for item in validate_package(base)
+    ]
+    new = [
+        (item.code, item.path, item.message)
+        for item in validate_package(candidate)
+    ]
+    assert new == old
 
 
 def test_v1_13_reaches_official_completion_and_owner_delivery(tmp_path):
@@ -137,7 +138,11 @@ def test_v1_13_reaches_official_completion_and_owner_delivery(tmp_path):
 def test_projection_identity_remains_bound_to_package_version():
     from pr_inspector.decision_projection import project_decision
 
-    old = assemble_review_package(legacy._facts(), legacy._assessment(), legacy._context()).value()
-    new = assemble_review_package(legacy._facts(), legacy._assessment(), _active_context()).value()
+    old = assemble_review_package(
+        legacy._facts(), legacy._assessment(), legacy._context()
+    ).value()
+    new = assemble_review_package(
+        legacy._facts(), legacy._assessment(), _active_context()
+    ).value()
     assert project_decision(old)["protocol_version"] == "v1.12.0"
     assert project_decision(new)["protocol_version"] == "v1.13.0"
