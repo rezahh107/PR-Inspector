@@ -64,7 +64,7 @@ _provenance.trust_policy = _contract_derived_trust_policy
 
 # Preserve the established governance-matrix Markdown contract while keeping
 # the functional contract as the only rule authority. The adapter changes only
-# the generated presentation of Rule IDs for the governance-specific view.
+# generated governance-view presentation metadata.
 _canonical_render_rule_view = _runtime.render_rule_view
 
 
@@ -77,6 +77,11 @@ def _render_rule_view(
     if not title.startswith("Merge Governance Rule Coverage"):
         return rendered
     lines = rendered.splitlines()
+    lines.insert(
+        4,
+        "Validation command: `python -m pytest -q "
+        "tests/test_governance_enforcement.py`",
+    )
     for index, line in enumerate(lines):
         if index < 6 or not line.startswith("| "):
             continue
