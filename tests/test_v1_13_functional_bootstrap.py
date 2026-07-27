@@ -88,8 +88,36 @@ def test_schema_rejects_cross_version_reference(tmp_path):
         "protocols/v1.13.0/pipeline/REVIEW_PIPELINE.md"
     )
     contract_path.write_text(json.dumps(contract), encoding="utf-8")
-    with pytest.raises(FunctionalBootstrapError, match="PRI-FUNCTIONAL-BOOTSTRAP-003"):
+    with pytest.raises(FunctionalBootstrapError, match="PRI-FUNCTIONAL-BOOTSTRAP-104"):
         validate_runtime_contract(root, require_git=False)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["empty_defaults", "missing_ci", "empty_instructions", "empty_obligations",
+     "bad_function", "missing_stage", "duplicate_stage", "missing_surface",
+     "duplicate_surface", "bad_rule_id", "bad_risk", "bad_mutation", "bad_ci_key",
+     "bad_schema_reference"],
+)
+def test_connector_contract_structure_mutation_is_invalid(mutation):
+    files = _connector_files(); contract = json.loads(files[CONTRACT_PATH])
+    if mutation == "empty_defaults": contract["rule_defaults"] = {}
+    elif mutation == "missing_ci": contract["rule_defaults"]["ci_commands"].pop("F")
+    elif mutation == "empty_instructions": contract["model_bootstrap"]["instructions"] = []
+    elif mutation == "empty_obligations": contract["model_bootstrap"]["assessment_obligations"] = []
+    elif mutation == "bad_function": contract["pipeline_stages"][0]["function"] = "invalid"
+    elif mutation == "missing_stage": contract["pipeline_stages"].pop()
+    elif mutation == "duplicate_stage": contract["pipeline_stages"][1]["stage_id"] = "intake"
+    elif mutation == "missing_surface": contract["field_authority"].pop()
+    elif mutation == "duplicate_surface": contract["field_authority"][1]["surface"] = "intent"
+    elif mutation == "bad_rule_id": contract["functional_rules"][0][0] = "bad"
+    elif mutation == "bad_risk": contract["functional_rules"][0][1] = "bad"
+    elif mutation == "bad_mutation": contract["functional_rules"][0][2] = "BAD"
+    elif mutation == "bad_ci_key": contract["functional_rules"][0][3] = "X"
+    else: contract["$schema"] = "wrong"
+    files[CONTRACT_PATH] = json.dumps(contract)
+    with pytest.raises(FunctionalBootstrapError):
+        connector_startup(lambda path: files[path])
 SCRIPT_SOURCES = tuple(
     sorted(
         path.relative_to(ROOT).as_posix()

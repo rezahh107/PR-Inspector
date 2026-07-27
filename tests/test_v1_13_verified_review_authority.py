@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import inspect
+import json
 import subprocess
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -16,6 +18,7 @@ from pr_inspector.official_review import (
     official_owner_delivery,
 )
 from pr_inspector.verified_review import ProtocolContext, assemble_review_package
+from pr_inspector.constants import SUPPORTED_PROTOCOL_VERSIONS
 from tests import test_v1_12_verified_review_authority as legacy
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,11 +40,19 @@ def test_v1_13_official_context_uses_exact_real_commit(
 ):
     import pr_inspector.repository as repository
     import pr_inspector.verified_review as verified_review
+    import pr_inspector.functional_runtime as functional_runtime
 
     commit = subprocess.run(
         ["git", "rev-parse", "HEAD"], check=True, capture_output=True, text=True
     ).stdout.strip()
     monkeypatch.setattr(repository, "validate_repository", lambda root: [])
+    monkeypatch.setattr(
+        functional_runtime, "validate_runtime_contract",
+        lambda root: SimpleNamespace(
+            inspector_commit_sha=commit, inspector_repository="rezahh107/PR-Inspector",
+            inspector_repository_id=1288323264,
+        ),
+    )
     original_git = verified_review._run_git
     monkeypatch.setattr(
         verified_review, "_run_git",
@@ -62,9 +73,28 @@ def test_v1_13_official_context_uses_exact_real_commit(
 def test_v1_13_zero_commit_is_rejected(monkeypatch):
     import pr_inspector.repository as repository
     import pr_inspector.verified_review as verified_review
+    import pr_inspector.functional_runtime as functional_runtime
     monkeypatch.setattr(repository, "validate_repository", lambda root: [])
+    monkeypatch.setattr(functional_runtime, "validate_runtime_contract", lambda root: SimpleNamespace(
+        inspector_commit_sha="0" * 40, inspector_repository="rezahh107/PR-Inspector",
+        inspector_repository_id=1288323264,
+    ))
     monkeypatch.setattr(verified_review, "_run_git", lambda root, *args: "0" * 40)
     with pytest.raises(verified_review.ReviewAssemblyError, match="commit SHA is invalid"):
+        ProtocolContext.from_verified_repository(ROOT)
+
+
+def test_official_context_requires_canonical_runtime_attestation(monkeypatch):
+    import pr_inspector.functional_runtime as functional_runtime
+    import pr_inspector.repository as repository
+    monkeypatch.setattr(repository, "validate_repository", lambda root: [])
+    monkeypatch.setattr(
+        functional_runtime, "validate_runtime_contract",
+        lambda root: (_ for _ in ()).throw(
+            functional_runtime.FunctionalBootstrapError("PRI-FUNCTIONAL-BOOTSTRAP-006", "runtime drift")
+        ),
+    )
+    with pytest.raises(Exception, match="PRI-ASSEMBLY-RUNTIME-001"):
         ProtocolContext.from_verified_repository(ROOT)
 
 
@@ -195,3 +225,30 @@ def test_projection_identity_remains_bound_to_package_version():
     ).value()
     assert project_decision(old)["protocol_version"] == "v1.12.0"
     assert project_decision(new)["protocol_version"] == "v1.13.1"
+
+
+@pytest.mark.parametrize("version", sorted(SUPPORTED_PROTOCOL_VERSIONS))
+def test_compatible_projection_preserves_package_identity(version):
+    from pr_inspector.decision_projection import project_decision
+    context = replace(legacy._context(), protocol_version=version)
+    package = assemble_review_package(legacy._facts(), legacy._assessment(), context).value()
+    assert package["protocol_version"] == version
+    assert project_decision(package)["protocol_version"] == version
+
+
+def test_compatibility_inventory_matches_active_schema_enums():
+    schemas = ["review-package.schema.json", "decision-projection.schema.json"]
+    for name in schemas:
+        schema = json.loads((ROOT / "protocols/v1.13.1/schemas" / name).read_text())
+        values = set()
+        def collect(value):
+            if isinstance(value, dict):
+                if "enum" in value and all(isinstance(item, str) for item in value["enum"]):
+                    candidate = set(value["enum"])
+                    if candidate & SUPPORTED_PROTOCOL_VERSIONS: values.update(candidate)
+                for nested in value.values(): collect(nested)
+            elif isinstance(value, list):
+                for nested in value: collect(nested)
+        collect(schema)
+        assert values & set(SUPPORTED_PROTOCOL_VERSIONS) == set(SUPPORTED_PROTOCOL_VERSIONS)
+        assert not {value for value in values if value > "v1.13.1"}

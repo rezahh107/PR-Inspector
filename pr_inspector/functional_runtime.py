@@ -12,6 +12,7 @@ from typing import Any, Callable, Iterable
 
 import yaml
 from jsonschema import Draft202012Validator
+from .constants import SUPPORTED_PROTOCOL_VERSIONS
 
 ROOT = Path(__file__).resolve().parents[1]
 ACTIVE_VERSION = "v1.13.1"
@@ -92,6 +93,8 @@ def _canonical_active_reference(value: Any) -> bool:
 def _validate_startup_contract(contract: dict[str, Any]) -> None:
     if set(contract) != _CONTRACT_KEYS:
         raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-102", "contract top-level inventory mismatch")
+    if contract.get("$schema") != "./schemas/functional-runtime-contract.schema.json":
+        raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-102", "contract schema reference mismatch")
     protocol = contract.get("protocol")
     expected_protocol = {
         "version": ACTIVE_VERSION, "inspector_repository": "rezahh107/PR-Inspector",
@@ -100,6 +103,25 @@ def _validate_startup_contract(contract: dict[str, Any]) -> None:
     }
     if contract.get("schema_version") != 2 or protocol != expected_protocol:
         raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-103", "active protocol identity mismatch")
+    model = contract.get("model_bootstrap")
+    if not isinstance(model, dict) or set(model) != {"instructions", "assessment_obligations"} or any(
+        not isinstance(model.get(key), list) or not model[key] or
+        any(not isinstance(item, str) or not item for item in model[key])
+        for key in ("instructions", "assessment_obligations")
+    ):
+        raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-112", "model bootstrap is invalid")
+    defaults = contract.get("rule_defaults")
+    if not isinstance(defaults, dict) or set(defaults) != {
+        "validator", "positive_control", "negative_prefix", "ci_commands", "recovery_action"
+    } or any(not isinstance(defaults.get(key), str) or not defaults[key] for key in (
+        "validator", "positive_control", "negative_prefix", "recovery_action"
+    )) or not isinstance(defaults.get("ci_commands"), dict) or set(defaults["ci_commands"]) != {"F", "E", "A"} or any(
+        not isinstance(value, str) or not value for value in defaults["ci_commands"].values()
+    ):
+        raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-113", "rule defaults are invalid")
+    if any(re.fullmatch(r"[^:#]+\.py:[A-Za-z_][A-Za-z0-9_]*", defaults[key]) is None
+           for key in ("validator", "positive_control")):
+        raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-113", "rule executable defaults are invalid")
     references = contract.get("references")
     if not isinstance(references, dict) or set(references) != _REFERENCE_KEYS or not all(
         _canonical_active_reference(value) for value in references.values()
@@ -108,20 +130,29 @@ def _validate_startup_contract(contract: dict[str, Any]) -> None:
     rules = contract.get("functional_rules")
     if not isinstance(rules, list) or len(rules) != 43 or any(
         not isinstance(rule, list) or len(rule) != 4 or
-        not all(isinstance(item, str) and item for item in rule) for rule in rules
+        not all(isinstance(item, str) and item for item in rule) or
+        re.fullmatch(r"PRR-[A-Z0-9-]+-001", rule[0]) is None or
+        rule[1] not in {"Critical", "High", "Medium", "Low"} or
+        re.fullmatch(r"[a-z0-9_]+", rule[2]) is None or rule[3] not in {"F", "E", "A"}
+        for rule in rules
     ) or len({rule[0] for rule in rules}) != len(rules):
         raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-105", "functional rule inventory is invalid")
     stages = contract.get("pipeline_stages")
     if not isinstance(stages, list) or len(stages) != 8 or any(
         not isinstance(stage, dict) or set(stage) != {"stage_id", "owner", "function"} or
-        not all(isinstance(value, str) and value for value in stage.values()) for stage in stages
-    ) or len({stage["stage_id"] for stage in stages}) != len(stages):
+        not all(isinstance(value, str) and value for value in stage.values()) or
+        re.fullmatch(r"[^:#]+\.py:[A-Za-z_][A-Za-z0-9_]*", stage["function"]) is None
+        for stage in stages
+    ) or {stage["stage_id"] for stage in stages} != {
+        "intake", "evidence_collection", "assessment", "canonical_assembly",
+        "package_validation", "decision_projection", "official_completion", "owner_delivery"
+    }:
         raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-106", "pipeline stage inventory is invalid")
     fields = contract.get("field_authority")
     if not isinstance(fields, list) or len(fields) != 4 or any(
         not isinstance(item, dict) or set(item) != {"surface", "owner"} or
         not all(isinstance(value, str) and value for value in item.values()) for item in fields
-    ):
+    ) or {item["surface"] for item in fields} != {"intent", "facts", "judgment", "projection"}:
         raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-107", "field authority is invalid")
     artifacts = contract.get("required_artifacts")
     checks = contract.get("required_check_names")
@@ -553,6 +584,7 @@ def validate_runtime_contract(
         )
 
     raw = _load_raw(root / CONTRACT_PATH)
+    _validate_startup_contract(raw)
     schema = _load_raw(root / CONTRACT_SCHEMA_PATH)
     try:
         Draft202012Validator.check_schema(schema)
@@ -750,7 +782,7 @@ def install_active_protocol_adapters() -> None:
             if isinstance(package, dict)
             else None
         )
-        if version in {"v1.12.0", "v1.13.1"}:
+        if version in SUPPORTED_PROTOCOL_VERSIONS:
             result["protocol_version"] = version
             projection.validate_projection_invariants(result)
         return result

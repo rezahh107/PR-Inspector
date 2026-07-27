@@ -360,6 +360,7 @@ class ProtocolContext:
 
         root = Path(repository_directory).resolve()
         from .repository import validate_repository
+        from .functional_runtime import FunctionalBootstrapError, validate_runtime_contract
 
         diagnostics = validate_repository(root)
         if diagnostics:
@@ -368,6 +369,12 @@ class ProtocolContext:
                 + "; ".join(item.line() for item in diagnostics)
             )
         version = (root / "CURRENT_VERSION").read_text(encoding="utf-8").strip()
+        runtime_protocol = None
+        if version == "v1.13.1":
+            try:
+                runtime_protocol = validate_runtime_contract(root)
+            except FunctionalBootstrapError as exc:
+                raise ReviewAssemblyError(f"PRI-ASSEMBLY-RUNTIME-001: {exc}") from exc
         manifest = _load_json_or_yaml(root / "protocol-manifest.yaml")
         if manifest.get("active_version") != version:
             raise ReviewAssemblyError("CURRENT_VERSION and protocol-manifest active_version differ")
@@ -402,6 +409,12 @@ class ProtocolContext:
         commit_sha = _run_git(root, "rev-parse", "HEAD")
         if SHA40_RE.fullmatch(commit_sha) is None or commit_sha == "0" * 40:
             raise ReviewAssemblyError("Inspector runtime commit SHA is invalid")
+        if runtime_protocol is not None and (
+            runtime_protocol.inspector_commit_sha != commit_sha
+            or runtime_protocol.inspector_repository != repository
+            or runtime_protocol.inspector_repository_id != repository_id
+        ):
+            raise ReviewAssemblyError("PRI-ASSEMBLY-RUNTIME-001: Runtime attestation identity mismatch")
         remote_repository = _repository_from_git_remote(_run_git(root, "remote", "get-url", "origin"))
         if remote_repository != repository:
             raise ReviewAssemblyError("Inspector checkout origin does not match the trust policy")
