@@ -4,6 +4,7 @@ from .planning_governance_base import *
 from .planning_authority import (
     PlanningAuthorityError,
     resolve_current_planning_artifacts,
+    resolve_scope_policy,
 )
 
 
@@ -98,6 +99,7 @@ def validate_git_diff(
                 "Scope committed_paths and deleted_paths must be arrays"
             )
         declared = sorted([*committed, *deleted])
+        policy = resolve_scope_policy(root, registry, scope)
         report["declared_base_sha"] = scope.get("base_sha")
         report["declared_changed_paths"] = declared
 
@@ -213,6 +215,17 @@ def validate_git_diff(
         if error:
             output.append(
                 diagnostic("PINS-SCOPE-PATH-INVALID", f"/{path}", error)
+            )
+        elif (
+            path not in policy.allowed_exact
+            and not path.startswith(policy.allowed_prefixes)
+        ):
+            output.append(
+                diagnostic(
+                    "PINS-SCOPE-FORBIDDEN-PATH",
+                    f"/{path}",
+                    "path is outside the resolved Scope policy",
+                )
             )
     for path in sorted(set(actual) - set(declared)):
         output.append(
