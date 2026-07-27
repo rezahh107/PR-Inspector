@@ -1,0 +1,68 @@
+{
+  "$schema": "./schemas/functional-runtime-contract.schema.json",
+  "schema_version": 3,
+  "protocol": {
+    "version": "v1.13.1",
+    "inspector_repository": "rezahh107/PR-Inspector",
+    "inspector_repository_id": 1288323264,
+    "profile": "performance_only_single_operator",
+    "authority": "load_only_contract"
+  },
+  "references": {
+    "intake_response": "protocols/v1.13.1/prompts/INTAKE_RESPONSE.fa.md",
+    "review_package_schema": "protocols/v1.13.0/schemas/review-package.schema.json",
+    "review_assessment_schema": "protocols/v1.13.0/schemas/review-assessment.schema.json",
+    "decision_projection_schema": "protocols/v1.13.0/schemas/decision-projection.schema.json",
+    "owner_delivery_contract": "protocols/v1.13.1/policies/OWNER_DELIVERY_CONTRACT.json",
+    "owner_delivery_schema": "protocols/v1.13.1/schemas/owner-delivery-contract.schema.json",
+    "reason_registry": "protocols/v1.13.1/registries/DECISION_REASON_REGISTRY.yaml",
+    "pipeline_view": "protocols/v1.13.0/pipeline/REVIEW_PIPELINE.md",
+    "coverage_view": "protocols/v1.13.0/policies/BEHAVIORAL_RULE_COVERAGE.md",
+    "governance_coverage_view": "protocols/v1.13.0/policies/GOVERNANCE_BEHAVIORAL_RULE_COVERAGE.md",
+    "ci_identity_schema": "protocols/v1.13.0/schemas/ci-identity.schema.json",
+    "rereview_sequence_schema": "protocols/v1.13.0/schemas/rereview-sequence.schema.json",
+    "governance_evidence_schema": "protocols/v1.13.0/schemas/governance-evidence.schema.json",
+    "owner_decision_template": "protocols/v1.13.0/templates/OWNER_DECISION_CARD.fa.md",
+    "technical_handoff_template": "protocols/v1.13.0/templates/TECHNICAL_HANDOFF.en.md"
+  },
+  "model_bootstrap": {
+    "instructions": [
+      "read exactly the five runtime_bootstrap_inputs",
+      "perform no Inspector-side validation or integrity checks",
+      "continue to PR intake even when local execution capabilities are absent"
+    ],
+    "assessment_obligations": [
+      "collect target PR evidence only after target input"
+    ]
+  },
+  "pipeline_stages": [
+    {"stage_id": "intake", "owner": "caller_intent", "function": "pr_inspector/verified_review.py:ReviewRequest"},
+    {"stage_id": "evidence_collection", "owner": "verified_target_source", "function": "pr_inspector/official_review.py:collect_review_facts"},
+    {"stage_id": "assessment", "owner": "reviewer_judgment", "function": "pr_inspector/verified_review.py:parse_review_assessment"},
+    {"stage_id": "canonical_assembly", "owner": "deterministic_runtime", "function": "pr_inspector/functional_review.py:assemble_review_package"},
+    {"stage_id": "package_validation", "owner": "deterministic_runtime", "function": "pr_inspector/validation_v2.py:validate_package"},
+    {"stage_id": "decision_projection", "owner": "deterministic_runtime", "function": "pr_inspector/decision_projection.py:project_decision"},
+    {"stage_id": "official_completion", "owner": "deterministic_runtime", "function": "pr_inspector/official_review.py:complete_review"},
+    {"stage_id": "owner_delivery", "owner": "deterministic_runtime", "function": "pr_inspector/owner_delivery.py:official_owner_delivery"}
+  ],
+  "field_authority": [
+    {"surface": "intent", "owner": "caller"},
+    {"surface": "facts", "owner": "verified target"},
+    {"surface": "judgment", "owner": "reviewer"},
+    {"surface": "projection", "owner": "runtime"}
+  ],
+  "functional_rules": [],
+  "required_artifacts": [
+    "review-package.json",
+    "DECISION_PROJECTION.json",
+    "OWNER_RESULT.fa.txt",
+    "TECHNICAL_HANDOFF.en.md",
+    "OWNER_PROFILE_COMMANDS.fa.txt",
+    "artifact-manifest.json"
+  ],
+  "required_check_names": [],
+  "diagnostics": {
+    "prefix": "PRI-FAST-BOOTSTRAP",
+    "recovery_actions": ["continue"]
+  }
+}
