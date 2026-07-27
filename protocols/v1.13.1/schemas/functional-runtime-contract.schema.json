@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rezahh107/PR-Inspector/protocols/v1.13.1/schemas/functional-runtime-contract.schema.json",
+  "title": "PR Inspector load-only runtime contract v1.13.1",
+  "type": "object",
+  "additionalProperties": true
+}
