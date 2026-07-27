@@ -22,6 +22,7 @@ CONTRACT_SCHEMA_PATH = (
 )
 CI_WORKFLOW_PATH = ".github/workflows/validate-repository.yml"
 RUNTIME_SCRIPT_PATH = "scripts/validate_runtime_contract.py"
+PYPROJECT_PATH = "pyproject.toml"
 RUNTIME_BOOTSTRAP_INPUTS = (
     "CURRENT_VERSION",
     "protocol-manifest.yaml",
@@ -223,11 +224,7 @@ def _validate_symbol(root: Path, reference: str) -> None:
         for node in ast.walk(tree)
         if isinstance(
             node,
-            (
-                ast.FunctionDef,
-                ast.AsyncFunctionDef,
-                ast.ClassDef,
-            ),
+            (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef),
         )
     }
     if symbol not in names:
@@ -237,19 +234,33 @@ def _validate_symbol(root: Path, reference: str) -> None:
         )
 
 
-def _python_runtime_sources(root: Path) -> list[str]:
-    package = root / "pr_inspector"
-    if not package.is_dir() or package.is_symlink():
+def _python_authority_sources(root: Path, directory: str) -> list[str]:
+    base = root / directory
+    if not base.is_dir() or base.is_symlink():
         raise FunctionalBootstrapError(
             "PRI-FUNCTIONAL-BOOTSTRAP-004",
-            "pr_inspector Runtime package is missing or symlinked",
+            f"{directory} authority directory is missing or symlinked",
         )
-    paths = []
-    for path in package.rglob("*.py"):
-        relative = path.relative_to(root).as_posix()
-        _assert_regular_authority_file(root, relative)
-        paths.append(relative)
+    paths: list[str] = []
+    for candidate in base.rglob("*"):
+        relative = candidate.relative_to(root).as_posix()
+        if candidate.is_symlink():
+            raise FunctionalBootstrapError(
+                "PRI-FUNCTIONAL-BOOTSTRAP-004",
+                f"symlinked authority path is forbidden: {relative}",
+            )
+        if candidate.is_file() and candidate.suffix == ".py":
+            _assert_regular_authority_file(root, relative)
+            paths.append(relative)
     return sorted(paths)
+
+
+def _python_runtime_sources(root: Path) -> list[str]:
+    return _python_authority_sources(root, "pr_inspector")
+
+
+def _python_script_sources(root: Path) -> list[str]:
+    return _python_authority_sources(root, "scripts")
 
 
 def _derived_integrity_inventory(
@@ -261,6 +272,7 @@ def _derived_integrity_inventory(
         ENTRYPOINT,
         "CURRENT_VERSION",
         CI_WORKFLOW_PATH,
+        PYPROJECT_PATH,
         RUNTIME_SCRIPT_PATH,
     }
     candidates.update(
@@ -268,6 +280,7 @@ def _derived_integrity_inventory(
         for item in RUNTIME_BOOTSTRAP_INPUTS
         if item != "protocol-manifest.yaml"
     )
+
     references = contract.get("references")
     if not isinstance(references, dict):
         raise FunctionalBootstrapError(
@@ -308,6 +321,7 @@ def _derived_integrity_inventory(
         candidates.add(_reference_path(reference))
 
     candidates.update(_python_runtime_sources(root))
+    candidates.update(_python_script_sources(root))
     inventory = tuple(sorted(_normalize_path(item) for item in candidates))
     if len(inventory) != len(set(inventory)):
         raise FunctionalBootstrapError(
@@ -487,12 +501,11 @@ def validate_runtime_contract(
     rules = resolve_rules(raw)
     workflow = (root / CI_WORKFLOW_PATH).read_text(encoding="utf-8")
     for rule in rules:
-        for key in ("negative_mutation",):
-            if not (root / _reference_path(rule[key])).is_file():
-                raise FunctionalBootstrapError(
-                    "PRI-FUNCTIONAL-BOOTSTRAP-004",
-                    f"missing rule reference: {rule[key]}",
-                )
+        if not (root / _reference_path(rule["negative_mutation"])).is_file():
+            raise FunctionalBootstrapError(
+                "PRI-FUNCTIONAL-BOOTSTRAP-004",
+                f"missing rule reference: {rule['negative_mutation']}",
+            )
         if rule["ci_command"] not in workflow:
             raise FunctionalBootstrapError(
                 "PRI-FUNCTIONAL-BOOTSTRAP-007",
