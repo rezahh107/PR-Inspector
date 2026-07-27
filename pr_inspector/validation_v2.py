@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CURRENT_VERSION = (ROOT / "CURRENT_VERSION").read_text(encoding="utf-8").strip()
 EXTENSION_SCHEMA = ROOT / f"protocols/{CURRENT_VERSION}/schemas/review-package.schema.json"
 V1_11_0_SCHEMA = ROOT / "protocols/v1.11.0/schemas/review-package.schema.json"
-ACTIVE_COMPATIBLE = {"v1.12.0", "v1.13.0"}
+ACTIVE_COMPATIBLE = {"v1.12.0", "v1.13.0", "v1.13.1"}
 
 
 def _schema_diagnostics(value: dict[str, Any], schema_path: Path) -> list[Diagnostic]:

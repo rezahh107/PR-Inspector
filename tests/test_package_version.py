@@ -24,4 +24,4 @@ def test_readme_active_protocol_matches_current_version_and_manifest():
     assert manifest["active_version"] == current
     assert f"## Active protocol\n\n`{current}`" in readme
     assert f"[`protocols/{current}/`](protocols/{current}/)" in readme
-    assert f"[`release-locks/{current}.sha256`](release-locks/{current}.sha256)" in readme
+    assert "[`protocol-manifest.yaml`](protocol-manifest.yaml)" in readme

@@ -78,11 +78,10 @@ def test_successor_protocol_activates_without_aigov_runtime_or_receipt_activatio
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     version = re.search(r'(?ms)^\[project\].*?^version\s*=\s*"([^"]+)"', pyproject)
     lock = _load(LOCK_PATH)
-    assert current == "v1.13.0"
+    assert current == "v1.13.1"
     assert manifest["active_version"] == current
-    assert manifest["release_lock"] == "release-locks/v1.13.0.sha256"
-    assert all("governance/aigov" not in path for path in manifest["load_order"])
-    assert version and version.group(1) == "1.13.0"
+    assert all("governance/aigov" not in path for path in manifest["runtime_bootstrap_inputs"])
+    assert version and version.group(1) == "1.13.1"
     assert lock["repository_adoption_status"] == "not_adopted"
     assert lock["runtime_activation"] is False
     assert lock["protocol_support_activation"] is False

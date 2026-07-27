@@ -37,7 +37,7 @@ def test_public_facade_does_not_mutate_base_policy_state():
     result = _run_isolated(code)
     assert result.returncode == 0, result.stdout + result.stderr
     observed = json.loads(result.stdout)
-    assert 'protocols/v1.13.0/' not in observed['protocol_prefixes']
+    assert 'protocols/v1.13.1/' not in observed['protocol_prefixes']
 
 def test_registry_owns_current_scope_and_impact_identity():
     current = resolve_current_planning_artifacts(ROOT)
@@ -48,9 +48,9 @@ def test_registry_owns_current_scope_and_impact_identity():
 
 def test_active_v1_13_policy_is_declarative_and_immutable():
     authority = resolve_planning_authority(ROOT)
-    assert authority.active_version == 'v1.13.0'
-    protocol = authority.protocol_policies['v1.13.0']
-    assert 'protocols/v1.13.0/' in protocol.allowed_prefixes
+    assert authority.active_version == 'v1.13.1'
+    protocol = authority.protocol_policies['v1.13.1']
+    assert 'protocols/v1.13.1/' in protocol.allowed_prefixes
     assert 'protocols/v1.12.0/**' in protocol.required_excluded
     with pytest.raises(TypeError):
         authority.protocol_policies['other'] = protocol
@@ -63,7 +63,7 @@ def test_unsupported_active_version_fails_closed(tmp_path):
 @pytest.mark.parametrize('mutation', ['missing_id', 'ambiguous_flag', 'mismatched_flag', 'missing_refs'])
 def test_current_package_policy_drift_fails_closed(tmp_path, mutation):
     (tmp_path / 'planning/tasks').mkdir(parents=True)
-    (tmp_path / 'CURRENT_VERSION').write_text('v1.13.0\n', encoding='utf-8')
+    (tmp_path / 'CURRENT_VERSION').write_text('v1.13.1\n', encoding='utf-8')
     registry = load_json_strict(ROOT / REGISTRY_PATH)
     candidate = copy.deepcopy(registry)
     if mutation == 'missing_id':

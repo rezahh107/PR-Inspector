@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def _active_context() -> ProtocolContext:
-    return replace(legacy._context(), protocol_version="v1.13.0")
+    return replace(legacy._context(), protocol_version="v1.13.1")
 
 
 def test_v1_13_active_protocol_adapter_installed():
@@ -42,7 +42,7 @@ def test_v1_13_context_construction_uses_no_inspector_network_or_full_validator(
     monkeypatch.setattr(repository, "validate_active_release_lock", forbidden)
     monkeypatch.setattr(verified_review, "_fetch_github_json", forbidden)
     context = ProtocolContext.from_verified_repository(ROOT)
-    assert context.protocol_version == "v1.13.0"
+    assert context.protocol_version == "v1.13.1"
     assert context.inspector_repository == "rezahh107/PR-Inspector"
     assert len(context.inspector_commit_sha) == 40
 
@@ -64,7 +64,7 @@ def test_official_runtime_construction_never_calls_full_repository_validation(
     )
     request = legacy._request(repository_directory=ROOT)
     runtime = official_review_module._create_official_runtime(request)
-    assert runtime.protocol_context.protocol_version == "v1.13.0"
+    assert runtime.protocol_context.protocol_version == "v1.13.1"
 
 
 def test_v1_13_package_is_differentially_equal_to_v1_12_except_protocol_identity():
@@ -73,7 +73,7 @@ def test_v1_13_package_is_differentially_equal_to_v1_12_except_protocol_identity
     old = assemble_review_package(facts, assessment, legacy._context()).value()
     new = assemble_review_package(facts, assessment, _active_context()).value()
     assert old["protocol_version"] == "v1.12.0"
-    assert new["protocol_version"] == "v1.13.0"
+    assert new["protocol_version"] == "v1.13.1"
     old = dict(old)
     new = dict(new)
     old.pop("protocol_version")
@@ -105,7 +105,7 @@ def test_v1_13_fixture_validation_matches_v1_12_diagnostics():
         legacy._context(),
     ).value()
     candidate = dict(base)
-    candidate["protocol_version"] = "v1.13.0"
+    candidate["protocol_version"] = "v1.13.1"
     old = [
         (item.code, item.path, item.message)
         for item in validate_package(base)
@@ -129,7 +129,7 @@ def test_v1_13_reaches_official_completion_and_owner_delivery(tmp_path):
     package = __import__("json").loads(
         (tmp_path / "out" / "review-package.json").read_text(encoding="utf-8")
     )
-    assert package["protocol_version"] == "v1.13.0"
+    assert package["protocol_version"] == "v1.13.1"
     delivery = official_owner_delivery(result)
     assert delivery
     assert source.fetch_count >= 3
@@ -145,4 +145,4 @@ def test_projection_identity_remains_bound_to_package_version():
         legacy._facts(), legacy._assessment(), _active_context()
     ).value()
     assert project_decision(old)["protocol_version"] == "v1.12.0"
-    assert project_decision(new)["protocol_version"] == "v1.13.0"
+    assert project_decision(new)["protocol_version"] == "v1.13.1"

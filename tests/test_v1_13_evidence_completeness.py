@@ -9,7 +9,7 @@ from tests import test_v1_12_verified_review_authority as authority
 
 
 def _active_context():
-    return replace(authority._context(), protocol_version="v1.13.0")
+    return replace(authority._context(), protocol_version="v1.13.1")
 
 
 def test_v1_13_missing_evidence_reference_remains_fail_closed():
