@@ -1,18 +1,28 @@
 from __future__ import annotations
 
 from .planning_governance_base import *
+from .planning_authority import PlanningAuthorityError, resolve_scope_policy
+
 
 def validate_scope(
     scope: dict[str, Any],
     schema: dict[str, Any],
     registry: dict[str, Any],
     expected_scope_ref: str | None = None,
+    *,
+    root: Path | None = None,
 ) -> list[Diagnostic]:
     output = _schema(scope, schema, "scope")
     if output:
         return output
     if scope["scope_revision"] != canonical_scope_revision(scope):
-        output.append(diagnostic("PINS-SCOPE-REVISION-MISMATCH", "/scope/scope_revision", "canonical hash mismatch"))
+        output.append(
+            diagnostic(
+                "PINS-SCOPE-REVISION-MISMATCH",
+                "/scope/scope_revision",
+                "canonical hash mismatch",
+            )
+        )
 
     programs = {item["program_id"]: item for item in registry["programs"]}
     initiatives = {item["initiative_id"]: item for item in registry["initiatives"]}
@@ -26,18 +36,46 @@ def validate_scope(
     }
     for field, identifiers in known.items():
         if scope[field] not in identifiers:
-            output.append(diagnostic("PINS-UNKNOWN-PARENT", f"/scope/{field}", scope[field]))
+            output.append(
+                diagnostic("PINS-UNKNOWN-PARENT", f"/scope/{field}", scope[field])
+            )
 
     program = programs.get(scope["program_id"])
     initiative = initiatives.get(scope["initiative_id"])
     task = tasks.get(scope["task_id"])
     package = packages.get(scope["work_package_id"])
-    if program and initiative and initiative["program_id"] != program["program_id"]:
-        output.append(diagnostic("PINS-CROSS-FILE-BINDING-MISMATCH", "/scope/initiative_id", "Initiative is not bound to Scope Program"))
-    if initiative and task and task["initiative_id"] != initiative["initiative_id"]:
-        output.append(diagnostic("PINS-CROSS-FILE-BINDING-MISMATCH", "/scope/task_id", "Task is not bound to Scope Initiative"))
+    if (
+        program
+        and initiative
+        and initiative["program_id"] != program["program_id"]
+    ):
+        output.append(
+            diagnostic(
+                "PINS-CROSS-FILE-BINDING-MISMATCH",
+                "/scope/initiative_id",
+                "Initiative is not bound to Scope Program",
+            )
+        )
+    if (
+        initiative
+        and task
+        and task["initiative_id"] != initiative["initiative_id"]
+    ):
+        output.append(
+            diagnostic(
+                "PINS-CROSS-FILE-BINDING-MISMATCH",
+                "/scope/task_id",
+                "Task is not bound to Scope Initiative",
+            )
+        )
     if task and package and package["task_id"] != task["task_id"]:
-        output.append(diagnostic("PINS-CROSS-FILE-BINDING-MISMATCH", "/scope/work_package_id", "Work Package is not bound to Scope Task"))
+        output.append(
+            diagnostic(
+                "PINS-CROSS-FILE-BINDING-MISMATCH",
+                "/scope/work_package_id",
+                "Work Package is not bound to Scope Task",
+            )
+        )
     expected_ref = expected_scope_ref or (
         package["scope_ref"] if package is not None else SCOPE_PATH.as_posix()
     )
@@ -50,37 +88,104 @@ def validate_scope(
             )
         )
 
+    try:
+        policy = resolve_scope_policy(
+            Path(root)
+            if root is not None
+            else Path(__file__).resolve().parents[1],
+            registry,
+            scope,
+        )
+    except PlanningAuthorityError as exc:
+        output.append(diagnostic(exc.code, exc.path, exc.message))
+        return sorted(set(output))
+
     paths = scope["committed_paths"]
     deleted_paths = scope.get("deleted_paths", [])
     all_paths = sorted([*paths, *deleted_paths])
-    policy = SCOPE_POLICIES[scope["change_class"]]
-    allowed_exact = policy["allowed_exact"]
-    allowed_prefixes = policy["allowed_prefixes"]
-    required_excluded = policy["required_excluded"]
-    required_forbidden = policy["required_forbidden"]
+    allowed_exact = policy.allowed_exact
+    allowed_prefixes = policy.allowed_prefixes
+    required_excluded = policy.required_excluded
+    required_forbidden = policy.required_forbidden
     if paths != sorted(paths) or len(paths) != len(set(paths)):
-        output.append(diagnostic("PINS-SCOPE-PATH-INVALID", "/scope/committed_paths", "paths must be unique and sorted"))
-    if deleted_paths != sorted(deleted_paths) or len(deleted_paths) != len(set(deleted_paths)):
-        output.append(diagnostic("PINS-SCOPE-PATH-INVALID", "/scope/deleted_paths", "paths must be unique and sorted"))
+        output.append(
+            diagnostic(
+                "PINS-SCOPE-PATH-INVALID",
+                "/scope/committed_paths",
+                "paths must be unique and sorted",
+            )
+        )
+    if deleted_paths != sorted(deleted_paths) or len(deleted_paths) != len(
+        set(deleted_paths)
+    ):
+        output.append(
+            diagnostic(
+                "PINS-SCOPE-PATH-INVALID",
+                "/scope/deleted_paths",
+                "paths must be unique and sorted",
+            )
+        )
     if set(paths) & set(deleted_paths):
-        output.append(diagnostic("PINS-SCOPE-PATH-INVALID", "/scope", "committed_paths and deleted_paths must be disjoint"))
+        output.append(
+            diagnostic(
+                "PINS-SCOPE-PATH-INVALID",
+                "/scope",
+                "committed_paths and deleted_paths must be disjoint",
+            )
+        )
     for path in all_paths:
         error = validate_repo_path(path)
         if error:
-            output.append(diagnostic("PINS-SCOPE-PATH-INVALID", "/scope/committed_paths", f"{path}: {error}"))
+            output.append(
+                diagnostic(
+                    "PINS-SCOPE-PATH-INVALID",
+                    "/scope/committed_paths",
+                    f"{path}: {error}",
+                )
+            )
         elif path not in allowed_exact and not path.startswith(allowed_prefixes):
-            output.append(diagnostic("PINS-SCOPE-FORBIDDEN-PATH", f"/{path}", "path is outside the authorized boundary"))
+            output.append(
+                diagnostic(
+                    "PINS-SCOPE-FORBIDDEN-PATH",
+                    f"/{path}",
+                    "path is outside the authorized boundary",
+                )
+            )
 
     if not required_excluded <= set(scope["excluded_paths"]):
-        output.append(diagnostic("PINS-SCOPE-FORBIDDEN-PATH", "/scope/excluded_paths", "required exclusions are missing"))
+        output.append(
+            diagnostic(
+                "PINS-SCOPE-FORBIDDEN-PATH",
+                "/scope/excluded_paths",
+                "required exclusions are missing",
+            )
+        )
     if not required_forbidden <= set(scope["forbidden_changes"]):
-        output.append(diagnostic("PINS-SCOPE-FORBIDDEN-PATH", "/scope/forbidden_changes", "required forbidden operations are missing"))
+        output.append(
+            diagnostic(
+                "PINS-SCOPE-FORBIDDEN-PATH",
+                "/scope/forbidden_changes",
+                "required forbidden operations are missing",
+            )
+        )
     for pattern in scope["excluded_paths"]:
         error = _pattern_error(pattern)
         if error:
-            output.append(diagnostic("PINS-SCOPE-PATH-INVALID", "/scope/excluded_paths", f"{pattern}: {error}"))
+            output.append(
+                diagnostic(
+                    "PINS-SCOPE-PATH-INVALID",
+                    "/scope/excluded_paths",
+                    f"{pattern}: {error}",
+                )
+            )
         elif any(pattern_matches(pattern, path) for path in all_paths):
-            output.append(diagnostic("PINS-SCOPE-FORBIDDEN-PATH", "/scope/committed_paths", f"path matches {pattern}"))
+            output.append(
+                diagnostic(
+                    "PINS-SCOPE-FORBIDDEN-PATH",
+                    "/scope/committed_paths",
+                    f"path matches {pattern}",
+                )
+            )
     return sorted(set(output))
 
 
@@ -107,14 +212,28 @@ def validate_impact(
         "base_sha",
     ):
         if impact[field] != scope[field]:
-            output.append(diagnostic("PINS-IMPACT-SCOPE-MISMATCH", f"/impact/{field}", f"expected {scope[field]}"))
+            output.append(
+                diagnostic(
+                    "PINS-IMPACT-SCOPE-MISMATCH",
+                    f"/impact/{field}",
+                    f"expected {scope[field]}",
+                )
+            )
 
     package = None
     if registry is not None:
-        packages = {item["work_package_id"]: item for item in registry["work_packages"]}
+        packages = {
+            item["work_package_id"]: item for item in registry["work_packages"]
+        }
         package = packages.get(impact["work_package_id"])
         if package is None:
-            output.append(diagnostic("PINS-CROSS-FILE-BINDING-MISMATCH", "/impact/work_package_id", "Impact Work Package is not registered"))
+            output.append(
+                diagnostic(
+                    "PINS-CROSS-FILE-BINDING-MISMATCH",
+                    "/impact/work_package_id",
+                    "Impact Work Package is not registered",
+                )
+            )
         else:
             if expected_impact_ref is not None:
                 expected_ref = expected_impact_ref
@@ -134,23 +253,62 @@ def validate_impact(
                     )
                 )
             if package["task_id"] != impact["task_id"]:
-                output.append(diagnostic("PINS-CROSS-FILE-BINDING-MISMATCH", "/impact/task_id", "Impact Task does not own Work Package"))
+                output.append(
+                    diagnostic(
+                        "PINS-CROSS-FILE-BINDING-MISMATCH",
+                        "/impact/task_id",
+                        "Impact Task does not own Work Package",
+                    )
+                )
             package_status = package_status or package["status"]
 
     if impact["sequence"] == 1 and impact["previous_impact_ref"] is not None:
-        output.append(diagnostic("PINS-IMPACT-SEQUENCE-MISMATCH", "/impact/previous_impact_ref", "first Impact must not have a predecessor"))
+        output.append(
+            diagnostic(
+                "PINS-IMPACT-SEQUENCE-MISMATCH",
+                "/impact/previous_impact_ref",
+                "first Impact must not have a predecessor",
+            )
+        )
     if impact["sequence"] > 1 and impact["previous_impact_ref"] is None:
-        output.append(diagnostic("PINS-IMPACT-SEQUENCE-MISMATCH", "/impact/previous_impact_ref", "later Impact requires predecessor reference"))
+        output.append(
+            diagnostic(
+                "PINS-IMPACT-SEQUENCE-MISMATCH",
+                "/impact/previous_impact_ref",
+                "later Impact requires predecessor reference",
+            )
+        )
     if impact["changed_paths"] != scope["committed_paths"]:
-        output.append(diagnostic("PINS-IMPACT-SCOPE-MISMATCH", "/impact/changed_paths", "must equal Scope committed paths"))
+        output.append(
+            diagnostic(
+                "PINS-IMPACT-SCOPE-MISMATCH",
+                "/impact/changed_paths",
+                "must equal Scope committed paths",
+            )
+        )
     if impact.get("deleted_paths", []) != scope.get("deleted_paths", []):
-        output.append(diagnostic("PINS-IMPACT-SCOPE-MISMATCH", "/impact/deleted_paths", "must equal Scope deleted paths"))
+        output.append(
+            diagnostic(
+                "PINS-IMPACT-SCOPE-MISMATCH",
+                "/impact/deleted_paths",
+                "must equal Scope deleted paths",
+            )
+        )
     if impact["material_progress"] == impact["zero_progress"]:
-        output.append(diagnostic("PINS-IMPACT-FALSE-PROGRESS", "/impact", "exactly one progress classification must be true"))
+        output.append(
+            diagnostic(
+                "PINS-IMPACT-FALSE-PROGRESS",
+                "/impact",
+                "exactly one progress classification must be true",
+            )
+        )
 
     completed_package = package_status in _WP_POST_MERGE_STATES
     if is_latest and completed_package:
-        if not impact["completion_claimed"] or impact["state_after"] not in _COMPLETION_IMPACT_STATES:
+        if (
+            not impact["completion_claimed"]
+            or impact["state_after"] not in _COMPLETION_IMPACT_STATES
+        ):
             output.append(
                 diagnostic(
                     "PINS-TASK-COMPLETION-PREDICATE",
@@ -158,8 +316,17 @@ def validate_impact(
                     "latest Impact must confirm post-Merge Work Package completion",
                 )
             )
-    elif impact["completion_claimed"] or impact["state_after"] in _COMPLETION_IMPACT_STATES:
-        output.append(diagnostic("PINS-IMPACT-FALSE-COMPLETION", "/impact", "completion is ahead of Work Package lifecycle"))
+    elif (
+        impact["completion_claimed"]
+        or impact["state_after"] in _COMPLETION_IMPACT_STATES
+    ):
+        output.append(
+            diagnostic(
+                "PINS-IMPACT-FALSE-COMPLETION",
+                "/impact",
+                "completion is ahead of Work Package lifecycle",
+            )
+        )
 
     if (
         impact["work_package_id"] == "PINS-PLAN-001-WP01"
@@ -167,7 +334,10 @@ def validate_impact(
         and package_status == "implementing"
     ):
         missing = REQUIRED_REMAINING - set(impact["remaining_obligations"])
-        if missing or impact["next_lifecycle_action"] != "exact_head_validation":
+        if (
+            missing
+            or impact["next_lifecycle_action"] != "exact_head_validation"
+        ):
             output.append(
                 diagnostic(
                     "PINS-IMPACT-FALSE-COMPLETION",
@@ -179,7 +349,11 @@ def validate_impact(
 
 
 def extract_bounded_json(text: str, begin: str, end: str) -> dict[str, Any]:
-    if text.count(begin) != 1 or text.count(end) != 1 or text.index(begin) >= text.index(end):
+    if (
+        text.count(begin) != 1
+        or text.count(end) != 1
+        or text.index(begin) >= text.index(end)
+    ):
         raise ValueError("bounded markers must occur exactly once in order")
     payload = loads_json_strict(text.split(begin, 1)[1].split(end, 1)[0].strip())
     if not isinstance(payload, dict):
@@ -192,13 +366,19 @@ def expected_snapshot(
     scope: dict[str, Any],
     impact: dict[str, Any],
 ) -> dict[str, Any]:
-    package = next(item for item in registry["work_packages"] if item["current"])
-    task = next(item for item in registry["tasks"] if item["task_id"] == package["task_id"])
+    package = next(
+        item for item in registry["work_packages"] if item["current"]
+    )
+    task = next(
+        item for item in registry["tasks"] if item["task_id"] == package["task_id"]
+    )
     program = registry["programs"][0]
     return {
         "program_id": program["program_id"],
         "program_status": program["status"],
-        "initiative_ids": sorted(item["initiative_id"] for item in registry["initiatives"]),
+        "initiative_ids": sorted(
+            item["initiative_id"] for item in registry["initiatives"]
+        ),
         "task_ids": sorted(item["task_id"] for item in registry["tasks"]),
         "current_work_package_id": package["work_package_id"],
         "current_task_id": task["task_id"],
@@ -210,11 +390,15 @@ def expected_snapshot(
     }
 
 
-def _safe_markdown_read(root: Path, path: Path) -> tuple[str | None, list[Diagnostic]]:
+def _safe_markdown_read(
+    root: Path, path: Path
+) -> tuple[str | None, list[Diagnostic]]:
     try:
         return (root / path).read_text(encoding="utf-8"), []
     except (OSError, UnicodeDecodeError) as exc:
-        return None, [diagnostic("PINS-MARKDOWN-INPUT-INVALID", f"/{path}", str(exc))]
+        return None, [
+            diagnostic("PINS-MARKDOWN-INPUT-INVALID", f"/{path}", str(exc))
+        ]
 
 
 def validate_markdown(
@@ -226,7 +410,11 @@ def validate_markdown(
     output: list[Diagnostic] = []
     expected = expected_snapshot(registry, scope, impact)
     for path, markers, code in (
-        (NEXT_WORK_PATH, NEXT_MARKERS, "PINS-DASHBOARD-REGISTRY-DRIFT"),
+        (
+            NEXT_WORK_PATH,
+            NEXT_MARKERS,
+            "PINS-DASHBOARD-REGISTRY-DRIFT",
+        ),
         (PLAN_PATH, PLAN_MARKERS, "PINS-PLAN-REGISTRY-DRIFT"),
     ):
         text, read_errors = _safe_markdown_read(root, path)
@@ -236,7 +424,9 @@ def validate_markdown(
         try:
             actual = extract_bounded_json(text, *markers)
             if actual != expected:
-                raise ValueError("bounded snapshot differs from canonical state")
+                raise ValueError(
+                    "bounded snapshot differs from canonical state"
+                )
         except (ValueError, json.JSONDecodeError, DuplicateKeyError) as exc:
             output.append(diagnostic(code, f"/{path}", str(exc)))
 
@@ -254,7 +444,11 @@ def validate_markdown(
         "Closed PR #33 remains closed and unmerged",
     ):
         if phrase not in baseline:
-            output.append(diagnostic("PINS-PLAN-REGISTRY-DRIFT", f"/{BASELINE_PATH}", f"missing invariant: {phrase}"))
+            output.append(
+                diagnostic(
+                    "PINS-PLAN-REGISTRY-DRIFT",
+                    f"/{BASELINE_PATH}",
+                    f"missing invariant: {phrase}",
+                )
+            )
     return sorted(set(output))
-
-

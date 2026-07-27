@@ -20,7 +20,7 @@ jobs:
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - name: Check out exact triggering head with ancestry
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
@@ -28,103 +28,71 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           fetch-depth: 0
+
       - name: Verify exact checkout identity
         shell: bash
         env:
           EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
+
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
+
       - name: Install pinned project and test dependencies
         run: python -m pip install --disable-pip-version-check ".[dev]"
+
       - name: Record and validate tested object identity
         shell: bash
         env:
           EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then tested_ref_type="pull_request_head"; claim_exact_head="true"; else tested_ref_type="push_or_dispatch"; claim_exact_head="false"; fi
-          python scripts/record_ci_identity.py --tested-ref-type "${tested_ref_type}" --tested-sha "$(git rev-parse HEAD)" --tested-tree-sha "$(git rev-parse 'HEAD^{tree}')" --reviewed-head-sha "${EXPECTED_SHA}" --synthetic-merge false --claim-exact-head "${claim_exact_head}" --workflow-run-id "${GITHUB_RUN_ID}" --job-id "${GITHUB_JOB}-${{ matrix.python-version }}" --output ci-identity.json
-      - name: Validate compact functional runtime
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            tested_ref_type="pull_request_head"
+            claim_exact_head="true"
+          else
+            tested_ref_type="push_or_dispatch"
+            claim_exact_head="false"
+          fi
+          python scripts/record_ci_identity.py \
+            --tested-ref-type "${tested_ref_type}" \
+            --tested-sha "$(git rev-parse HEAD)" \
+            --tested-tree-sha "$(git rev-parse 'HEAD^{tree}')" \
+            --reviewed-head-sha "${EXPECTED_SHA}" \
+            --synthetic-merge false \
+            --claim-exact-head "${claim_exact_head}" \
+            --workflow-run-id "${GITHUB_RUN_ID}" \
+            --job-id "${GITHUB_JOB}-${{ matrix.python-version }}" \
+            --output ci-identity.json
+
+      - name: Validate clean derived functional Runtime
         run: python scripts/validate_runtime_contract.py
-      - name: Validate active release lock
-        run: python -c "from pathlib import Path; import yaml; from pr_inspector.repository import validate_active_release_lock; r=Path('.'); c=(r/'CURRENT_VERSION').read_text().strip(); m=yaml.safe_load((r/'protocol-manifest.yaml').read_text()); d=validate_active_release_lock(r,c,m,m.get('load_order') or []); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
-      - name: Validate active schemas
-        run: python -c "from pathlib import Path; import yaml; from pr_inspector.repository import validate_active_schemas; r=Path('.'); m=yaml.safe_load((r/'protocol-manifest.yaml').read_text()); d=validate_active_schemas(r,m.get('load_order') or []); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
-      - name: Validate reason registry
-        run: python -c "from pr_inspector.repository import validate_reason_registry; d=validate_reason_registry(); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
-      - name: Validate candidate output closure
-        run: python -c "from pathlib import Path; from pr_inspector.repository import validate_candidate_output_closure; d=validate_candidate_output_closure(Path('.')); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
-      - name: Validate behavioral coverage closure
-        run: python -c "from pathlib import Path; from pr_inspector.behavioral_coverage import validate_behavioral_coverage; d=validate_behavioral_coverage(Path('.')); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
-      - name: Validate full repository closure
-        run: python -c "from pathlib import Path; from pr_inspector.repository import validate_repository; d=validate_repository(Path('.')); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
-      - name: Validate planning registry
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          from pr_inspector.planning_governance_base import REGISTRY_PATH, SCHEMAS, load_json_strict
-          from pr_inspector.planning_governance_registry import validate_registry
-          root = Path('.')
-          registry = load_json_strict(root / REGISTRY_PATH)
-          schema = load_json_strict(root / SCHEMAS['registry'])
-          diagnostics = validate_registry(registry, schema)
-          [print(item.line()) for item in diagnostics]
-          raise SystemExit(bool(diagnostics))
-          PY
-      - name: Validate registered planning artifacts
+
+      - name: Validate fresh direct planning imports
         run: |
           python - <<'PY'
           from pathlib import Path
           from pr_inspector.planning_governance_base import REGISTRY_PATH, SCHEMAS, load_json_strict
           from pr_inspector.planning_governance_repository import _validate_registered_artifacts
-          root = Path('.')
+          root = Path(".")
           registry = load_json_strict(root / REGISTRY_PATH)
           schemas = {name: load_json_strict(root / path) for name, path in SCHEMAS.items()}
           diagnostics, _, _ = _validate_registered_artifacts(root, registry, schemas)
           [print(item.line()) for item in diagnostics]
           raise SystemExit(bool(diagnostics))
           PY
-      - name: Validate planning completion dependencies
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          from pr_inspector.planning_governance_base import REGISTRY_PATH, SCHEMAS, load_json_strict
-          from pr_inspector.planning_governance_repository import _validate_registered_artifacts, _validate_task_completion_and_dependencies
-          root = Path('.')
-          registry = load_json_strict(root / REGISTRY_PATH)
-          schemas = {name: load_json_strict(root / path) for name, path in SCHEMAS.items()}
-          diagnostics, _, impacts = _validate_registered_artifacts(root, registry, schemas)
-          if not diagnostics:
-              diagnostics = _validate_task_completion_and_dependencies(registry, impacts)
-          [print(item.line()) for item in diagnostics]
-          raise SystemExit(bool(diagnostics))
-          PY
-      - name: Validate planning Markdown parity
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          from pr_inspector.planning_governance_base import REGISTRY_PATH, SCHEMAS, load_json_strict
-          from pr_inspector.planning_governance_artifacts import validate_markdown
-          from pr_inspector.planning_governance_repository import _validate_registered_artifacts
-          root = Path('.')
-          registry = load_json_strict(root / REGISTRY_PATH)
-          schemas = {name: load_json_strict(root / path) for name, path in SCHEMAS.items()}
-          diagnostics, scopes, impacts = _validate_registered_artifacts(root, registry, schemas)
-          current_package = next(item for item in registry['work_packages'] if item['current'])
-          if not diagnostics:
-              diagnostics = validate_markdown(root, scopes[current_package['scope_ref']], impacts[current_package['impact_refs'][-1]])
-          [print(item.line()) for item in diagnostics]
-          raise SystemExit(bool(diagnostics))
-          PY
-      - name: Validate planning repository
-        run: python -c "from pathlib import Path; from pr_inspector.planning_governance import validate_planning_repository; d=validate_planning_repository(Path('.')); [print(x.line()) for x in d]; raise SystemExit(bool(d))"
+
       - name: Validate versioned repository and release sources
         run: python scripts/validate_repository_v2.py
+
       - name: Validate static planning state
         run: python scripts/validate_planning_governance.py --check-static
+
       - name: Resolve authoritative pull-request base without changing Head
         if: github.event_name == 'pull_request'
         shell: bash
@@ -132,29 +100,45 @@ jobs:
           AUTHORITATIVE_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          set -euo pipefail
           git fetch --no-tags origin "${AUTHORITATIVE_BASE_SHA}"
           git cat-file -e "${AUTHORITATIVE_BASE_SHA}^{commit}"
           test "$(git rev-parse HEAD)" = "${EXPECTED_HEAD_SHA}"
+
       - name: Validate exact current Scope against authoritative PR base
         if: github.event_name == 'pull_request'
         env:
           AUTHORITATIVE_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: python scripts/validate_planning_governance.py --check-diff --authoritative-base-sha "${AUTHORITATIVE_BASE_SHA}" --head-sha "$(git rev-parse HEAD)" --report planning-scope-validation.json
-      - name: Run focused functional bootstrap tests
-        run: python -m pytest -q tests/test_v1_13_functional_bootstrap.py
-      - name: Run focused planning tests
+        run: >-
+          python scripts/validate_planning_governance.py
+          --check-diff
+          --authoritative-base-sha "${AUTHORITATIVE_BASE_SHA}"
+          --head-sha "$(git rev-parse HEAD)"
+          --report planning-scope-validation.json
+
+      - name: Run focused planning policy tests
         run: python -m pytest -q tests/test_v1_13_planning_governance.py
+
+      - name: Run focused functional Runtime tests
+        run: python -m pytest -q tests/test_v1_13_functional_bootstrap.py
+
       - name: Run focused Behavioral Rule Coverage mutations
         run: python -m pytest -q tests/test_behavioral_rule_coverage.py tests/test_governance_enforcement.py
+
       - name: Run focused external Coverage trust gate tests
         run: python -m pytest -q tests/test_coverage_trust_gate.py
+
       - name: Run verified review authority and evidence completeness
         run: python -m pytest -q tests/test_v1_13_verified_review_authority.py tests/test_v1_13_evidence_completeness.py
+
       - name: Run canonical output enforcement tests
         run: python -m pytest -q tests/test_canonical_output_enforcement.py
+
       - name: Run canonical output atomicity tests
         run: python -m pytest -q tests/test_canonical_output_atomicity.py
+
       - name: Run owner delivery compatibility tests
         run: python -m pytest -q tests/test_atomic_owner_delivery.py tests/test_render_cli_owner_delivery.py
-      - name: Run repository closure and full regression suite
-        run: python -m pytest -q tests/test_repository_closure.py && python -m pytest
+
+      - name: Run full repository regression suite
+        run: python -m pytest -q

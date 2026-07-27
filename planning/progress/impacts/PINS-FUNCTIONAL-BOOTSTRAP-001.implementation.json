@@ -16,7 +16,11 @@
     "pr_inspector/behavioral_coverage.py",
     "pr_inspector/functional_review.py",
     "pr_inspector/functional_runtime.py",
+    "pr_inspector/planning_authority.py",
     "pr_inspector/planning_governance.py",
+    "pr_inspector/planning_governance_artifacts.py",
+    "pr_inspector/planning_governance_git.py",
+    "pr_inspector/planning_governance_repository.py",
     "pr_inspector/validation_v2.py",
     "protocol-manifest.yaml",
     "protocols/v1.13.0/PR_REVIEW_CONTRACT.md",
@@ -54,8 +58,8 @@
     "registered and authorized planning task",
     "created exact scope and impact",
     "implemented functional contract and loader",
-    "separated runtime and full release validation",
-    "migrated behavioral rule inventory",
+    "removed planning import-order authority",
+    "derived complete Runtime integrity inventory",
     "preserved target review and owner delivery adapters"
   ],
   "completion_claimed": false,
@@ -63,7 +67,7 @@
   "impact_id": "PINS-FUNCTIONAL-BOOTSTRAP-001-IMPACT-001",
   "initiative_id": "PRINS-FUNCTIONAL-BOOTSTRAP",
   "known_gaps": [
-    "local full-repository execution was unavailable; exact candidate validation is delegated to GitHub Actions"
+    "exact-Head GitHub Actions validation and fresh independent review remain pending"
   ],
   "material_progress": true,
   "next_lifecycle_action": "exact_head_validation",
@@ -80,8 +84,8 @@
   "schema_version": "progress-impact.v1",
   "scope_id": "PINS-FUNCTIONAL-BOOTSTRAP-001-SCOPE-001",
   "sequence": 1,
-  "state_after": "v1.13 functional contract implemented pending exact-Head CI validation and independent review",
-  "state_before": "v1.12 per-review bootstrap coupled to remote Inspector attestation and full repository validation",
+  "state_after": "v1.13 planning and Runtime integrity repairs implemented pending exact-Head CI validation and independent review",
+  "state_before": "v1.13 candidate with import-order-dependent planning policy and manifest-selected Runtime digest subset",
   "task_id": "PINS-FUNCTIONAL-BOOTSTRAP-001",
   "work_package_id": "PINS-FUNCTIONAL-BOOTSTRAP-001-WP01",
   "zero_progress": false

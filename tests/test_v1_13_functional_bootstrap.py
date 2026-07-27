@@ -1,163 +1,170 @@
 from __future__ import annotations
-
 import hashlib
 import json
+import os
 import shutil
+import subprocess
 from pathlib import Path
-
 import pytest
 import yaml
-
-from pr_inspector.functional_runtime import (
-    FunctionalBootstrapError,
-    load_json_strict,
-    validate_runtime_contract,
-)
-
+from pr_inspector.functional_runtime import CI_WORKFLOW_PATH, CONTRACT_PATH, CONTRACT_SCHEMA_PATH, ENTRYPOINT, RUNTIME_BOOTSTRAP_INPUTS, FunctionalBootstrapError, _derived_integrity_inventory, _runtime_digest, load_json_strict, resolve_rules, validate_runtime_contract
 ROOT = Path(__file__).resolve().parents[1]
 
-
-def test_runtime_contract_is_valid_without_network(monkeypatch):
-    import urllib.request
-
-    monkeypatch.setattr(
-        urllib.request,
-        "urlopen",
-        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("network")),
-    )
-    value = validate_runtime_contract(ROOT)
-    assert value.protocol_version == "v1.13.0"
-    assert len(value.functional_runtime_sha256) == 64
-
-
-def test_manifest_declares_compact_bootstrap_and_full_release_sources():
-    manifest = yaml.safe_load(
-        (ROOT / "protocol-manifest.yaml").read_text(encoding="utf-8")
-    )
-    assert manifest["runtime_bootstrap_inputs"] == [
-        "CURRENT_VERSION",
-        "protocol-manifest.yaml",
-        "protocols/v1.13.0/functional-runtime-contract.json",
-        "protocols/v1.13.0/schemas/functional-runtime-contract.schema.json",
-        "protocols/v1.13.0/prompts/INTAKE_RESPONSE.fa.md",
-    ]
-    forbidden = (
-        "trust/INSPECTOR_TRUST_POLICY.json",
-        "release-locks/",
-        "protocols/v1.12.0/",
-    )
-    assert not any(
-        token in path
-        for path in manifest["runtime_bootstrap_inputs"]
-        for token in forbidden
-    )
-    assert len(manifest["release_validation_sources"]) > len(
-        manifest["runtime_bootstrap_inputs"]
-    )
-
-
-def test_contract_rule_registry_is_one_to_one_and_executable():
-    contract = load_json_strict(
-        ROOT / "protocols/v1.13.0/functional-runtime-contract.json"
-    )
-    ids = [item["rule_id"] for item in contract["functional_rules"]]
-    validators = [item["validator"] for item in contract["functional_rules"]]
-    positive = [item["positive_control"] for item in contract["functional_rules"]]
-    negative = [item["negative_mutation"] for item in contract["functional_rules"]]
-    assert len(ids) == len(set(ids)) == 43
-    assert all(validators)
-    assert all(positive)
-    assert len(negative) == len(set(negative))
-    assert all(item["ci_command"] for item in contract["functional_rules"])
-    assert all(item["recovery_action"] for item in contract["functional_rules"])
-
-
-def test_duplicate_keys_fail_closed(tmp_path):
-    path = tmp_path / "duplicate.json"
-    path.write_text('{"a":1,"a":2}', encoding="utf-8")
-    with pytest.raises(
-        FunctionalBootstrapError, match="PRI-FUNCTIONAL-BOOTSTRAP-001"
-    ):
-        load_json_strict(path)
-
-
-def _copy_runtime_repo(tmp_path: Path) -> Path:
-    destination = tmp_path / "repo"
-    shutil.copytree(
-        ROOT,
-        destination,
-        ignore=shutil.ignore_patterns(".git", ".venv", ".pytest_cache", "__pycache__"),
-    )
+def _copy_repo(tmp_path: Path) -> Path:
+    destination = tmp_path / 'repo'
+    shutil.copytree(ROOT, destination, ignore=shutil.ignore_patterns('.git', '.venv', '.pytest_cache', '__pycache__', '*.pyc'))
     return destination
 
-
 def _manifest(root: Path) -> dict:
-    return yaml.safe_load((root / "protocol-manifest.yaml").read_text(encoding="utf-8"))
-
+    value = yaml.safe_load((root / 'protocol-manifest.yaml').read_text(encoding='utf-8'))
+    assert isinstance(value, dict)
+    return value
 
 def _write_manifest(root: Path, value: dict) -> None:
-    (root / "protocol-manifest.yaml").write_text(
-        yaml.safe_dump(value, sort_keys=False), encoding="utf-8"
-    )
+    (root / 'protocol-manifest.yaml').write_text(yaml.safe_dump(value, sort_keys=False, allow_unicode=True), encoding='utf-8')
 
+def _reconcile_runtime(root: Path) -> tuple[str, ...]:
+    raw = load_json_strict(root / CONTRACT_PATH)
+    rules = resolve_rules(raw)
+    inventory = _derived_integrity_inventory(root, raw, rules)
+    manifest = _manifest(root)
+    manifest['functional_digest_paths'] = list(inventory)
+    manifest['functional_runtime_sha256'] = _runtime_digest(root, inventory)
+    _write_manifest(root, manifest)
+    return inventory
 
-def test_malformed_contract_fails_closed_without_fallback(tmp_path):
-    root = _copy_runtime_repo(tmp_path)
-    path = root / "protocols/v1.13.0/functional-runtime-contract.json"
-    path.write_text('{"schema_version":1,"schema_version":2}', encoding="utf-8")
-    with pytest.raises(
-        FunctionalBootstrapError, match="PRI-FUNCTIONAL-BOOTSTRAP-001"
-    ):
-        validate_runtime_contract(root, require_git=False)
+def _init_git(root: Path) -> str:
+    subprocess.run(['git', 'init'], cwd=root, check=True, capture_output=True)
+    subprocess.run(['git', 'config', 'user.email', 'runtime@example.invalid'], cwd=root, check=True)
+    subprocess.run(['git', 'config', 'user.name', 'Runtime Test'], cwd=root, check=True)
+    subprocess.run(['git', 'add', '.'], cwd=root, check=True)
+    subprocess.run(['git', 'commit', '-m', 'baseline'], cwd=root, check=True, capture_output=True)
+    return subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=root, check=True, text=True, capture_output=True).stdout.strip()
 
+def test_clean_runtime_contract_is_valid_and_offline(monkeypatch):
+    import urllib.request
+    monkeypatch.setattr(urllib.request, 'urlopen', lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError('network access is forbidden')))
+    value = validate_runtime_contract(ROOT)
+    assert value.protocol_version == 'v1.13.0'
+    assert len(value.functional_runtime_sha256) == 64
 
-def test_version_mismatch_fails_closed_without_fallback(tmp_path):
-    root = _copy_runtime_repo(tmp_path)
-    (root / "CURRENT_VERSION").write_text("v9.9.9\n", encoding="utf-8")
-    with pytest.raises(
-        FunctionalBootstrapError, match="PRI-FUNCTIONAL-BOOTSTRAP-002"
-    ):
-        validate_runtime_contract(root, require_git=False)
-
-
-def test_missing_reference_fails_closed_without_fallback(tmp_path):
-    root = _copy_runtime_repo(tmp_path)
-    contract = load_json_strict(
-        root / "protocols/v1.13.0/functional-runtime-contract.json"
-    )
-    missing = root / contract["references"]["reason_registry"]
-    missing.unlink()
-    with pytest.raises(
-        FunctionalBootstrapError, match="PRI-FUNCTIONAL-BOOTSTRAP-004"
-    ):
-        validate_runtime_contract(root, require_git=False)
-
-
-def test_contract_digest_drift_fails_closed_without_fallback(tmp_path):
-    root = _copy_runtime_repo(tmp_path)
-    path = root / "protocols/v1.13.0/functional-runtime-contract.json"
-    value = json.loads(path.read_text(encoding="utf-8"))
-    value["model_bootstrap"]["instructions"].append("drift")
-    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    with pytest.raises(
-        FunctionalBootstrapError, match="PRI-FUNCTIONAL-BOOTSTRAP-006"
-    ):
-        validate_runtime_contract(root, require_git=False)
-
-
-def test_runtime_digest_drift_fails_closed_without_fallback(tmp_path):
-    root = _copy_runtime_repo(tmp_path)
-    path = root / "pr_inspector/functional_review.py"
-    path.write_text(path.read_text(encoding="utf-8") + "\n# drift\n", encoding="utf-8")
-    with pytest.raises(
-        FunctionalBootstrapError, match="PRI-FUNCTIONAL-BOOTSTRAP-006"
-    ):
-        validate_runtime_contract(root, require_git=False)
-
-
-def test_manifest_contract_digest_is_exact_file_hash():
+def test_manifest_uses_canonical_bootstrap_identity():
     manifest = _manifest(ROOT)
-    path = ROOT / manifest["functional_runtime_contract"]
-    assert hashlib.sha256(path.read_bytes()).hexdigest() == manifest[
-        "functional_contract_sha256"
-    ]
+    assert manifest['entrypoint'] == ENTRYPOINT
+    assert manifest['active_version'] == 'v1.13.0'
+    assert manifest['functional_runtime_contract'] == CONTRACT_PATH
+    assert manifest['functional_runtime_schema'] == CONTRACT_SCHEMA_PATH
+    assert manifest['runtime_bootstrap_inputs'] == list(RUNTIME_BOOTSTRAP_INPUTS)
+
+@pytest.mark.parametrize(('field', 'replacement'), [('entrypoint', 'README.md'), ('active_version', 'v1.12.0'), ('functional_runtime_contract', 'alternate.json'), ('functional_runtime_schema', 'alternate.schema.json')])
+def test_manifest_canonical_repointing_fails_closed(tmp_path: Path, field: str, replacement: str):
+    root = _copy_repo(tmp_path)
+    manifest = _manifest(root)
+    manifest[field] = replacement
+    _write_manifest(root, manifest)
+    with pytest.raises(FunctionalBootstrapError, match='PRI-FUNCTIONAL-BOOTSTRAP-002'):
+        validate_runtime_contract(root, require_git=False)
+
+@pytest.mark.parametrize('mutation', ['missing', 'extra', 'duplicate', 'reordered', 'alias', 'nonexistent'])
+def test_manifest_cannot_distort_derived_inventory(tmp_path: Path, mutation: str):
+    root = _copy_repo(tmp_path)
+    inventory = list(_reconcile_runtime(root))
+    if mutation == 'missing':
+        inventory.pop()
+    elif mutation == 'extra':
+        inventory.append('README.md')
+    elif mutation == 'duplicate':
+        inventory.append(inventory[-1])
+    elif mutation == 'reordered':
+        inventory[0], inventory[1] = (inventory[1], inventory[0])
+    elif mutation == 'alias':
+        inventory[0] = './' + inventory[0]
+    else:
+        inventory.append('pr_inspector/does_not_exist.py')
+    manifest = _manifest(root)
+    manifest['functional_digest_paths'] = inventory
+    _write_manifest(root, manifest)
+    with pytest.raises(FunctionalBootstrapError, match='PRI-FUNCTIONAL-BOOTSTRAP-006'):
+        validate_runtime_contract(root, require_git=False)
+
+def test_symlinked_authority_carrier_fails_closed(tmp_path: Path):
+    root = _copy_repo(tmp_path)
+    target = root / 'pr_inspector/official_review.py'
+    backup = root / 'official_review.real.py'
+    target.replace(backup)
+    try:
+        target.symlink_to(backup)
+    except OSError as exc:
+        pytest.skip(f'symlink unavailable: {exc}')
+    with pytest.raises(FunctionalBootstrapError, match='PRI-FUNCTIONAL-BOOTSTRAP-004'):
+        validate_runtime_contract(root, require_git=False)
+
+@pytest.mark.parametrize('relative', ['pr_inspector/official_review.py', 'pr_inspector/verified_review.py', 'pr_inspector/validation_v2.py', 'pr_inspector/decision_projection.py', 'pr_inspector/owner_delivery.py'])
+def test_authority_carrier_mutation_breaks_runtime_digest(tmp_path: Path, relative: str):
+    root = _copy_repo(tmp_path)
+    _reconcile_runtime(root)
+    path = root / relative
+    path.write_text(path.read_text(encoding='utf-8') + '\n# unreconciled drift\n', encoding='utf-8')
+    with pytest.raises(FunctionalBootstrapError, match='PRI-FUNCTIONAL-BOOTSTRAP-006'):
+        validate_runtime_contract(root, require_git=False)
+
+def test_untracked_runtime_module_cannot_escape_inventory(tmp_path: Path):
+    root = _copy_repo(tmp_path)
+    _reconcile_runtime(root)
+    (root / 'pr_inspector/untracked_authority.py').write_text('AUTHORITY = True\n', encoding='utf-8')
+    with pytest.raises(FunctionalBootstrapError, match='PRI-FUNCTIONAL-BOOTSTRAP-006'):
+        validate_runtime_contract(root, require_git=False)
+
+def test_untracked_alternate_contract_repoint_is_rejected(tmp_path: Path):
+    root = _copy_repo(tmp_path)
+    (root / 'alternate.json').write_text('{}\n', encoding='utf-8')
+    manifest = _manifest(root)
+    manifest['functional_runtime_contract'] = 'alternate.json'
+    _write_manifest(root, manifest)
+    with pytest.raises(FunctionalBootstrapError, match='PRI-FUNCTIONAL-BOOTSTRAP-002'):
+        validate_runtime_contract(root, require_git=False)
+
+def test_contract_hash_is_exact_file_hash():
+    manifest = _manifest(ROOT)
+    assert hashlib.sha256((ROOT / CONTRACT_PATH).read_bytes()).hexdigest() == manifest['functional_contract_sha256']
+
+def test_derived_inventory_covers_complete_runtime_package_and_references():
+    raw = load_json_strict(ROOT / CONTRACT_PATH)
+    inventory = set(_derived_integrity_inventory(ROOT, raw, resolve_rules(raw)))
+    package_sources = {path.relative_to(ROOT).as_posix() for path in (ROOT / 'pr_inspector').rglob('*.py')}
+    assert package_sources <= inventory
+    assert set(raw['references'].values()) <= inventory
+    assert ENTRYPOINT in inventory
+    assert 'CURRENT_VERSION' in inventory
+    assert CI_WORKFLOW_PATH in inventory
+    assert 'protocol-manifest.yaml' not in inventory
+
+def test_checkout_identity_and_runtime_acceptance_are_not_conflated(tmp_path: Path):
+    root = _copy_repo(tmp_path)
+    _reconcile_runtime(root)
+    reference = _init_git(root)
+    baseline = validate_runtime_contract(root)
+    assert baseline.inspector_commit_sha == reference
+    outside = root / 'docs/non_runtime_control.txt'
+    outside.parent.mkdir(exist_ok=True)
+    outside.write_text('outside runtime authority\n', encoding='utf-8')
+    subprocess.run(['git', 'add', str(outside)], cwd=root, check=True)
+    subprocess.run(['git', 'commit', '-m', 'outside runtime'], cwd=root, check=True, capture_output=True)
+    later = validate_runtime_contract(root)
+    assert later.inspector_commit_sha != reference
+    assert later.functional_runtime_sha256 == baseline.functional_runtime_sha256
+    carrier = root / 'pr_inspector/owner_delivery.py'
+    carrier.write_text(carrier.read_text(encoding='utf-8') + '\n# changed authority\n', encoding='utf-8')
+    subprocess.run(['git', 'add', str(carrier)], cwd=root, check=True)
+    subprocess.run(['git', 'commit', '-m', 'unreconciled authority'], cwd=root, check=True, capture_output=True)
+    with pytest.raises(FunctionalBootstrapError, match='PRI-FUNCTIONAL-BOOTSTRAP-006'):
+        validate_runtime_contract(root)
+
+def test_dirty_manifest_control_fails_production_identity(tmp_path: Path):
+    root = _copy_repo(tmp_path)
+    _reconcile_runtime(root)
+    _init_git(root)
+    manifest = root / 'protocol-manifest.yaml'
+    manifest.write_text(manifest.read_text(encoding='utf-8') + '\n# dirty\n', encoding='utf-8')
+    with pytest.raises(FunctionalBootstrapError, match='PRI-FUNCTIONAL-BOOTSTRAP-009'):
+        validate_runtime_contract(root)

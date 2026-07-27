@@ -25,7 +25,11 @@
     "pr_inspector/behavioral_coverage.py",
     "pr_inspector/functional_review.py",
     "pr_inspector/functional_runtime.py",
+    "pr_inspector/planning_authority.py",
     "pr_inspector/planning_governance.py",
+    "pr_inspector/planning_governance_artifacts.py",
+    "pr_inspector/planning_governance_git.py",
+    "pr_inspector/planning_governance_repository.py",
     "pr_inspector/validation_v2.py",
     "protocol-manifest.yaml",
     "protocols/v1.13.0/PR_REVIEW_CONTRACT.md",
@@ -104,7 +108,7 @@
   "repository": "rezahh107/PR-Inspector",
   "schema_version": "work-package-scope.v1",
   "scope_id": "PINS-FUNCTIONAL-BOOTSTRAP-001-SCOPE-001",
-  "scope_revision": "sha256:455292de009d239f00ea89b50108aa03c952501c2282589fa82f48bf63822e94",
+  "scope_revision": "sha256:36e260eef88a0c2ee81f8c6edca213d409cd64ed6c9a10c1716b9d2f296dde29",
   "task_id": "PINS-FUNCTIONAL-BOOTSTRAP-001",
   "work_package_id": "PINS-FUNCTIONAL-BOOTSTRAP-001-WP01"
 }

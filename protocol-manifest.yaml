@@ -8,64 +8,64 @@ functional_runtime_contract: protocols/v1.13.0/functional-runtime-contract.json
 functional_runtime_schema: protocols/v1.13.0/schemas/functional-runtime-contract.schema.json
 functional_contract_sha256: 60fb95291ffa3a5718490853c807b9fbaca22591a9ef927352237889ab691b22
 functional_digest_paths:
-- protocols/v1.13.0/functional-runtime-contract.json
-- pr_inspector/functional_runtime.py
-- pr_inspector/functional_review.py
+  - pr_inspector/functional_review.py
+  - pr_inspector/functional_runtime.py
+  - protocols/v1.13.0/functional-runtime-contract.json
 functional_runtime_sha256: a2e01288c00be75b9a00842cefd94c73ce10eb778ac61ba9d45d0e46350dc371
 runtime_bootstrap_inputs:
-- CURRENT_VERSION
-- protocol-manifest.yaml
-- protocols/v1.13.0/functional-runtime-contract.json
-- protocols/v1.13.0/schemas/functional-runtime-contract.schema.json
-- protocols/v1.13.0/prompts/INTAKE_RESPONSE.fa.md
+  - CURRENT_VERSION
+  - protocol-manifest.yaml
+  - protocols/v1.13.0/functional-runtime-contract.json
+  - protocols/v1.13.0/schemas/functional-runtime-contract.schema.json
+  - protocols/v1.13.0/prompts/INTAKE_RESPONSE.fa.md
 release_validation_sources:
-- protocols/v1.13.0/functional-runtime-contract.json
-- protocols/v1.13.0/schemas/functional-runtime-contract.schema.json
-- protocols/v1.13.0/schemas/review-assessment.schema.json
-- protocols/v1.13.0/schemas/review-package.schema.json
-- protocols/v1.13.0/schemas/decision-projection.schema.json
-- protocols/v1.13.0/schemas/owner-delivery-contract.schema.json
-- protocols/v1.13.0/schemas/ci-identity.schema.json
-- protocols/v1.13.0/schemas/rereview-sequence.schema.json
-- protocols/v1.13.0/schemas/governance-evidence.schema.json
-- protocols/v1.13.0/registries/DECISION_REASON_REGISTRY.yaml
-- protocols/v1.13.0/policies/OWNER_DELIVERY_CONTRACT.json
-- protocols/v1.13.0/policies/BEHAVIORAL_RULE_COVERAGE.md
-- protocols/v1.13.0/policies/GOVERNANCE_BEHAVIORAL_RULE_COVERAGE.md
-- protocols/v1.13.0/prompts/INTAKE_RESPONSE.fa.md
-- protocols/v1.13.0/PR_REVIEW_CONTRACT.md
-- protocols/v1.13.0/pipeline/REVIEW_PIPELINE.md
-- protocols/v1.13.0/templates/OWNER_DECISION_CARD.fa.md
-- protocols/v1.13.0/templates/TECHNICAL_HANDOFF.en.md
+  - protocols/v1.13.0/functional-runtime-contract.json
+  - protocols/v1.13.0/schemas/functional-runtime-contract.schema.json
+  - protocols/v1.13.0/schemas/review-assessment.schema.json
+  - protocols/v1.13.0/schemas/review-package.schema.json
+  - protocols/v1.13.0/schemas/decision-projection.schema.json
+  - protocols/v1.13.0/schemas/owner-delivery-contract.schema.json
+  - protocols/v1.13.0/schemas/ci-identity.schema.json
+  - protocols/v1.13.0/schemas/rereview-sequence.schema.json
+  - protocols/v1.13.0/schemas/governance-evidence.schema.json
+  - protocols/v1.13.0/registries/DECISION_REASON_REGISTRY.yaml
+  - protocols/v1.13.0/policies/OWNER_DELIVERY_CONTRACT.json
+  - protocols/v1.13.0/policies/BEHAVIORAL_RULE_COVERAGE.md
+  - protocols/v1.13.0/policies/GOVERNANCE_BEHAVIORAL_RULE_COVERAGE.md
+  - protocols/v1.13.0/prompts/INTAKE_RESPONSE.fa.md
+  - protocols/v1.13.0/PR_REVIEW_CONTRACT.md
+  - protocols/v1.13.0/pipeline/REVIEW_PIPELINE.md
+  - protocols/v1.13.0/templates/OWNER_DECISION_CARD.fa.md
+  - protocols/v1.13.0/templates/TECHNICAL_HANDOFF.en.md
 load_order:
-- protocols/v1.13.0/functional-runtime-contract.json
-- protocols/v1.13.0/schemas/functional-runtime-contract.schema.json
-- protocols/v1.13.0/schemas/review-assessment.schema.json
-- protocols/v1.13.0/schemas/review-package.schema.json
-- protocols/v1.13.0/schemas/decision-projection.schema.json
-- protocols/v1.13.0/schemas/owner-delivery-contract.schema.json
-- protocols/v1.13.0/schemas/ci-identity.schema.json
-- protocols/v1.13.0/schemas/rereview-sequence.schema.json
-- protocols/v1.13.0/schemas/governance-evidence.schema.json
-- protocols/v1.13.0/registries/DECISION_REASON_REGISTRY.yaml
-- protocols/v1.13.0/policies/OWNER_DELIVERY_CONTRACT.json
-- protocols/v1.13.0/policies/BEHAVIORAL_RULE_COVERAGE.md
-- protocols/v1.13.0/policies/GOVERNANCE_BEHAVIORAL_RULE_COVERAGE.md
-- protocols/v1.13.0/prompts/INTAKE_RESPONSE.fa.md
-- protocols/v1.13.0/PR_REVIEW_CONTRACT.md
-- protocols/v1.13.0/pipeline/REVIEW_PIPELINE.md
-- protocols/v1.13.0/templates/OWNER_DECISION_CARD.fa.md
-- protocols/v1.13.0/templates/TECHNICAL_HANDOFF.en.md
+  - protocols/v1.13.0/functional-runtime-contract.json
+  - protocols/v1.13.0/schemas/functional-runtime-contract.schema.json
+  - protocols/v1.13.0/schemas/review-assessment.schema.json
+  - protocols/v1.13.0/schemas/review-package.schema.json
+  - protocols/v1.13.0/schemas/decision-projection.schema.json
+  - protocols/v1.13.0/schemas/owner-delivery-contract.schema.json
+  - protocols/v1.13.0/schemas/ci-identity.schema.json
+  - protocols/v1.13.0/schemas/rereview-sequence.schema.json
+  - protocols/v1.13.0/schemas/governance-evidence.schema.json
+  - protocols/v1.13.0/registries/DECISION_REASON_REGISTRY.yaml
+  - protocols/v1.13.0/policies/OWNER_DELIVERY_CONTRACT.json
+  - protocols/v1.13.0/policies/BEHAVIORAL_RULE_COVERAGE.md
+  - protocols/v1.13.0/policies/GOVERNANCE_BEHAVIORAL_RULE_COVERAGE.md
+  - protocols/v1.13.0/prompts/INTAKE_RESPONSE.fa.md
+  - protocols/v1.13.0/PR_REVIEW_CONTRACT.md
+  - protocols/v1.13.0/pipeline/REVIEW_PIPELINE.md
+  - protocols/v1.13.0/templates/OWNER_DECISION_CARD.fa.md
+  - protocols/v1.13.0/templates/TECHNICAL_HANDOFF.en.md
 release_lock: release-locks/v1.13.0.sha256
 required_artifacts:
-- review-package.json
-- DECISION_PROJECTION.json
-- OWNER_RESULT.fa.txt
-- TECHNICAL_HANDOFF.en.md
-- OWNER_PROFILE_COMMANDS.fa.txt
-- artifact-manifest.json
+  - review-package.json
+  - DECISION_PROJECTION.json
+  - OWNER_RESULT.fa.txt
+  - TECHNICAL_HANDOFF.en.md
+  - OWNER_PROFILE_COMMANDS.fa.txt
+  - artifact-manifest.json
 validation:
-- python scripts/validate_runtime_contract.py
-- python scripts/validate_repository_v2.py
-- python -m pytest
+  - python scripts/validate_runtime_contract.py
+  - python scripts/validate_repository_v2.py
+  - python -m pytest
 required_check_names: []
