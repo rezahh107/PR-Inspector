@@ -45,6 +45,13 @@ def _copy_current_version(destination: Path) -> None:
     shutil.copy2(ROOT / "CURRENT_VERSION", target)
 
 
+def _copy_planning_authority_inputs(destination: Path, registry_path: Path) -> None:
+    _copy_current_version(destination)
+    target = destination / registry_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(ROOT / registry_path, target)
+
+
 def _append_current_exact_head_evidence(module: Any, registry: dict) -> dict:
     candidate = copy.deepcopy(registry)
     package = module.current_package(candidate)
@@ -117,27 +124,20 @@ def declarative_planning_fixture_compatibility(request, monkeypatch):
 
         monkeypatch.setattr(module, "read", read)
 
-        original_init = module.init_git
+        original_validate_git_diff = module.validate_git_diff
 
-        def init_git(cwd: Path) -> None:
-            original_init(cwd)
-            for relative in (Path("CURRENT_VERSION"), module.REGISTRY_PATH):
-                target = cwd / relative
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(ROOT / relative, target)
-            module.git(
-                "add",
-                "CURRENT_VERSION",
-                module.REGISTRY_PATH.as_posix(),
-                cwd=cwd,
-            )
-            module.git(
-                "commit",
-                "-m",
-                "planning authority controls",
-                cwd=cwd,
+        def validate_git_diff(
+            root: Path,
+            authoritative_base_sha: str,
+            head_sha: str,
+        ):
+            _copy_planning_authority_inputs(root, module.REGISTRY_PATH)
+            return original_validate_git_diff(
+                root,
+                authoritative_base_sha,
+                head_sha,
             )
 
-        monkeypatch.setattr(module, "init_git", init_git)
+        monkeypatch.setattr(module, "validate_git_diff", validate_git_diff)
 
     yield
