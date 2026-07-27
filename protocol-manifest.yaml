@@ -78,7 +78,7 @@ functional_digest_paths:
 - scripts/validate_review_v2.py
 - scripts/validate_runtime_contract.py
 - scripts/verify_coverage_trust_gate.py
-functional_runtime_sha256: 2f6186dc759f617ddef3eb6beb77ddfd4022de82fefeef5bbbab28f9e643e4ff
+functional_runtime_sha256: dc2962c26b2abb51ac12c30f76a8e878fb0141926f6be2f8ce179c090db097dc
 runtime_bootstrap_inputs:
 - CURRENT_VERSION
 - protocol-manifest.yaml
