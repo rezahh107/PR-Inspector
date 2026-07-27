@@ -14,13 +14,59 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  runtime-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Validate derived Runtime on exact Head
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init -q .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch -q --depth=1 origin "${EXPECTED_SHA}"
+          git checkout -q --detach FETCH_HEAD
+          actual_sha="$(git rev-parse HEAD)"
+          echo "expected_sha=${EXPECTED_SHA}"
+          echo "actual_sha=${actual_sha}"
+          test "${actual_sha}" = "${EXPECTED_SHA}"
+          python -m pip install -q --disable-pip-version-check ".[dev]"
+          python scripts/validate_runtime_contract.py
+
+  planning-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Check out exact Head for planning preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init -q .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch -q --depth=1 origin "${EXPECTED_SHA}"
+          git checkout -q --detach FETCH_HEAD
+          actual_sha="$(git rev-parse HEAD)"
+          echo "expected_sha=${EXPECTED_SHA}"
+          echo "actual_sha=${actual_sha}"
+          test "${actual_sha}" = "${EXPECTED_SHA}"
+      - name: Install planning test dependencies
+        run: python -m pip install -q --disable-pip-version-check ".[dev]"
+      - name: Run focused planning-governance tests
+        run: python -m pytest -q tests/test_planning_governance.py tests/test_planning_governance_authority.py
+      - name: Run v1.13 planning policy tests
+        run: python -m pytest -q tests/test_v1_13_planning_governance.py
+
   validate:
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - name: Check out exact triggering head with ancestry
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
@@ -73,6 +119,23 @@ jobs:
             --job-id "${GITHUB_JOB}-${{ matrix.python-version }}" \
             --output ci-identity.json
 
+      - name: Validate clean derived functional Runtime
+        run: python scripts/validate_runtime_contract.py
+
+      - name: Validate fresh direct planning imports
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from pr_inspector.planning_governance_base import REGISTRY_PATH, SCHEMAS, load_json_strict
+          from pr_inspector.planning_governance_repository import _validate_registered_artifacts
+          root = Path(".")
+          registry = load_json_strict(root / REGISTRY_PATH)
+          schemas = {name: load_json_strict(root / path) for name, path in SCHEMAS.items()}
+          diagnostics, _, _ = _validate_registered_artifacts(root, registry, schemas)
+          [print(item.line()) for item in diagnostics]
+          raise SystemExit(bool(diagnostics))
+          PY
+
       - name: Validate versioned repository and static planning state
         run: python scripts/validate_repository_v2.py
 
@@ -107,6 +170,39 @@ jobs:
             --head-sha "$(git rev-parse HEAD)" \
             --report planning-scope-validation.json
 
+      - name: Run canonical exact-Head workflow contract tests
+        run: python -m pytest -q tests/test_exact_head_workflow.py
+
+      - name: Verify v1.13 CI controls are additive
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          workflow = Path(".github/workflows/validate-repository.yml").read_text(
+              encoding="utf-8"
+          )
+          required = (
+              "name: Verify exact checkout identity",
+              'actual_sha="$(git rev-parse HEAD)"',
+              'echo "expected_sha=${EXPECTED_SHA}"',
+              'echo "actual_sha=${actual_sha}"',
+              "name: Run focused Behavioral Rule Coverage mutations",
+              "run: python -m pytest -q tests/test_behavioral_rule_coverage.py",
+              "name: Run focused governance enforcement tests",
+              "name: Run focused artifact byte-consistency tests",
+              "name: Run semantic and rendering tests",
+              "name: Validate derived Runtime on exact Head",
+              "name: Validate fresh direct planning imports",
+              "name: Run v1.13 planning policy tests",
+              "name: Run v1.13 functional Runtime tests",
+              "name: Run v1.13 verified review authority tests",
+              "name: Run v1.13 evidence completeness tests",
+          )
+          missing = [item for item in required if item not in workflow]
+          if missing:
+              raise SystemExit("missing additive CI controls: " + repr(missing))
+          PY
+
       - name: Run focused Behavioral Rule Coverage mutations
         run: python -m pytest -q tests/test_behavioral_rule_coverage.py
 
@@ -115,6 +211,9 @@ jobs:
 
       - name: Run focused governance enforcement tests
         run: python -m pytest -q tests/test_governance_enforcement.py
+
+      - name: Run v1.13 combined Behavioral Rule Contract tests
+        run: python -m pytest -q tests/test_behavioral_rule_coverage.py tests/test_governance_enforcement.py
 
       - name: Run personal minimum-security profile tests
         run: python -m pytest -q tests/test_personal_minimum_security_profile.py
@@ -145,6 +244,21 @@ jobs:
 
       - name: Run atomic owner delivery CLI tests
         run: python -m pytest -q tests/test_render_cli_owner_delivery.py
+
+      - name: Run v1.13 planning policy tests
+        run: python -m pytest -q tests/test_v1_13_planning_governance.py
+
+      - name: Run v1.13 functional Runtime tests
+        run: python -m pytest -q tests/test_v1_13_functional_bootstrap.py
+
+      - name: Run v1.13 verified review authority tests
+        run: python -m pytest -q tests/test_v1_13_verified_review_authority.py
+
+      - name: Run v1.13 evidence completeness tests
+        run: python -m pytest -q tests/test_v1_13_evidence_completeness.py
+
+      - name: Run v1.13 combined verified-review Contract tests
+        run: python -m pytest -q tests/test_v1_13_verified_review_authority.py tests/test_v1_13_evidence_completeness.py
 
       - name: Run semantic and rendering tests
         run: python -m pytest

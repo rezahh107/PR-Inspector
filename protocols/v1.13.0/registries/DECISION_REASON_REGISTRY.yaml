@@ -1,0 +1,303 @@
+schema_version: 1
+registry_version: v1.13.0
+reasons:
+- reason_code: RSN-REVIEW-NOT-CURRENT
+  concept: Review Not Current
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: YELLOW
+  action_effect: rerun_review
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: fresh_review_prompt
+  recovery_action: block
+- reason_code: RSN-RED-GATE-FLAG
+  concept: Red Gate Flag
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: RED
+  action_effect: repair
+  recipient: implementer_model
+  may_modify_code: true
+  prompt_kind: implementer_repair_prompt
+  recovery_action: block
+- reason_code: RSN-REQUIRED-CHECK-FAILED
+  concept: Required Check Failed
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: RED
+  action_effect: repair
+  recipient: implementer_model
+  may_modify_code: true
+  prompt_kind: implementer_repair_prompt
+  recovery_action: repair_request
+- reason_code: RSN-CRITICAL-SUPPORTED-FINDING
+  concept: Critical Supported Finding
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: RED
+  action_effect: repair
+  recipient: implementer_model
+  may_modify_code: true
+  prompt_kind: implementer_repair_prompt
+  recovery_action: repair_request
+- reason_code: RSN-HIGH-REPRODUCED-FINDING
+  concept: High Reproduced Finding
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: RED
+  action_effect: repair
+  recipient: implementer_model
+  may_modify_code: true
+  prompt_kind: implementer_repair_prompt
+  recovery_action: repair_request
+- reason_code: RSN-REQUIRED-CHECK-UNRESOLVED
+  concept: Required Check Unresolved
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: YELLOW
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-HIGH-CODE-SUPPORTED-FINDING
+  concept: High Code Supported Finding
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: YELLOW
+  action_effect: repair
+  recipient: implementer_model
+  may_modify_code: true
+  prompt_kind: implementer_repair_prompt
+  recovery_action: repair_request
+- reason_code: RSN-HIGH-HYPOTHESIS-FINDING
+  concept: High Hypothesis Finding
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: YELLOW
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-BLOCKING-MEDIUM-SUPPORTED
+  concept: Blocking Medium Supported
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: YELLOW
+  action_effect: repair
+  recipient: implementer_model
+  may_modify_code: true
+  prompt_kind: implementer_repair_prompt
+  recovery_action: repair_request
+- reason_code: RSN-BLOCKING-MEDIUM-UNVERIFIED
+  concept: Blocking Medium Unverified
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: YELLOW
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-BLOCKING-HYPOTHESIS
+  concept: Blocking Hypothesis
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: YELLOW
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-NOT-ASSESSABLE-FINDING
+  concept: Not Assessable Finding
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: YELLOW
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-PARTIAL-REVIEW
+  concept: Partial Review
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: YELLOW
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-HIGH-RISK-AREA-UNREVIEWED
+  concept: High Risk Area Unreviewed
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: YELLOW
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-COVERAGE-INCOMPLETE
+  concept: Coverage Incomplete
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: YELLOW
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-UNVERIFIED-AREA
+  concept: Unverified Area
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: NONE
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-INTENT-MISSING
+  concept: Intent Missing
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: YELLOW
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-INTENT-UNSATISFIED
+  concept: Intent Unsatisfied
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: YELLOW
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-INTENT-UNSUPPORTED-CLAIM
+  concept: Intent Unsupported Claim
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: YELLOW
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-REPAIR-HANDOFF-PRESENT
+  concept: Repair Handoff Present
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: YELLOW
+  action_effect: repair
+  recipient: implementer_model
+  may_modify_code: true
+  prompt_kind: implementer_repair_prompt
+  recovery_action: repair_request
+- reason_code: RSN-EXTERNAL-REPAIR-ACCEPTED
+  concept: External Repair Accepted
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: YELLOW
+  action_effect: repair
+  recipient: implementer_model
+  may_modify_code: true
+  prompt_kind: implementer_repair_prompt
+  recovery_action: repair_request
+- reason_code: RSN-EXTERNAL-REVIEW-INCOMPLETE
+  concept: External Review Incomplete
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: YELLOW
+  action_effect: rerun_review
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: fresh_review_prompt
+  recovery_action: block
+- reason_code: RSN-REQUIRED-ACTION-PENDING
+  concept: Required Action Pending
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: NONE
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-OWNER-CONFIRMATION-REQUIRED
+  concept: Owner Confirmation Required
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: NONE
+  action_effect: owner_confirmation
+  recipient: project_owner
+  may_modify_code: false
+  prompt_kind: null
+  recovery_action: block
+- reason_code: RSN-HUMAN-TECHNICAL-REVIEW-REQUIRED
+  concept: Human Technical Review Required
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: NONE
+  action_effect: human_technical_review
+  recipient: human_technical_reviewer
+  may_modify_code: false
+  prompt_kind: human_review_handoff
+  recovery_action: block
+- reason_code: RSN-SPECIALIST-REVIEW-REQUIRED
+  concept: Specialist Review Required
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: NONE
+  action_effect: specialist_review
+  recipient: security_or_domain_specialist
+  may_modify_code: false
+  prompt_kind: specialist_review_handoff
+  recovery_action: block
+- reason_code: RSN-MERGE-ENFORCEMENT-MINIMUM-MISSING
+  concept: Merge Enforcement Minimum Missing
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: YELLOW
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-REPOSITORY-HOSTED-ENFORCEMENT-REQUIRED
+  concept: Repository Hosted Enforcement Required
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: YELLOW
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-REPOSITORY-SETTINGS-CLAIM-UNVERIFIED
+  concept: Repository Settings Claim Unverified
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: YELLOW
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block
+- reason_code: RSN-MERGE-AUTHORIZATION-CLAIM-UNVERIFIED
+  concept: Merge Authorization Claim Unverified
+  trigger: canonical decision projection
+  predicate: structured canonical package fact
+  technical_status_effect: YELLOW
+  action_effect: verify
+  recipient: reviewer_model
+  may_modify_code: false
+  prompt_kind: verification_prompt
+  recovery_action: block

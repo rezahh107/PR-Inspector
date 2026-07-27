@@ -19,30 +19,26 @@ ROOT = Path(__file__).resolve().parents[1]
 CURRENT_VERSION = (ROOT / "CURRENT_VERSION").read_text(encoding="utf-8").strip()
 EXTENSION_SCHEMA = ROOT / f"protocols/{CURRENT_VERSION}/schemas/review-package.schema.json"
 V1_11_0_SCHEMA = ROOT / "protocols/v1.11.0/schemas/review-package.schema.json"
+ACTIVE_COMPATIBLE = {"v1.12.0", "v1.13.0"}
 
 
 def _schema_diagnostics(value: dict[str, Any], schema_path: Path) -> list[Diagnostic]:
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     validator = Draft202012Validator(schema, format_checker=FormatChecker())
-    diagnostics: list[Diagnostic] = []
+    diagnostics = []
     for error in validator.iter_errors(value):
         path = "/" + "/".join(str(item) for item in error.absolute_path)
         diagnostics.append(Diagnostic("PRI-SCHEMA-001", path, error.message))
     return diagnostics
 
 
-def validate_package(
-    pkg: dict[str, Any],
-    governance_evidence: VerifiedGovernanceEvidence | None = None,
-    sequence_enforcement: VerifiedSequenceEnforcement | None = None,
-) -> list[Diagnostic]:
-    """Validate the active successor as a strict completion of immutable v1.11.0."""
-
+def validate_package(pkg: dict[str, Any], governance_evidence: VerifiedGovernanceEvidence | None = None,
+                     sequence_enforcement: VerifiedSequenceEnforcement | None = None) -> list[Diagnostic]:
     with evidence_scope(governance_evidence, sequence_enforcement):
         diagnostics = _schema_diagnostics(pkg, EXTENSION_SCHEMA)
         if diagnostics:
             return sorted(set(diagnostics))
-        if pkg.get("protocol_version") != "v1.12.0":
+        if pkg.get("protocol_version") not in ACTIVE_COMPATIBLE:
             historical_shape = copy.deepcopy(pkg)
             historical_shape["protocol_version"] = "v1.11.0"
             historical_shape.pop("authority_provenance", None)
@@ -53,8 +49,7 @@ def validate_package(
 
 
 def _prompt_semantic_diagnostics(path: Path) -> list[Diagnostic]:
-    package_path = path / "review-package.json"
-    projection_path = path / "DECISION_PROJECTION.json"
+    package_path, projection_path = path / "review-package.json", path / "DECISION_PROJECTION.json"
     if not package_path.is_file() or not projection_path.is_file():
         return []
     try:
@@ -69,18 +64,12 @@ def _prompt_semantic_diagnostics(path: Path) -> list[Diagnostic]:
     return validate_prompt_semantics(package, projection, prompt)
 
 
-def validate_directory(
-    path: Path,
-    compare_rendered: bool = True,
-    *,
-    governance_evidence: VerifiedGovernanceEvidence | None = None,
-    sequence_enforcement: VerifiedSequenceEnforcement | None = None,
-) -> list[Diagnostic]:
+def validate_directory(path: Path, compare_rendered: bool = True, *,
+                       governance_evidence: VerifiedGovernanceEvidence | None = None,
+                       sequence_enforcement: VerifiedSequenceEnforcement | None = None) -> list[Diagnostic]:
     with evidence_scope(governance_evidence, sequence_enforcement):
         diagnostics = _core.validate_directory(
-            Path(path),
-            compare_rendered=compare_rendered,
-            package_validator=validate_package,
+            Path(path), compare_rendered=compare_rendered, package_validator=validate_package
         )
         diagnostics.extend(_prompt_semantic_diagnostics(Path(path)))
         return sorted(set(diagnostics))
