@@ -62,6 +62,27 @@ def _contract_derived_trust_policy(
 
 _provenance.trust_policy = _contract_derived_trust_policy
 
+# Preserve bounded v1.12 reference reuse while v1.13 is active. This remains a
+# string-valued compatibility token and accepts only the two explicitly
+# supported protocol identities; arbitrary or future versions still fail closed.
+class _CandidateCompatibleProtocolVersion(str):
+    _SUPPORTED = frozenset({"v1.12.0", "v1.13.0"})
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, str) and other in self._SUPPORTED
+
+    def __ne__(self, other: object) -> bool:
+        return not self.__eq__(other)
+
+    __hash__ = str.__hash__
+
+
+from . import candidate_v1_11 as _candidate_v1_11
+
+_candidate_v1_11.PROTOCOL_VERSION = _CandidateCompatibleProtocolVersion(
+    ACTIVE_VERSION
+)
+
 # Preserve the established governance-matrix Markdown contract while keeping
 # the functional contract as the only rule authority. The adapter changes only
 # generated governance-view presentation metadata.
