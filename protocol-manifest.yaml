@@ -70,7 +70,7 @@ functional_digest_paths:
 - protocols/v1.13.0/templates/TECHNICAL_HANDOFF.en.md
 - scripts/validate_repository.py
 - scripts/validate_runtime_contract.py
-functional_runtime_sha256: fafbeb7970421e66a923f75cd32495db052ef4d1436c2b70e7eef858a2decfb0
+functional_runtime_sha256: 79f7023b41edbb6110a9b40153ca7222e8a8493d5284105dc6305e0f1e169e9a
 runtime_bootstrap_inputs:
 - CURRENT_VERSION
 - protocol-manifest.yaml
