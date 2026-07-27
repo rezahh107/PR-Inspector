@@ -4,6 +4,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from . import verified_review as _legacy
+from .constants import SUPPORTED_PROTOCOL_VERSIONS
 from .evidence_context import evidence_scope
 from .validation_v2 import validate_package
 
@@ -30,7 +31,7 @@ def assemble_review_package(
             governance_evidence=governance_evidence,
             sequence_enforcement=sequence_enforcement,
         )
-    if protocol_context.protocol_version != "v1.13.0":
+    if protocol_context.protocol_version not in SUPPORTED_PROTOCOL_VERSIONS:
         raise _legacy.ReviewAssemblyError(
             "official assembler requires active protocol v1.13.0"
         )
@@ -45,7 +46,7 @@ def assemble_review_package(
         sequence_enforcement=sequence_enforcement,
     )
     value = legacy_package.value()
-    value["protocol_version"] = "v1.13.0"
+    value["protocol_version"] = protocol_context.protocol_version
     with evidence_scope(governance_evidence, sequence_enforcement):
         diagnostics = validate_package(
             value, governance_evidence, sequence_enforcement
@@ -57,7 +58,7 @@ def assemble_review_package(
         )
     canonical_bytes = _legacy._canonical_json_bytes(value)
     return _legacy._mint_canonical_review_package(
-        protocol_version="v1.13.0",
+        protocol_version=protocol_context.protocol_version,
         repository=facts.repository,
         repository_id=facts.repository_id,
         pr_number=facts.pr_number,
@@ -85,7 +86,7 @@ def _install_official_completion_bridge() -> None:
     original_publish = official_review._publish_assembled_review
 
     def publish_assembled_review(package, output_directory, *, head_source):
-        if package.protocol_version == "v1.13.0":
+        if package.protocol_version in SUPPORTED_PROTOCOL_VERSIONS - {"v1.12.0"}:
             package = _legacy._mint_canonical_review_package(
                 protocol_version="v1.12.0",
                 repository=package.repository,

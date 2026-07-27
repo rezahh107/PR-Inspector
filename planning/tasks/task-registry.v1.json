@@ -218,7 +218,7 @@
       "scope_ref": "planning/scopes/PINS-FUNCTIONAL-BOOTSTRAP-001.scope.json",
       "status": "implemented_pending_exact_head_validation",
       "task_id": "PINS-FUNCTIONAL-BOOTSTRAP-001",
-      "title": "v1.13 functional runtime contract and bootstrap",
+      "title": "v1.13.1 retrieval startup and official Runtime attestation",
       "work_package_id": "PINS-FUNCTIONAL-BOOTSTRAP-001-WP01"
     }
   ]

@@ -6,7 +6,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Mapping
 
-ACTIVE_VERSION = "v1.13.0"
+ACTIVE_VERSION = "v1.13.1"
 REGISTRY_PATH = Path("planning/tasks/task-registry.v1.json")
 _PINNED_GOVERNANCE_EXCLUSION = "/".join(("governance", "aigov")) + "/**"
 
@@ -86,6 +86,7 @@ _PROTOCOL_ALLOWED_PREFIXES = (
     "planning/",
     "pr_inspector/",
     "protocols/v1.13.0/",
+    "protocols/v1.13.1/",
     "release-locks/",
     "schemas/planning/",
     "scripts/",
@@ -210,6 +211,7 @@ _V1_13_AUTHORITY = PlanningAuthority(
         {
             "v1.12.0": _V1_12_PROTOCOL_POLICY,
             "v1.13.0": _V1_13_PROTOCOL_POLICY,
+            "v1.13.1": _V1_13_PROTOCOL_POLICY,
         }
     ),
 )

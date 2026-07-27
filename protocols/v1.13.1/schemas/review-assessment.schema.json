@@ -1,0 +1,186 @@
+{
+  "$id": "https://github.com/rezahh107/PR-Inspector/protocols/v1.13.1/schemas/review-assessment.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "external_review_dispositions": {
+      "default": [],
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "classification": {
+            "enum": [
+              "accepted",
+              "resolved",
+              "duplicate",
+              "false_positive",
+              "deferred",
+              "insufficient_evidence",
+              "out_of_scope",
+              "stale"
+            ]
+          },
+          "finding_ids": {
+            "default": [],
+            "items": {
+              "pattern": "^[A-Z][A-Z0-9_-]{2,63}$",
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "rationale": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "source_id": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "classification",
+          "rationale"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "findings": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "affected_surfaces": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "blocking": {
+            "type": "boolean"
+          },
+          "description": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "evidence_class": {
+            "default": "HUMAN_JUDGMENT",
+            "enum": [
+              "HUMAN_JUDGMENT",
+              "HYPOTHESIS",
+              "CODE_SUPPORTED",
+              "REPRODUCED",
+              "NOT_ASSESSABLE"
+            ]
+          },
+          "evidence_refs": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "finding_id": {
+            "pattern": "^[A-Z][A-Z0-9_-]{2,63}$",
+            "type": "string"
+          },
+          "recommended_test": {
+            "type": "string"
+          },
+          "relevant_code": {
+            "type": "string"
+          },
+          "reviewer_rationale": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "rule_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "severity": {
+            "enum": [
+              "CRITICAL",
+              "HIGH",
+              "MEDIUM",
+              "LOW"
+            ]
+          },
+          "suggested_action": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "title": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "finding_id",
+          "title",
+          "description",
+          "severity",
+          "blocking",
+          "reviewer_rationale"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "out_of_scope_observations": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "owner_facing_explanation": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "review_summary": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "reviewed_files": {
+      "default": [],
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    },
+    "suggested_actions": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "unverified_areas": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "review_summary",
+    "findings",
+    "owner_facing_explanation"
+  ],
+  "title": "PR Inspector ReviewAssessment v1.13.1",
+  "type": "object"
+}

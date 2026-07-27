@@ -125,8 +125,8 @@ def test_adversarial_authority_and_identity_mutations_fail():
 
 def test_aigov_schemas_remain_outside_successor_runtime_and_load_order():
     manifest = yaml.safe_load((ROOT / "protocol-manifest.yaml").read_text(encoding="utf-8"))
-    assert manifest["active_version"] == "v1.13.0"
-    assert all("schemas/aigov/" not in path for path in manifest["load_order"])
+    assert manifest["active_version"] == "v1.13.1"
+    assert all("schemas/aigov/" not in path for path in manifest["runtime_bootstrap_inputs"])
     forbidden = ("schemas/aigov/v2.5.0", "repository_review_policy.schema.json", "review_receipt_core.schema.json")
     for path in (ROOT / "pr_inspector").rglob("*.py"):
         text = path.read_text(encoding="utf-8")

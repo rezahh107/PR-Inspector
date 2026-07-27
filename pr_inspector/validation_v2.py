@@ -8,6 +8,7 @@ from typing import Any
 from jsonschema import Draft202012Validator, FormatChecker
 
 from . import validation_v2_core as _core
+from .constants import SUPPORTED_PROTOCOL_VERSIONS
 from .diagnostics import Diagnostic
 from .evidence_context import evidence_scope
 from .governance import VerifiedGovernanceEvidence
@@ -19,7 +20,6 @@ ROOT = Path(__file__).resolve().parents[1]
 CURRENT_VERSION = (ROOT / "CURRENT_VERSION").read_text(encoding="utf-8").strip()
 EXTENSION_SCHEMA = ROOT / f"protocols/{CURRENT_VERSION}/schemas/review-package.schema.json"
 V1_11_0_SCHEMA = ROOT / "protocols/v1.11.0/schemas/review-package.schema.json"
-ACTIVE_COMPATIBLE = {"v1.12.0", "v1.13.0"}
 
 
 def _schema_diagnostics(value: dict[str, Any], schema_path: Path) -> list[Diagnostic]:
@@ -38,7 +38,7 @@ def validate_package(pkg: dict[str, Any], governance_evidence: VerifiedGovernanc
         diagnostics = _schema_diagnostics(pkg, EXTENSION_SCHEMA)
         if diagnostics:
             return sorted(set(diagnostics))
-        if pkg.get("protocol_version") not in ACTIVE_COMPATIBLE:
+        if pkg.get("protocol_version") not in SUPPORTED_PROTOCOL_VERSIONS:
             historical_shape = copy.deepcopy(pkg)
             historical_shape["protocol_version"] = "v1.11.0"
             historical_shape.pop("authority_provenance", None)

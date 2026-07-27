@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
-__version__ = "1.13.0"
+__version__ = "1.13.1"
 
 from . import functional_runtime as _runtime
+from .constants import SUPPORTED_PROTOCOL_VERSIONS
 from .functional_runtime import (
     ACTIVE_VERSION,
     CONTRACT_PATH,
@@ -66,7 +67,7 @@ _provenance.trust_policy = _contract_derived_trust_policy
 # string-valued compatibility token and accepts only the two explicitly
 # supported protocol identities; arbitrary or future versions still fail closed.
 class _CandidateCompatibleProtocolVersion(str):
-    _SUPPORTED = frozenset({"v1.12.0", "v1.13.0"})
+    _SUPPORTED = SUPPORTED_PROTOCOL_VERSIONS
 
     def __eq__(self, other: object) -> bool:
         return isinstance(other, str) and other in self._SUPPORTED

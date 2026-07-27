@@ -1,13 +1,10 @@
-# PR Inspector Bootstrap v1.13.0
+# PR Inspector Bootstrap v1.13.1
 
-For every official review:
+Per-review startup is retrieval-only:
 
-1. Read `CURRENT_VERSION` and require `v1.13.0`.
-2. Read `protocol-manifest.yaml`.
-3. Load exactly the five `runtime_bootstrap_inputs` in declared order.
-4. Validate the strict functional contract and local functional digest.
-5. Request the target repository and PR number.
-6. Collect exact target repository/PR identity, Base, Head, merge base, changed files, checks, issue comments, reviews, inline comments, and live-Head evidence.
-7. Fail closed on missing or incomplete evidence.
+1. Read `CURRENT_VERSION` from the connector-selected repository ref.
+2. Read `protocols/<CURRENT_VERSION>/functional-runtime-contract.json` from that same ref to load the active inspection instructions.
+3. Read `protocols/<CURRENT_VERSION>/prompts/INTAKE_RESPONSE.fa.md` from that same ref and return the intake response.
+4. Accept the target PR URL or inspection request and begin evidence collection.
 
-Do not verify Inspector trust policy, origin, remote repository identity/ID, remote commit existence, release locks, historical releases, or the full repository during per-review startup. Those are maintenance/CI controls.
+Startup requires no local checkout or local execution. It runs no Git command, Python subprocess, recursive repository scan, functional digest or file hash, cleanliness check, AST/symbol check, schema validation, authority inventory or generated-view comparison, release-lock check, trust/provenance/attestation check, remote identity check, or Inspector self-verification network call. Basic retrieval of the three active inputs from one ref is the only startup reading boundary. Inspection validation of the target PR remains part of the review workflow after intake.

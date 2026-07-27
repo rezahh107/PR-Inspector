@@ -39,21 +39,19 @@ def test_active_version_metadata_and_load_order_are_aligned():
     current = (ROOT / "CURRENT_VERSION").read_text(encoding="utf-8").strip()
     manifest = _manifest(); pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     version = re.search(r'(?ms)^\[project\].*?^version\s*=\s*"([^"]+)"', pyproject)
-    assert current == "v1.13.0"
+    assert current == "v1.13.1"
     assert manifest["active_version"] == current and manifest["status"] == "active"
-    assert manifest["release_lock"] == "release-locks/v1.13.0.sha256"
-    assert manifest["canonical_contract"] == "protocols/v1.13.0/functional-runtime-contract.json"
-    assert len(manifest["load_order"]) == len(set(manifest["load_order"]))
-    assert all(path.startswith("protocols/v1.13.0/") for path in manifest["load_order"])
-    assert all((ROOT / path).is_file() for path in manifest["load_order"])
-    assert version and version.group(1) == "1.13.0"
-    assert pr_inspector.__version__ == "1.13.0"
+    assert manifest["canonical_contract"] == "protocols/v1.13.1/functional-runtime-contract.json"
+    assert manifest["runtime_bootstrap_inputs"] == [
+        "CURRENT_VERSION",
+        "protocols/v1.13.1/functional-runtime-contract.json",
+        "protocols/v1.13.1/prompts/INTAKE_RESPONSE.fa.md",
+    ]
+    assert version and version.group(1) == "1.13.1"
+    assert pr_inspector.__version__ == "1.13.1"
 
 
-def test_active_and_historical_release_locks_match_exact_bytes():
-    manifest = _manifest(); active = _parse_lock(ROOT / manifest["release_lock"])
-    assert set(active) == set(manifest["release_validation_sources"])
-    for relative, expected in active.items(): assert _sha(ROOT / relative) == expected
+def test_historical_release_locks_match_exact_bytes():
     historical = ROOT / "release-locks/v1.11.0.sha256"
     assert _sha(historical) == V1_11_0_LOCK_SHA256
     for lock in sorted((ROOT / "release-locks").glob("v*.sha256")):
@@ -62,15 +60,15 @@ def test_active_and_historical_release_locks_match_exact_bytes():
 
 
 def test_functional_contract_and_owner_authority_are_coherent():
-    contract = json.loads((ROOT / "protocols/v1.13.0/functional-runtime-contract.json").read_text(encoding="utf-8"))
-    owner = json.loads((ROOT / "protocols/v1.13.0/policies/OWNER_DELIVERY_CONTRACT.json").read_text(encoding="utf-8"))
-    registry = yaml.safe_load((ROOT / "protocols/v1.13.0/registries/DECISION_REASON_REGISTRY.yaml").read_text(encoding="utf-8"))
-    assert contract["protocol"]["version"] == "v1.13.0"
+    contract = json.loads((ROOT / "protocols/v1.13.1/functional-runtime-contract.json").read_text(encoding="utf-8"))
+    owner = json.loads((ROOT / "protocols/v1.13.1/policies/OWNER_DELIVERY_CONTRACT.json").read_text(encoding="utf-8"))
+    registry = yaml.safe_load((ROOT / "protocols/v1.13.1/registries/DECISION_REASON_REGISTRY.yaml").read_text(encoding="utf-8"))
+    assert contract["protocol"]["version"] == "v1.13.1"
     assert contract["protocol"]["authority"] == "functional_contract_ssot"
     assert len(contract["functional_rules"]) == 43
-    assert owner["protocol_version"] == "v1.13.0"
+    assert owner["protocol_version"] == "v1.13.1"
     assert owner["canonical_owner_accessor"] == "official_owner_delivery"
-    assert registry["registry_version"] == "v1.13.0"
+    assert registry["registry_version"] == "v1.13.1"
 
 
 def test_candidate_compatibility_exports_no_independent_output_authority():
@@ -84,7 +82,7 @@ def test_candidate_compatibility_exports_no_independent_output_authority():
 
 
 def test_v1_13_authority_rules_are_behaviorally_closed():
-    matrix = (ROOT / "protocols/v1.13.0/policies/BEHAVIORAL_RULE_COVERAGE.md").read_text(encoding="utf-8")
+    matrix = (ROOT / "protocols/v1.13.1/policies/BEHAVIORAL_RULE_COVERAGE.md").read_text(encoding="utf-8")
     mutations = json.loads((ROOT / "fixtures/behavioral-rules/mutation-cases.json").read_text(encoding="utf-8"))
     mutation_rules = {item["rule_id"] for item in mutations["cases"]}
     required = {"PRR-AUTH-PACKAGE-BOUNDARY-001", "PRR-AUTH-EVIDENCE-COMPLETENESS-001", "PRR-AUTH-CLAIM-COMPATIBILITY-001", "PRR-AUTH-DERIVED-FACTS-001", "PRR-AUTH-HUMAN-JUDGMENT-001", "PRR-AUTH-PREVIEW-ISOLATION-001", "PRR-AUTH-REVERIFY-BOUNDARY-001", "PRR-AUTH-EXTERNAL-RECONCILIATION-001"}

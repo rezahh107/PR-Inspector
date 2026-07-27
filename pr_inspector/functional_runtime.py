@@ -8,28 +8,44 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 import yaml
 from jsonschema import Draft202012Validator
+from .constants import SUPPORTED_PROTOCOL_VERSIONS
 
 ROOT = Path(__file__).resolve().parents[1]
-ACTIVE_VERSION = "v1.13.0"
+ACTIVE_VERSION = "v1.13.1"
 ENTRYPOINT = "BOOTSTRAP.md"
-CONTRACT_PATH = "protocols/v1.13.0/functional-runtime-contract.json"
+CONTRACT_PATH = "protocols/v1.13.1/functional-runtime-contract.json"
 CONTRACT_SCHEMA_PATH = (
-    "protocols/v1.13.0/schemas/functional-runtime-contract.schema.json"
+    "protocols/v1.13.1/schemas/functional-runtime-contract.schema.json"
 )
 CI_WORKFLOW_PATH = ".github/workflows/validate-repository.yml"
 RUNTIME_SCRIPT_PATH = "scripts/validate_runtime_contract.py"
 PYPROJECT_PATH = "pyproject.toml"
 RUNTIME_BOOTSTRAP_INPUTS = (
     "CURRENT_VERSION",
-    "protocol-manifest.yaml",
     CONTRACT_PATH,
-    CONTRACT_SCHEMA_PATH,
-    "protocols/v1.13.0/prompts/INTAKE_RESPONSE.fa.md",
+    "protocols/v1.13.1/prompts/INTAKE_RESPONSE.fa.md",
 )
+INTAKE_PATH = "protocols/v1.13.1/prompts/INTAKE_RESPONSE.fa.md"
+_CONTRACT_KEYS = {
+    "$schema", "schema_version", "protocol", "references", "model_bootstrap",
+    "pipeline_stages", "field_authority", "rule_defaults", "functional_rules",
+    "required_artifacts", "required_check_names", "diagnostics",
+}
+_REFERENCE_KEYS = {
+    "ci_identity_schema", "coverage_view", "decision_projection_schema",
+    "governance_coverage_view", "governance_evidence_schema", "intake_response",
+    "owner_decision_template", "owner_delivery_contract", "owner_delivery_schema",
+    "pipeline_view", "reason_registry", "rereview_sequence_schema",
+    "review_assessment_schema", "review_package_schema", "technical_handoff_template",
+}
+_REQUIRED_ARTIFACTS = {
+    "review-package.json", "DECISION_PROJECTION.json", "OWNER_RESULT.fa.txt",
+    "TECHNICAL_HANDOFF.en.md", "OWNER_PROFILE_COMMANDS.fa.txt", "artifact-manifest.json",
+}
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _GIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 
@@ -42,6 +58,134 @@ class FunctionalBootstrapError(RuntimeError):
 
 class DuplicateKeyError(ValueError):
     pass
+
+
+@dataclass(frozen=True)
+class StartupResult:
+    protocol_version: str
+    contract: dict[str, Any]
+    intake_response: str
+    reads: tuple[str, ...]
+
+
+def _startup_error(code: str, message: str) -> FunctionalBootstrapError:
+    return FunctionalBootstrapError(code, f"{message}; repair the three active inputs and retry")
+
+
+def _strict_json_text(text: str) -> dict[str, Any]:
+    try:
+        value = json.loads(text, object_pairs_hook=_pairs)
+    except (json.JSONDecodeError, DuplicateKeyError) as exc:
+        raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-101", f"invalid contract JSON: {exc}") from exc
+    if not isinstance(value, dict):
+        raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-101", "contract root must be an object")
+    return value
+
+
+def _canonical_active_reference(value: Any) -> bool:
+    if not isinstance(value, str) or not value.startswith("protocols/v1.13.1/"):
+        return False
+    if "\\" in value or value.startswith("/"):
+        return False
+    return all(part not in {"", ".", ".."} for part in value.split("/"))
+
+
+def _validate_startup_contract(contract: dict[str, Any]) -> None:
+    if set(contract) != _CONTRACT_KEYS:
+        raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-102", "contract top-level inventory mismatch")
+    if contract.get("$schema") != "./schemas/functional-runtime-contract.schema.json":
+        raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-102", "contract schema reference mismatch")
+    protocol = contract.get("protocol")
+    expected_protocol = {
+        "version": ACTIVE_VERSION, "inspector_repository": "rezahh107/PR-Inspector",
+        "inspector_repository_id": 1288323264, "profile": "personal_single_operator",
+        "authority": "functional_contract_ssot",
+    }
+    if contract.get("schema_version") != 2 or protocol != expected_protocol:
+        raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-103", "active protocol identity mismatch")
+    model = contract.get("model_bootstrap")
+    if not isinstance(model, dict) or set(model) != {"instructions", "assessment_obligations"} or any(
+        not isinstance(model.get(key), list) or not model[key] or
+        any(not isinstance(item, str) or not item for item in model[key])
+        for key in ("instructions", "assessment_obligations")
+    ):
+        raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-112", "model bootstrap is invalid")
+    defaults = contract.get("rule_defaults")
+    if not isinstance(defaults, dict) or set(defaults) != {
+        "validator", "positive_control", "negative_prefix", "ci_commands", "recovery_action"
+    } or any(not isinstance(defaults.get(key), str) or not defaults[key] for key in (
+        "validator", "positive_control", "negative_prefix", "recovery_action"
+    )) or not isinstance(defaults.get("ci_commands"), dict) or set(defaults["ci_commands"]) != {"F", "E", "A"} or any(
+        not isinstance(value, str) or not value for value in defaults["ci_commands"].values()
+    ):
+        raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-113", "rule defaults are invalid")
+    if any(re.fullmatch(r"[^:#]+\.py:[A-Za-z_][A-Za-z0-9_]*", defaults[key]) is None
+           for key in ("validator", "positive_control")):
+        raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-113", "rule executable defaults are invalid")
+    references = contract.get("references")
+    if not isinstance(references, dict) or set(references) != _REFERENCE_KEYS or not all(
+        _canonical_active_reference(value) for value in references.values()
+    ) or references.get("intake_response") != INTAKE_PATH:
+        raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-104", "active reference inventory or path is invalid")
+    rules = contract.get("functional_rules")
+    if not isinstance(rules, list) or len(rules) != 43 or any(
+        not isinstance(rule, list) or len(rule) != 4 or
+        not all(isinstance(item, str) and item for item in rule) or
+        re.fullmatch(r"PRR-[A-Z0-9-]+-001", rule[0]) is None or
+        rule[1] not in {"Critical", "High", "Medium", "Low"} or
+        re.fullmatch(r"[a-z0-9_]+", rule[2]) is None or rule[3] not in {"F", "E", "A"}
+        for rule in rules
+    ) or len({rule[0] for rule in rules}) != len(rules):
+        raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-105", "functional rule inventory is invalid")
+    stages = contract.get("pipeline_stages")
+    if not isinstance(stages, list) or len(stages) != 8 or any(
+        not isinstance(stage, dict) or set(stage) != {"stage_id", "owner", "function"} or
+        not all(isinstance(value, str) and value for value in stage.values()) or
+        re.fullmatch(r"[^:#]+\.py:[A-Za-z_][A-Za-z0-9_]*", stage["function"]) is None
+        for stage in stages
+    ) or {stage["stage_id"] for stage in stages} != {
+        "intake", "evidence_collection", "assessment", "canonical_assembly",
+        "package_validation", "decision_projection", "official_completion", "owner_delivery"
+    }:
+        raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-106", "pipeline stage inventory is invalid")
+    fields = contract.get("field_authority")
+    if not isinstance(fields, list) or len(fields) != 4 or any(
+        not isinstance(item, dict) or set(item) != {"surface", "owner"} or
+        not all(isinstance(value, str) and value for value in item.values()) for item in fields
+    ) or {item["surface"] for item in fields} != {"intent", "facts", "judgment", "projection"}:
+        raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-107", "field authority is invalid")
+    artifacts = contract.get("required_artifacts")
+    checks = contract.get("required_check_names")
+    diagnostics = contract.get("diagnostics")
+    if not isinstance(artifacts, list) or set(artifacts) != _REQUIRED_ARTIFACTS or len(artifacts) != len(set(artifacts)):
+        raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-108", "required artifact inventory is invalid")
+    if not isinstance(checks, list) or any(not isinstance(item, str) or not item for item in checks) or len(checks) != len(set(checks)):
+        raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-109", "required checks are invalid")
+    if not isinstance(diagnostics, dict) or set(diagnostics) != {"prefix", "recovery_actions"} or diagnostics.get("prefix") != "PRI-FUNCTIONAL-BOOTSTRAP" or not diagnostics.get("recovery_actions"):
+        raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-110", "diagnostics contract is invalid")
+
+
+def connector_startup(read_content: Callable[[str], str]) -> StartupResult:
+    """Perform exactly three connector reads and bounded in-memory validation."""
+    reads: list[str] = []
+    def read(path: str) -> str:
+        reads.append(path)
+        try:
+            value = read_content(path)
+        except Exception as exc:
+            raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-100", f"cannot retrieve {path}: {exc}") from exc
+        if not isinstance(value, str):
+            raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-100", f"{path} content must be text")
+        return value
+    version = read("CURRENT_VERSION").strip()
+    if version != ACTIVE_VERSION:
+        raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-103", f"active version must be {ACTIVE_VERSION}")
+    contract = _strict_json_text(read(CONTRACT_PATH))
+    _validate_startup_contract(contract)
+    intake = read(INTAKE_PATH)
+    if not intake.strip():
+        raise _startup_error("PRI-FUNCTIONAL-BOOTSTRAP-111", "intake response is empty")
+    return StartupResult(version, contract, intake, tuple(reads))
 
 
 def _pairs(items: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -440,6 +584,7 @@ def validate_runtime_contract(
         )
 
     raw = _load_raw(root / CONTRACT_PATH)
+    _validate_startup_contract(raw)
     schema = _load_raw(root / CONTRACT_SCHEMA_PATH)
     try:
         Draft202012Validator.check_schema(schema)
@@ -523,7 +668,7 @@ def validate_runtime_contract(
     views = {
         contract["references"]["coverage_view"]: render_rule_view(
             rules,
-            title="Behavioral Rule Coverage v1.13.0",
+            title="Behavioral Rule Coverage v1.13.1",
         ),
         contract["references"]["governance_coverage_view"]: render_rule_view(
             [
@@ -533,7 +678,7 @@ def validate_runtime_contract(
                     ("PRR-DOC-", "PRR-GOV-", "PRR-HISTORY-")
                 )
             ],
-            title="Merge Governance Rule Coverage v1.13.0",
+            title="Merge Governance Rule Coverage v1.13.1",
         ),
     }
     for relative, expected in views.items():
@@ -637,7 +782,7 @@ def install_active_protocol_adapters() -> None:
             if isinstance(package, dict)
             else None
         )
-        if version in {"v1.12.0", "v1.13.0"}:
+        if version in SUPPORTED_PROTOCOL_VERSIONS:
             result["protocol_version"] = version
             projection.validate_projection_invariants(result)
         return result
@@ -651,45 +796,7 @@ def install_active_protocol_adapters() -> None:
         ):
             setattr(module, "project_decision", project)
 
-    legacy_method = legacy.ProtocolContext.from_verified_repository.__func__
-
-    def from_repo(
-        cls: Any,
-        repository_directory: Path = ROOT,
-        *,
-        token: str | None = None,
-        api_version: str = "2022-11-28",
-    ) -> Any:
-        candidate_root = Path(repository_directory).resolve()
-        try:
-            active = (
-                candidate_root / "CURRENT_VERSION"
-            ).read_text(encoding="utf-8").strip() == ACTIVE_VERSION
-        except Exception:
-            active = False
-        if not active:
-            return legacy_method(
-                cls,
-                candidate_root,
-                token=token,
-                api_version=api_version,
-            )
-        protocol = validate_runtime_contract(candidate_root)
-        return cls(
-            protocol.protocol_version,
-            protocol.inspector_repository,
-            protocol.inspector_repository_id,
-            protocol.inspector_commit_sha,
-            protocol.required_check_names,
-        )
-
-    legacy.ProtocolContext.from_verified_repository = classmethod(from_repo)
-    legacy.ProtocolContext.from_repository = classmethod(
-        lambda cls, repository_directory=ROOT: from_repo(
-            cls, repository_directory
-        )
-    )
     legacy.ASSESSMENT_SCHEMA = (
-        ROOT / "protocols/v1.13.0/schemas/review-assessment.schema.json"
+        ROOT / "protocols/v1.13.1/schemas/review-assessment.schema.json"
     )
     legacy.assemble_review_package = assemble_review_package

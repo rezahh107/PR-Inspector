@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -18,12 +19,105 @@ from pr_inspector.functional_runtime import (
     FunctionalBootstrapError,
     _derived_integrity_inventory,
     _runtime_digest,
+    connector_startup,
     load_json_strict,
     resolve_rules,
     validate_runtime_contract,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _connector_files() -> dict[str, str]:
+    return {
+        "CURRENT_VERSION": "v1.13.1\n",
+        CONTRACT_PATH: (ROOT / CONTRACT_PATH).read_text(encoding="utf-8"),
+        "protocols/v1.13.1/prompts/INTAKE_RESPONSE.fa.md": (
+            ROOT / "protocols/v1.13.1/prompts/INTAKE_RESPONSE.fa.md"
+        ).read_text(encoding="utf-8"),
+    }
+
+
+def test_connector_only_positive_read_boundary(monkeypatch):
+    files = _connector_files()
+    reads = []
+    forbidden = lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("local operation"))
+    monkeypatch.setattr(subprocess, "run", forbidden)
+    monkeypatch.setattr(Path, "rglob", forbidden)
+    result = connector_startup(lambda path: reads.append(path) or files[path])
+    assert reads == list(RUNTIME_BOOTSTRAP_INPUTS)
+    assert result.reads == RUNTIME_BOOTSTRAP_INPUTS
+    assert result.protocol_version == "v1.13.1" and result.intake_response.strip()
+
+
+@pytest.mark.parametrize(
+    ("mutation", "code"),
+    [
+        ("wrong_version", "103"), ("duplicate_key", "101"),
+        ("non_object", "101"), ("wrong_repository", "103"),
+        ("cross_version_reference", "104"), ("traversal_reference", "104"),
+        ("missing_rule", "105"), ("empty_intake", "111"),
+    ],
+)
+def test_connector_startup_invalid_mutation_matrix(mutation, code):
+    files = _connector_files()
+    if mutation == "wrong_version":
+        files["CURRENT_VERSION"] = "v1.13.0\n"
+    elif mutation == "duplicate_key":
+        files[CONTRACT_PATH] = '{"schema_version":2,"schema_version":2}'
+    elif mutation == "non_object":
+        files[CONTRACT_PATH] = "[]"
+    elif mutation == "empty_intake":
+        files["protocols/v1.13.1/prompts/INTAKE_RESPONSE.fa.md"] = " \n"
+    else:
+        contract = json.loads(files[CONTRACT_PATH])
+        if mutation == "wrong_repository": contract["protocol"]["inspector_repository"] = "wrong/repo"
+        elif mutation == "cross_version_reference": contract["references"]["pipeline_view"] = "protocols/v1.13.0/pipeline/REVIEW_PIPELINE.md"
+        elif mutation == "traversal_reference": contract["references"]["pipeline_view"] = "protocols/v1.13.1/../pipeline.md"
+        elif mutation == "missing_rule": contract["functional_rules"].pop()
+        files[CONTRACT_PATH] = json.dumps(contract)
+    with pytest.raises(FunctionalBootstrapError, match=f"PRI-FUNCTIONAL-BOOTSTRAP-{code}"):
+        connector_startup(lambda path: files[path])
+
+
+def test_schema_rejects_cross_version_reference(tmp_path):
+    root = _copy_repo(tmp_path)
+    contract_path = root / CONTRACT_PATH
+    contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    contract["references"]["pipeline_view"] = (
+        "protocols/v1.13.0/pipeline/REVIEW_PIPELINE.md"
+    )
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+    with pytest.raises(FunctionalBootstrapError, match="PRI-FUNCTIONAL-BOOTSTRAP-104"):
+        validate_runtime_contract(root, require_git=False)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["empty_defaults", "missing_ci", "empty_instructions", "empty_obligations",
+     "bad_function", "missing_stage", "duplicate_stage", "missing_surface",
+     "duplicate_surface", "bad_rule_id", "bad_risk", "bad_mutation", "bad_ci_key",
+     "bad_schema_reference"],
+)
+def test_connector_contract_structure_mutation_is_invalid(mutation):
+    files = _connector_files(); contract = json.loads(files[CONTRACT_PATH])
+    if mutation == "empty_defaults": contract["rule_defaults"] = {}
+    elif mutation == "missing_ci": contract["rule_defaults"]["ci_commands"].pop("F")
+    elif mutation == "empty_instructions": contract["model_bootstrap"]["instructions"] = []
+    elif mutation == "empty_obligations": contract["model_bootstrap"]["assessment_obligations"] = []
+    elif mutation == "bad_function": contract["pipeline_stages"][0]["function"] = "invalid"
+    elif mutation == "missing_stage": contract["pipeline_stages"].pop()
+    elif mutation == "duplicate_stage": contract["pipeline_stages"][1]["stage_id"] = "intake"
+    elif mutation == "missing_surface": contract["field_authority"].pop()
+    elif mutation == "duplicate_surface": contract["field_authority"][1]["surface"] = "intent"
+    elif mutation == "bad_rule_id": contract["functional_rules"][0][0] = "bad"
+    elif mutation == "bad_risk": contract["functional_rules"][0][1] = "bad"
+    elif mutation == "bad_mutation": contract["functional_rules"][0][2] = "BAD"
+    elif mutation == "bad_ci_key": contract["functional_rules"][0][3] = "X"
+    else: contract["$schema"] = "wrong"
+    files[CONTRACT_PATH] = json.dumps(contract)
+    with pytest.raises(FunctionalBootstrapError):
+        connector_startup(lambda path: files[path])
 SCRIPT_SOURCES = tuple(
     sorted(
         path.relative_to(ROOT).as_posix()
@@ -130,14 +224,14 @@ def test_clean_runtime_contract_is_valid_and_offline(monkeypatch):
         ),
     )
     value = validate_runtime_contract(ROOT)
-    assert value.protocol_version == "v1.13.0"
+    assert value.protocol_version == "v1.13.1"
     assert len(value.functional_runtime_sha256) == 64
 
 
 def test_manifest_uses_canonical_bootstrap_identity():
     manifest = _manifest(ROOT)
     assert manifest["entrypoint"] == ENTRYPOINT
-    assert manifest["active_version"] == "v1.13.0"
+    assert manifest["active_version"] == "v1.13.1"
     assert manifest["functional_runtime_contract"] == CONTRACT_PATH
     assert manifest["functional_runtime_schema"] == CONTRACT_SCHEMA_PATH
     assert manifest["runtime_bootstrap_inputs"] == list(
