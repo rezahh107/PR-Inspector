@@ -1,4 +1,4 @@
-name: Diagnose PR37 full regression
+name: Diagnose PR37 runtime reconciliation
 
 on:
   pull_request:
@@ -10,11 +10,11 @@ permissions:
 jobs:
   diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     env:
       EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
-      - name: Run first full-regression failure on exact Head
+      - name: Derive final Runtime inventory and digest on exact Head
         shell: bash
         run: |
           set -euo pipefail
@@ -22,6 +22,25 @@ jobs:
           git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
           git fetch -q --depth=1 origin "${EXPECTED_SHA}"
           git checkout -q --detach FETCH_HEAD
-          test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
+          actual_sha="$(git rev-parse HEAD)"
+          echo "expected_sha=${EXPECTED_SHA}"
+          echo "actual_sha=${actual_sha}"
+          test "${actual_sha}" = "${EXPECTED_SHA}"
           python -m pip install -q --disable-pip-version-check ".[dev]"
-          python -m pytest -q --tb=short --maxfail=1
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from pr_inspector.functional_runtime import (
+              CONTRACT_PATH,
+              _derived_integrity_inventory,
+              _runtime_digest,
+              load_json_strict,
+              resolve_rules,
+          )
+          root = Path(".")
+          contract = load_json_strict(root / CONTRACT_PATH)
+          rules = resolve_rules(contract)
+          inventory = _derived_integrity_inventory(root, contract, rules)
+          print("INVENTORY_JSON=" + json.dumps(list(inventory), separators=(",", ":")))
+          print("RUNTIME_SHA256=" + _runtime_digest(root, inventory))
+          PY
