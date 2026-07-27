@@ -115,6 +115,8 @@ def _validate_registered_artifacts(root: Path, registry: dict[str, Any], schemas
             output.append(diagnostic('PINS-WP-EVIDENCE-MISSING', f'/work_packages/{package_id}/impact_refs', 'implemented Work Package has no resolvable Impact'))
         if loaded:
             output += _validate_evidence_chain(registry, package, scope, loaded[-1][0])
+    if any(item.code == _SCHEMA_ERROR for item in output):
+        return (sorted(set(output)), scopes, impacts)
     current_scope = scopes.get(current.work_package_id)
     current_impacts = impacts.get(current.work_package_id, [])
     if current_scope is None:
