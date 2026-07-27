@@ -68,9 +68,17 @@ functional_digest_paths:
 - protocols/v1.13.0/schemas/review-package.schema.json
 - protocols/v1.13.0/templates/OWNER_DECISION_CARD.fa.md
 - protocols/v1.13.0/templates/TECHNICAL_HANDOFF.en.md
+- pyproject.toml
+- scripts/record_ci_identity.py
+- scripts/render_review_v2.py
+- scripts/validate_planning_governance.py
 - scripts/validate_repository.py
+- scripts/validate_repository_v2.py
+- scripts/validate_rereview_sequence.py
+- scripts/validate_review_v2.py
 - scripts/validate_runtime_contract.py
-functional_runtime_sha256: 79f7023b41edbb6110a9b40153ca7222e8a8493d5284105dc6305e0f1e169e9a
+- scripts/verify_coverage_trust_gate.py
+functional_runtime_sha256: 6f71c6642f61108155e90d3cd840ec31ba764f56af0ec75467ff4278c9cea067
 runtime_bootstrap_inputs:
 - CURRENT_VERSION
 - protocol-manifest.yaml
