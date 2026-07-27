@@ -2,6 +2,7 @@
 
 Status: generated, non-authoritative view of `../functional-runtime-contract.json`.
 
+Validation command: `python -m pytest -q tests/test_governance_enforcement.py`
 | rule_id | risk | validator | positive_control | negative_mutation | CI_step | recovery_action |
 |---|---|---|---|---|---|---|
 | `PRR-GOV-PERSONAL-PROFILE-001` | High | scripts/validate_repository.py:main | scripts/validate_repository.py:main | README.md#profile_minimum_enforcement_absent | python -m pytest -q tests/test_behavioral_rule_coverage.py tests/test_governance_enforcement.py | block |
