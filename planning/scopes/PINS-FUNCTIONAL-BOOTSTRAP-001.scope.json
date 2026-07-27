@@ -54,6 +54,7 @@
     "release-locks/v1.13.0.sha256",
     "scripts/validate_planning_governance.py",
     "scripts/validate_runtime_contract.py",
+    "tests/conftest.py",
     "tests/test_aigov_release_integrity.py",
     "tests/test_aigov_schemas.py",
     "tests/test_repository_closure.py",
@@ -108,7 +109,7 @@
   "repository": "rezahh107/PR-Inspector",
   "schema_version": "work-package-scope.v1",
   "scope_id": "PINS-FUNCTIONAL-BOOTSTRAP-001-SCOPE-001",
-  "scope_revision": "sha256:36e260eef88a0c2ee81f8c6edca213d409cd64ed6c9a10c1716b9d2f296dde29",
+  "scope_revision": "sha256:7e6bbc6e13e9d8dd8467c8a4b8669a03b8dccefe2f39a8dcbe0e806a66b0f92c",
   "task_id": "PINS-FUNCTIONAL-BOOTSTRAP-001",
   "work_package_id": "PINS-FUNCTIONAL-BOOTSTRAP-001-WP01"
 }
