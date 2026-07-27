@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import inspect
+import subprocess
 from dataclasses import replace
 from pathlib import Path
+
+import pytest
 
 from pr_inspector import official_review as official_review_module
 from pr_inspector.official_review import (
@@ -25,38 +28,53 @@ def _active_context() -> ProtocolContext:
 def test_v1_13_active_protocol_adapter_installed():
     assert (
         ProtocolContext.from_verified_repository.__func__.__module__
-        == "pr_inspector.functional_runtime"
+        == "pr_inspector.verified_review"
     )
 
 
-def test_v1_13_context_construction_uses_no_inspector_network_or_full_validator(
+def test_v1_13_official_context_uses_exact_real_commit(
     monkeypatch,
 ):
     import pr_inspector.repository as repository
     import pr_inspector.verified_review as verified_review
 
-    def forbidden(*args, **kwargs):
-        raise AssertionError("release-time Inspector verification must not run")
-
-    monkeypatch.setattr(repository, "validate_repository", forbidden)
-    monkeypatch.setattr(repository, "validate_active_release_lock", forbidden)
-    monkeypatch.setattr(verified_review, "_fetch_github_json", forbidden)
+    commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"], check=True, capture_output=True, text=True
+    ).stdout.strip()
+    monkeypatch.setattr(repository, "validate_repository", lambda root: [])
+    original_git = verified_review._run_git
+    monkeypatch.setattr(
+        verified_review, "_run_git",
+        lambda root, *args: "https://github.com/rezahh107/PR-Inspector.git"
+        if args == ("remote", "get-url", "origin") else original_git(root, *args),
+    )
+    monkeypatch.setattr(
+        verified_review, "_fetch_github_json",
+        lambda url, **kwargs: {"full_name": "rezahh107/PR-Inspector", "id": 1288323264}
+        if url.endswith("PR-Inspector") else {"sha": commit},
+    )
     context = ProtocolContext.from_verified_repository(ROOT)
     assert context.protocol_version == "v1.13.1"
     assert context.inspector_repository == "rezahh107/PR-Inspector"
-    assert len(context.inspector_commit_sha) == 40
+    assert context.inspector_commit_sha == commit
 
 
-def test_official_runtime_construction_never_calls_full_repository_validation(
+def test_v1_13_zero_commit_is_rejected(monkeypatch):
+    import pr_inspector.repository as repository
+    import pr_inspector.verified_review as verified_review
+    monkeypatch.setattr(repository, "validate_repository", lambda root: [])
+    monkeypatch.setattr(verified_review, "_run_git", lambda root, *args: "0" * 40)
+    with pytest.raises(verified_review.ReviewAssemblyError, match="commit SHA is invalid"):
+        ProtocolContext.from_verified_repository(ROOT)
+
+
+def test_official_runtime_construction_uses_verified_context(
     monkeypatch,
 ):
     import pr_inspector.repository as repository
 
-    def forbidden(*args, **kwargs):
-        raise AssertionError("full repository validation must remain CI-only")
-
-    monkeypatch.setattr(repository, "validate_repository", forbidden)
-    monkeypatch.setattr(repository, "validate_active_release_lock", forbidden)
+    context = _active_context()
+    monkeypatch.setattr(ProtocolContext, "from_verified_repository", classmethod(lambda cls, *args, **kwargs: context))
     monkeypatch.setattr(
         official_review_module,
         "github_pull_request_head_source",
@@ -133,6 +151,37 @@ def test_v1_13_reaches_official_completion_and_owner_delivery(tmp_path):
     delivery = official_owner_delivery(result)
     assert delivery
     assert source.fetch_count >= 3
+
+
+def test_v1_13_provenance_review_directory_roundtrip(tmp_path):
+    from pr_inspector.review_provenance import (
+        verify_github_commit_payload,
+        verify_review_directory,
+    )
+    from tests.test_behavioral_rule_coverage import _github_responses
+
+    source = legacy.StaticSource(legacy._facts())
+    output = tmp_path / "out"
+    result = _complete_review_with_runtime(
+        legacy._request(), legacy._assessment(), output,
+        runtime=OfficialReviewRuntime(source, _active_context()),
+    )
+    assert is_verified_review_completion(result)
+    commit = _active_context().inspector_commit_sha
+    repository_response, commit_response = _github_responses(commit)
+    verified_commit = verify_github_commit_payload(
+        repository_response, commit_response, expected_commit_sha=commit
+    )
+    evidence = verify_review_directory(output, verified_commit)
+    assert evidence.inspector_commit_sha == commit
+
+    other = "4" * 40
+    repository_response, commit_response = _github_responses(other)
+    mismatched = verify_github_commit_payload(
+        repository_response, commit_response, expected_commit_sha=other
+    )
+    with pytest.raises(Exception, match="commit is not verified"):
+        verify_review_directory(output, mismatched)
 
 
 def test_projection_identity_remains_bound_to_package_version():
