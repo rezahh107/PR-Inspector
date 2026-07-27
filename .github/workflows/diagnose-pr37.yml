@@ -14,7 +14,7 @@ jobs:
     env:
       EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
-      - name: Run full regression on exact Head
+      - name: Run first full-regression failure on exact Head
         shell: bash
         run: |
           set -euo pipefail
@@ -24,4 +24,4 @@ jobs:
           git checkout -q --detach FETCH_HEAD
           test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
           python -m pip install -q --disable-pip-version-check ".[dev]"
-          python -m pytest -q
+          python -m pytest -q --tb=short --maxfail=1
