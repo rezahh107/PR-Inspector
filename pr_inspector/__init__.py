@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Iterable
 
 __version__ = "1.13.0"
 
+from . import functional_runtime as _runtime
 from .functional_runtime import (
     ACTIVE_VERSION,
     CONTRACT_PATH,
@@ -60,3 +61,35 @@ def _contract_derived_trust_policy(
 
 
 _provenance.trust_policy = _contract_derived_trust_policy
+
+# Preserve the established governance-matrix Markdown contract while keeping
+# the functional contract as the only rule authority. The adapter changes only
+# the generated presentation of Rule IDs for the governance-specific view.
+_canonical_render_rule_view = _runtime.render_rule_view
+
+
+def _render_rule_view(
+    rules: Iterable[dict[str, str]],
+    *,
+    title: str,
+) -> str:
+    rendered = _canonical_render_rule_view(rules, title=title)
+    if not title.startswith("Merge Governance Rule Coverage"):
+        return rendered
+    lines = rendered.splitlines()
+    for index, line in enumerate(lines):
+        if index < 6 or not line.startswith("| "):
+            continue
+        cells = line.split(" | ")
+        if cells and cells[0].startswith("| "):
+            rule_id = cells[0][2:]
+            if not rule_id.startswith("`"):
+                cells[0] = f"| `{rule_id}`"
+                lines[index] = " | ".join(cells)
+    return "\n".join(lines) + "\n"
+
+
+_runtime.render_rule_view = _render_rule_view
+from . import behavioral_coverage as _behavioral_coverage
+
+_behavioral_coverage.render_rule_view = _render_rule_view
