@@ -1,5 +1,9 @@
 # AIGOV Adoption Status
 
+> **HISTORICAL SNAPSHOT — NOT CURRENT STATE**
+>
+> This document records a historical point-in-time repository state. Protocol version values below are historical and are not the current active PR Inspector protocol. Resolve the current active protocol from `/CURRENT_VERSION`.
+
 Status: repository evidence only; not an active PR-Inspector authority.
 
 ## 1. Source-document status
