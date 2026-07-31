@@ -64,6 +64,10 @@ def test_agents_review_startup_delegates_to_bootstrap_without_manifest_authority
         "must not read `protocol-manifest.yaml`, run `validate_repository`, scan release locks, "
         "or perform Inspector self-verification."
     ) in startup
+    assert startup.count("protocol-manifest.yaml") == 1
+    assert startup.count("validate_repository") == 1
+    assert startup.lower().count("release locks") == 1
+    assert startup.count("Inspector self-verification") == 1
 
 
 def test_changelog_contains_current_release_heading():
