@@ -1,5 +1,9 @@
 # Canonical Artifact and Official-Output Boundary
 
+> **HISTORICAL SNAPSHOT — NOT CURRENT STATE**
+>
+> This document records a historical point-in-time repository state. Protocol version values below are historical and are not the current active PR Inspector protocol. Resolve the current active protocol from `/CURRENT_VERSION`.
+
 Status: v1.11.1 corrected activation completion is implemented on this pull-request head and pending independent review; activation remains determined by live `main`.
 
 ```yaml
