@@ -4,7 +4,7 @@
 Resolve the active protocol from `CURRENT_VERSION`. The model-facing and runtime coordination SSOT is `protocols/<CURRENT_VERSION>/functional-runtime-contract.json`. A literal version in `AGENTS.md` must never be treated as an independent active-version authority.
 
 ## Review startup
-Read only `runtime_bootstrap_inputs` from `protocol-manifest.yaml`. Per-review startup must perform zero Inspector self-verification network calls and must not run `validate_repository` or scan release locks.
+Follow `BOOTSTRAP.md` as the per-review startup authority. Connector startup is retrieval-only and must not read `protocol-manifest.yaml`, run `validate_repository`, scan release locks, or perform Inspector self-verification.
 
 ## Maintenance
 Released protocol directories and release locks are immutable. Create a successor version for protocol changes. Full repository/release validation remains CI/maintenance-only.
