@@ -41,10 +41,10 @@ def test_public_facade_does_not_mutate_base_policy_state():
 
 def test_registry_owns_current_scope_and_impact_identity():
     current = resolve_current_planning_artifacts(ROOT)
-    assert current.work_package_id == 'PINS-FUNCTIONAL-BOOTSTRAP-001-WP01'
-    assert current.task_id == 'PINS-FUNCTIONAL-BOOTSTRAP-001'
-    assert current.scope_ref == 'planning/scopes/PINS-FUNCTIONAL-BOOTSTRAP-001.scope.json'
-    assert current.impact_refs == ('planning/progress/impacts/PINS-FUNCTIONAL-BOOTSTRAP-001.implementation.json',)
+    assert current.work_package_id == 'PINS-RELEASE-SURFACE-CONSISTENCY-001-WP01'
+    assert current.task_id == 'PINS-RELEASE-SURFACE-CONSISTENCY-001'
+    assert current.scope_ref == 'planning/scopes/PINS-RELEASE-SURFACE-CONSISTENCY-001.scope.json'
+    assert current.impact_refs == ('planning/progress/impacts/PINS-RELEASE-SURFACE-CONSISTENCY-001.implementation.json',)
 
 def test_active_v1_13_policy_is_declarative_and_immutable():
     authority = resolve_planning_authority(ROOT)
@@ -94,8 +94,8 @@ def test_historical_v1_12_scope_uses_historical_policy_but_current_drift_fails()
     historical_ref = next((item['scope_ref'] for item in registry['work_packages'] if item['work_package_id'] == 'PINS-VERIFIED-REVIEW-001-WP01'))
     historical = load_json_strict(ROOT / historical_ref)
     assert validate_scope(historical, schema, registry, historical_ref, root=ROOT) == []
-    current = load_json_strict(ROOT / 'planning/scopes/PINS-FUNCTIONAL-BOOTSTRAP-001.scope.json')
+    current = load_json_strict(ROOT / 'planning/scopes/PINS-RELEASE-SURFACE-CONSISTENCY-001.scope.json')
     mutated = copy.deepcopy(current)
     mutated['committed_paths'] = [*mutated['committed_paths'], 'protocols/v1.12.0/PR_REVIEW_CONTRACT.md']
-    diagnostics = validate_scope(mutated, schema, registry, 'planning/scopes/PINS-FUNCTIONAL-BOOTSTRAP-001.scope.json', root=ROOT)
+    diagnostics = validate_scope(mutated, schema, registry, 'planning/scopes/PINS-RELEASE-SURFACE-CONSISTENCY-001.scope.json', root=ROOT)
     assert any((item.code == 'PINS-SCOPE-FORBIDDEN-PATH' for item in diagnostics))

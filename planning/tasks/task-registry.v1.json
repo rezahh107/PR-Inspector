@@ -1,5 +1,5 @@
 {
-  "current_work_package_id": "PINS-FUNCTIONAL-BOOTSTRAP-001-WP01",
+  "current_work_package_id": "PINS-RELEASE-SURFACE-CONSISTENCY-001-WP01",
   "evidence_records": [
     {
       "base_sha": "6be25811d185f001025b61839f94c736c721bbb7",
@@ -170,6 +170,16 @@
       "status": "implemented",
       "task_id": "PINS-FUNCTIONAL-BOOTSTRAP-001",
       "title": "Activate v1.13 functional runtime bootstrap"
+    },
+    {
+      "completion_claimed": false,
+      "depends_on": [],
+      "evidence_refs": [],
+      "implementation_authorized": true,
+      "initiative_id": "PRINS-FUNCTIONAL-BOOTSTRAP",
+      "status": "implemented",
+      "task_id": "PINS-RELEASE-SURFACE-CONSISTENCY-001",
+      "title": "Repair v1.13.1 release and current-state surface consistency"
     }
   ],
   "work_packages": [
@@ -207,7 +217,7 @@
       "work_package_id": "PINS-VERIFIED-REVIEW-001-WP01"
     },
     {
-      "current": true,
+      "current": false,
       "depends_on": [
         "PINS-VERIFIED-REVIEW-001-WP01"
       ],
@@ -220,6 +230,19 @@
       "task_id": "PINS-FUNCTIONAL-BOOTSTRAP-001",
       "title": "v1.13.1 retrieval startup and official Runtime attestation",
       "work_package_id": "PINS-FUNCTIONAL-BOOTSTRAP-001-WP01"
+    },
+    {
+      "current": true,
+      "depends_on": [],
+      "evidence_refs": [],
+      "impact_refs": [
+        "planning/progress/impacts/PINS-RELEASE-SURFACE-CONSISTENCY-001.implementation.json"
+      ],
+      "scope_ref": "planning/scopes/PINS-RELEASE-SURFACE-CONSISTENCY-001.scope.json",
+      "status": "implemented_pending_exact_head_validation",
+      "task_id": "PINS-RELEASE-SURFACE-CONSISTENCY-001",
+      "title": "v1.13.1 release-surface consistency repair",
+      "work_package_id": "PINS-RELEASE-SURFACE-CONSISTENCY-001-WP01"
     }
   ]
 }

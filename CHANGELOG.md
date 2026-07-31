@@ -1,3 +1,11 @@
+## v1.13.1
+
+- Activate v1.13.1 as the current PR Inspector protocol.
+- Make per-review startup retrieval-only through `CURRENT_VERSION`, the active functional runtime contract, and the active intake response.
+- Keep the three active startup inputs bounded to `CURRENT_VERSION`, `protocols/v1.13.1/functional-runtime-contract.json`, and `protocols/v1.13.1/prompts/INTAKE_RESPONSE.fa.md`.
+- Update package and Runtime metadata to 1.13.1.
+- Preserve v1.13.0 as a historical protocol snapshot.
+
 ## v1.13.0
 
 - Replace per-review Inspector trust/repository/commit/release attestation with one strict local functional runtime contract.

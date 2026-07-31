@@ -1,0 +1,55 @@
+{
+  "base_sha": "8266d70aa609cbfcc9ecf9e2de39779ab0842943",
+  "changed_paths": [
+    "AGENTS.md",
+    "CHANGELOG.md",
+    "README.md",
+    "docs/AIGOV_ADOPTION_STATUS.md",
+    "docs/CANONICAL_OUTPUT_ENFORCEMENT.md",
+    "docs/QUALITY_ATTRIBUTE_MODEL.md",
+    "planning/NEXT_WORK.md",
+    "planning/PR_INSPECTOR_EXECUTION_PLAN.md",
+    "planning/progress/impacts/PINS-RELEASE-SURFACE-CONSISTENCY-001.implementation.json",
+    "planning/scopes/PINS-RELEASE-SURFACE-CONSISTENCY-001.scope.json",
+    "planning/tasks/task-registry.v1.json",
+    "pr_inspector/functional_review.py",
+    "protocol-manifest.yaml",
+    "tests/test_release_surface_consistency.py",
+    "tests/test_v1_13_planning_governance.py"
+  ],
+  "classification": "protocol_authority_migration",
+  "completed_obligations": [
+    "added focused deterministic recurrence tests",
+    "preserved historical v1.11.1 snapshot facts with explicit historical classification",
+    "reconciled derived functional Runtime digest metadata",
+    "registered and authorized a bounded release-surface maintenance task",
+    "repaired current release and current-state surfaces without changing review behavior"
+  ],
+  "completion_claimed": false,
+  "head_binding": "derived_at_runtime",
+  "impact_id": "PINS-RELEASE-SURFACE-CONSISTENCY-001-IMPACT-001",
+  "initiative_id": "PRINS-FUNCTIONAL-BOOTSTRAP",
+  "known_gaps": [
+    "exact-Head GitHub Actions validation and fresh independent review remain pending"
+  ],
+  "material_progress": true,
+  "next_lifecycle_action": "exact_head_validation",
+  "previous_impact_ref": null,
+  "program_id": "PRINS-GOVERNED-EXECUTION-PROGRAM",
+  "remaining_obligations": [
+    "bounded_post_merge_lifecycle_reconciliation",
+    "exact_head_github_actions_validation",
+    "independent_review_if_required_by_repository_policy",
+    "owner_only_merge",
+    "successful_push_validation_on_exact_main"
+  ],
+  "repository": "rezahh107/PR-Inspector",
+  "schema_version": "progress-impact.v1",
+  "scope_id": "PINS-RELEASE-SURFACE-CONSISTENCY-001-SCOPE-001",
+  "sequence": 1,
+  "state_after": "v1.13.1 release/current-state surfaces repaired with a focused recurrence guard and derived Runtime digest reconciled, pending exact-Head CI",
+  "state_before": "v1.13.1 active with unversioned release-surface drift and a stale unsupported-version diagnostic",
+  "task_id": "PINS-RELEASE-SURFACE-CONSISTENCY-001",
+  "work_package_id": "PINS-RELEASE-SURFACE-CONSISTENCY-001-WP01",
+  "zero_progress": false
+}

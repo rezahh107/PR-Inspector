@@ -40,7 +40,7 @@ These seed rules define no active review rule. They are planning-only until prom
 ### COR-INTENT-001 — Intent fit
 
 Purpose: A PR review must connect implementation evidence to the stated intended behavior.
-Current status: Promoted as `PRR-INTENT-001` in active protocol `v1.5.0`. This document remains planning infrastructure only; the active rule is defined by the versioned protocol snapshot, schema, validator, fixtures, and release lock.
+Promotion history: `COR-INTENT-001` was promoted as `PRR-INTENT-001` in protocol `v1.5.0`. This document remains planning infrastructure only; resolve the current active protocol from `CURRENT_VERSION` and the active versioned protocol.
 
 ### COR-REG-001 — Regression risk
 
