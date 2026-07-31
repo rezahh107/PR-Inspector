@@ -15,6 +15,7 @@
     "README.md",
     "docs/AIGOV_ADOPTION_STATUS.md",
     "docs/CANONICAL_OUTPUT_ENFORCEMENT.md",
+    "docs/QUALITY_ATTRIBUTE_MODEL.md",
     "planning/NEXT_WORK.md",
     "planning/PR_INSPECTOR_EXECUTION_PLAN.md",
     "planning/progress/impacts/PINS-RELEASE-SURFACE-CONSISTENCY-001.implementation.json",
@@ -80,5 +81,5 @@
   "scope_id": "PINS-RELEASE-SURFACE-CONSISTENCY-001-SCOPE-001",
   "task_id": "PINS-RELEASE-SURFACE-CONSISTENCY-001",
   "work_package_id": "PINS-RELEASE-SURFACE-CONSISTENCY-001-WP01",
-  "scope_revision": "sha256:ac6071d4f3aa2c204e9802d4dfe4b2c252520cfc9da1d417241ccdbdc558c3c7"
+  "scope_revision": "sha256:9a8ab38d66739d726bd24ffd8e458541cba95c960970a768f01907c5a01dd5af"
 }
