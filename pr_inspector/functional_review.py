@@ -33,7 +33,8 @@ def assemble_review_package(
         )
     if protocol_context.protocol_version not in SUPPORTED_PROTOCOL_VERSIONS:
         raise _legacy.ReviewAssemblyError(
-            "official assembler requires active protocol v1.13.0"
+            "official assembler does not support protocol version "
+            f"{protocol_context.protocol_version}"
         )
 
     legacy_context = replace(protocol_context, protocol_version="v1.12.0")
