@@ -1,7 +1,7 @@
 # Repository Operating Instructions
 
 ## Active protocol
-`v1.13.0` is selected by `CURRENT_VERSION`. The model-facing and runtime coordination SSOT is `protocols/v1.13.0/functional-runtime-contract.json`.
+Resolve the active protocol from `CURRENT_VERSION`. The model-facing and runtime coordination SSOT is `protocols/<CURRENT_VERSION>/functional-runtime-contract.json`. A literal version in `AGENTS.md` must never be treated as an independent active-version authority.
 
 ## Review startup
 Read only `runtime_bootstrap_inputs` from `protocol-manifest.yaml`. Per-review startup must perform zero Inspector self-verification network calls and must not run `validate_repository` or scan release locks.
